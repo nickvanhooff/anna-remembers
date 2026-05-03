@@ -13,4 +13,4 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - Eigen git repo los van semester_4 repo — Anna Remembers is een zelfstandig project met eigen history
 - GitHub repo naam: `anna-remembers` (koppelteken, GitHub conventie)
 
-**Commit:** zie eerste commit hash na git init
+**Commit:** `fa9473a` — init: project scaffold — CLAUDE.md, README, portfolio structure
