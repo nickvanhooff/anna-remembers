@@ -14,3 +14,24 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - GitHub repo naam: `anna-remembers` (koppelteken, GitHub conventie)
 
 **Commit:** `fa9473a` — init: project scaffold — CLAUDE.md, README, portfolio structure
+
+---
+
+## Stap 2 — 2026-05-03
+
+**Wat:** GitHub Project ingericht voor agile werken.
+
+**Gedaan:**
+- GitHub Project aangemaakt: "Anna Remembers" (project #3), gekoppeld aan de repo
+- Labels aangemaakt: laag-labels (backend, frontend, mcp-server, infrastructure), portfolio-labels (evidence, decision-log) en LO1-LO7
+- Status-kolommen ingesteld: To Do / In Progress / Review / Done
+- Sprint iteration field: handmatig toe te voegen via de web UI (API ondersteunt dit niet)
+- Board view: handmatig aan te maken via de web UI (zie instructies hieronder)
+
+**Beslissingen:**
+- 1 sprint = 1 week (3 werkdagen) — tempo past bij AI-assisted development
+- Issues per architectuurlaag, niet per kleine subtaak
+- LO-labels zodat beoordelaar direct ziet welke leeruitkomst een issue raakt
+- evidence/decision-log labels als aparte takenlijst in het board
+
+**Commit:** geen — alleen GitHub configuratie
