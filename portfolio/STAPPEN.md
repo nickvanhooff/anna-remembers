@@ -51,4 +51,28 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - Buiten scope hard vastgelegd in CLAUDE.md: geen auth, geen TTS/STT, geen Twilio — zodat Claude daar nooit aan begint
 - MCP tool-signatures exact vastgelegd zodat implementatie consistent is met het ontwerp
 
-**Commit:** zie volgende commit
+**Commit:** `48de1ae` — docs: enrich CLAUDE.md with deliverables, ports, tool signatures from project spec
+
+---
+
+## Stap 4 — 2026-05-04
+
+**Wat:** Docker Compose setup gebouwd (issue #1 gesloten).
+
+**Aangemaakt:**
+- `docker-compose.yml` — 4 services: postgres, chromadb, backend, mcp-server
+- `backend/Dockerfile` — met Alembic + uvicorn hot reload als CMD
+- `backend/main.py` — minimale FastAPI app met `/health` endpoint
+- `backend/requirements.txt`
+- `backend/models/base.py` — SQLAlchemy DeclarativeBase voor Alembic
+- `backend/alembic.ini` + `alembic/env.py` — Alembic leest DATABASE_URL uit omgeving
+- `mcp-server/Dockerfile` + `main.py` — minimale fastmcp bootstrap
+- `.env.example` — template voor lokale credentials
+
+**Beslissingen:**
+- Alembic gekozen boven init-script: versie-gecontroleerde schema-wijzigingen, rollback mogelijk, industry standaard voor FastAPI + PostgreSQL
+- Hot reload via volume mount (`./backend:/app`) + `uvicorn --reload` — bij code-wijziging herstart server automatisch, geen rebuild nodig
+- Alembic draait vóór uvicorn in de CMD (`alembic upgrade head && uvicorn ...`) — database is altijd up to date bij container-start
+- ChromaDB intern op poort 8000, extern gemapped naar 8002 — intern netwerk gebruikt altijd de eigen poort
+
+**Commit:** `8a1ce68` — feat: docker compose setup with postgres, chromadb, backend and mcp-server
