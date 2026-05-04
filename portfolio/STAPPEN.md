@@ -76,3 +76,21 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - ChromaDB intern op poort 8000, extern gemapped naar 8002 — intern netwerk gebruikt altijd de eigen poort
 
 **Commit:** `8a1ce68` — feat: docker compose setup with postgres, chromadb, backend and mcp-server
+
+---
+
+## Stap 5 — 2026-05-04
+
+**Wat:** Bug gefixed: `ModuleNotFoundError: No module named 'models'` bij backend-start.
+
+**Oorzaak:** Alembic draait `env.py` vanuit de `alembic/` submap. Python zocht `models` relatief aan die map in plaats van aan de backend root (`/app`).
+
+**Fix:** `sys.path.insert(0, ...)` toegevoegd aan `alembic/env.py` — voegt `/app` toe aan het Python-pad zodat `from models import Base` werkt.
+
+**Resultaat na fix (`docker compose up --build`):**
+- PostgreSQL 16 ✅ healthy op poort 5432
+- ChromaDB ✅ draait, data persistent
+- Backend ✅ Alembic uitgevoerd, uvicorn op poort 8000 met hot reload
+- MCP Server ✅ FastMCP 3.2.4 op poort 8001 via SSE
+
+**Commit:** `6c43f4d` — fix: add backend root to sys.path in alembic env.py
