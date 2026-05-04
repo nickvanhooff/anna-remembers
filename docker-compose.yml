@@ -1,0 +1,78 @@
+services:
+
+  # --- Databases ---
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  chromadb:
+    image: chromadb/chroma:latest
+    restart: unless-stopped
+    ports:
+      - "8002:8000"   # host:container — ChromaDB luistert intern op 8000, wij mappen naar 8002
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+
+  # --- Backend (FastAPI) ---
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # Hot reload: lokale ./backend map wordt gespiegeld in de container.
+      # Uvicorn detecteert bestandswijzigingen en herstart automatisch.
+      # Verwijder deze volume-regel voor een productie-build.
+      - ./backend:/app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000      # intern netwerk: ChromaDB's eigen poort (niet 8002)
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_API_KEY: ${LLM_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy   # wacht tot PostgreSQL echt klaar is
+
+  # --- MCP Server (fastmcp) ---
+
+  mcp-server:
+    build: ./mcp-server
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    volumes:
+      # Hot reload via volume mount (zelfde principe als backend)
+      - ./mcp-server:/app
+    environment:
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MCP_PORT: 8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chromadb:
+        condition: service_started
+
+volumes:
+  postgres_data:    # persistente PostgreSQL data — blijft na container-restart
+  chroma_data:      # persistente ChromaDB vectoren — blijft na container-restart
