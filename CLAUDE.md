@@ -14,20 +14,74 @@ over meerdere weken, en escaleert naar een zorgverlener wanneer dat nodig is.
 
 ## Stack
 
-| Laag | Technologie |
-|---|---|
-| Frontend | Next.js 15 (App Router) |
-| Backend API | FastAPI (Python) |
-| MCP Server | fastmcp (Python, apart proces) |
-| Relationele DB | PostgreSQL 16 |
-| Vector DB | ChromaDB (RAG geheugen) |
-| LLM | Nog te bepalen — afhankelijk van school API keys |
-| Notificaties | Email / Slack (escalatie) |
-| Omgeving | Docker Compose (alle lokale services) |
+| Laag | Technologie | Poort |
+|---|---|---|
+| Frontend | Next.js 15 (App Router) | 3000 |
+| Backend API | FastAPI (Python) | 8000 |
+| MCP Server | fastmcp (Python, apart proces) | 8001 |
+| Relationele DB | PostgreSQL 16 | 5432 |
+| Vector DB | ChromaDB (RAG geheugen) | 8002 |
+| LLM | Nog te bepalen — afhankelijk van school API keys | cloud |
+| Notificaties | Email / Slack (escalatie) | cloud |
+| Omgeving | Docker Compose (alle lokale services) | — |
 
 De LLM-provider is nog niet vastgesteld. Houd de LLM-aanroepen in
 `backend/services/llm.py` daarom provider-agnostisch — gebruik een abstracte
 klasse zodat wisselen alleen die ene file raakt.
+
+---
+
+## Deliverables — wat het systeem moet kunnen
+
+### 3 gesimuleerde patiënten (minimaal 10 sessies elk)
+
+| Patiënt | Scenario |
+|---|---|
+| Patiënt 1 | Stabiel — goede medicatietrouw, geen escalatie |
+| Patiënt 2 | Geleidelijke verslechtering over meerdere weken — escalatie vereist |
+| Patiënt 3 | Plotselinge urgentie tijdens routine check-in |
+
+Het systeem moet:
+- Correct herkennen wanneer patronen risico vormen
+- Nooit medische geschiedenis verzinnen die niet gemeld is
+- Natuurlijke vervolgvragen stellen die refereren aan eerdere gesprekken
+
+### MCP tool-signatures (exact zo implementeren)
+
+```python
+store_memory(content: str, source: str, patient_id: str, session_id: str)
+# source = "patient_stated" | "ai_inferred"
+
+recall_context(query: str, patient_id: str, limit: int)
+# semantische RAG-search over eerdere uitspraken van de patiënt
+
+get_symptom_trends(patient_id: str, weeks: int)
+# haalt gestructureerde symptoomdata op uit PostgreSQL
+
+escalate_to_human(patient_id: str, reason: str, urgency: str)
+# urgency bepaalt het kanaal en de prioriteit (email vs. Slack)
+```
+
+### Dashboard-schermen (Next.js)
+
+1. **Patiëntbeheer** — CRUD voor patiënten, basisgegevens en medicatieschema
+2. **Chat per patiënt** — gesprek starten met Anna, volledige gesprekshistorie
+3. **Symptoomtrends** — grafieken van kortademigheid, enkelvoetoedeem, gewicht, medicatietrouw
+4. **Escalatiebeheer** — overzicht van alle escalaties, status bijhouden
+
+### PostgreSQL datamodel
+
+Gebruik JSONB-kolommen voor flexibele symptoomdata per sessie. Tabellen minimaal:
+`patients`, `sessions`, `messages`, `escalations`
+
+---
+
+## Buiten scope (niet implementeren)
+
+- Authenticatie (geen auth, geen login)
+- TTS/STT (ElevenLabs, Whisper) — mogelijke uitbreiding, niet nu
+- Twilio (echte telefoongesprekken) — mogelijke uitbreiding, niet nu
+- SSR in Next.js voor SEO
 
 ---
 

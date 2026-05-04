@@ -35,3 +35,20 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - evidence/decision-log labels als aparte takenlijst in het board
 
 **Commit:** geen — alleen GitHub configuratie
+
+---
+
+## Stap 3 — 2026-05-04
+
+**Wat:** Projectopzet-document (`project_opzet_ana_remembers.docx`) ingelezen en verwerkt in CLAUDE.md en GitHub issues.
+
+**Wijzigingen:**
+- CLAUDE.md uitgebreid met: poortoverzicht, 3 gesimuleerde patiënten (deliverable), exacte MCP tool-signatures, dashboard-schermen, PostgreSQL JSONB-vereiste, buiten-scope-lijst
+- Issue #1 gecorrigeerd: ChromaDB draait op poort 8002 (niet 8000)
+- Issue #4 uitgebreid: van "chat UI" naar volledig dashboard (patiëntbeheer, chat, symptoomtrends, escalatiebeheer)
+
+**Beslissingen:**
+- Buiten scope hard vastgelegd in CLAUDE.md: geen auth, geen TTS/STT, geen Twilio — zodat Claude daar nooit aan begint
+- MCP tool-signatures exact vastgelegd zodat implementatie consistent is met het ontwerp
+
+**Commit:** zie volgende commit
