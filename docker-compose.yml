@@ -30,6 +30,23 @@ services:
       IS_PERSISTENT: "TRUE"
       ANONYMIZED_TELEMETRY: "FALSE"
 
+  # --- LLM (Ollama) ---
+
+  ollama:
+    image: ollama/ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama   # model-gewichten blijven bewaard na restart
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]   # NVIDIA RTX 4050 via WSL2
+
   # --- Backend (FastAPI) ---
 
   backend:
@@ -45,12 +62,15 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       CHROMA_HOST: chromadb
-      CHROMA_PORT: 8000      # intern netwerk: ChromaDB's eigen poort (niet 8002)
+      CHROMA_PORT: 8000
       LLM_PROVIDER: ${LLM_PROVIDER}
-      LLM_API_KEY: ${LLM_API_KEY}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL}
     depends_on:
       postgres:
-        condition: service_healthy   # wacht tot PostgreSQL echt klaar is
+        condition: service_healthy
+      ollama:
+        condition: service_started
 
   # --- MCP Server (fastmcp) ---
 
@@ -76,3 +96,4 @@ services:
 volumes:
   postgres_data:    # persistente PostgreSQL data — blijft na container-restart
   chroma_data:      # persistente ChromaDB vectoren — blijft na container-restart
+  ollama_data:      # Ollama model-gewichten — voorkomt herdownload bij restart

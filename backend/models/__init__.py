@@ -1,9 +1,7 @@
 from models.base import Base
+from models.patient import Patient
+from models.session import Session
+from models.message import Message
+from models.escalation import Escalation
 
-# Importeer hier alle modellen zodra ze aangemaakt zijn,
-# zodat Alembic ze automatisch meeneemt bij autogenerate.
-# Voorbeeld (issue #2):
-# from models.patient import Patient
-# from models.session import Session
-
-__all__ = ["Base"]
+__all__ = ["Base", "Patient", "Session", "Message", "Escalation"]

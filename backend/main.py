@@ -1,13 +1,16 @@
 from fastapi import FastAPI
 
-# Routers worden hier geïmporteerd zodra ze aangemaakt zijn (issue #2).
-# Geen logica in dit bestand — alleen app-setup en router-registratie.
+from routers import patients, chat
 
+# Geen logica in dit bestand — alleen app-setup en router-registratie.
 app = FastAPI(
     title="Anna Remembers API",
     description="Backend API voor de Anna Remembers gezondheidsassistent",
     version="0.1.0",
 )
+
+app.include_router(patients.router)
+app.include_router(chat.router)
 
 
 @app.get("/health")
