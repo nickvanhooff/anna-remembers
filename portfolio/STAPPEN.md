@@ -97,6 +97,36 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 
 ---
 
+## Stap 7 — 2026-05-05
+
+**Wat:** Backend scaffold voltooid (issue #2 gesloten).
+
+**Aangemaakt:**
+- `services/llm.py` — abstracte `LLMProvider` klasse + `OllamaProvider` (gemma4:e4b)
+- `services/database.py` — SQLAlchemy sessie als FastAPI dependency
+- `services/mcp_client.py` — stubs voor MCP-tools (issue #3)
+- `models/` — Patient, Session, Message, Escalation met JSONB voor symptoomdata
+- `schemas/` — Pydantic request/response modellen
+- `routers/patients.py` — volledige CRUD
+- `routers/chat.py` — chat endpoint met echte LLM-aanroep, MCP-context volgt in issue #3
+- `alembic/versions/0001_initial_schema.py` — eerste migratie, alle 4 tabellen
+- `docker-compose.yml` — Ollama service toegevoegd met NVIDIA GPU (RTX 4050, 6GB VRAM)
+
+**Beslissingen:**
+- Ollama als LLM-provider: gemma4:e4b, lokaal via Docker met GPU passthrough
+- Abstracte LLMProvider klasse: wisselen van provider = één nieuwe subklasse, rest van de codebase raakt niet
+- Chat router roept LLM al echt aan, MCP-context (herinneringen, trends) volgt in issue #3
+- NVIDIA runtime was al beschikbaar in Docker (WSL2) — geen extra installatie nodig
+
+**Resultaat na `docker compose up --build`:**
+- Ollama ✅ CUDA detected: RTX 4050 Laptop GPU, 5.3 GiB available VRAM
+- Alembic migratie ✅ `Running upgrade → 0001, initial schema`
+- Backend ✅ uvicorn draait op poort 8000
+
+**Commit:** `aad405d` — feat: fastapi scaffold with models, schemas, routers, llm service and alembic migration
+
+---
+
 ## Stap 6 — 2026-05-05
 
 **Wat:** GitHub Actions CI workflow aangemaakt.
