@@ -94,3 +94,21 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - MCP Server ✅ FastMCP 3.2.4 op poort 8001 via SSE
 
 **Commit:** `6c43f4d` — fix: add backend root to sys.path in alembic env.py
+
+---
+
+## Stap 6 — 2026-05-05
+
+**Wat:** GitHub Actions CI workflow aangemaakt.
+
+**Gedaan:**
+- `.github/workflows/ci.yml` toegevoegd
+- Triggert op elke push naar `main`
+- Bouwt backend en mcp-server Docker images
+- Eerste run geslaagd in 46 seconden
+
+**Beslissingen:**
+- Simpel gehouden: alleen build-check, geen test-containers opgestart
+- Node.js 24 geforceerd via env var om deprecation warning te onderdrukken
+
+**Commit:** `c331c30` — ci: add github actions workflow to build docker images on push to main
