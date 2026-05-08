@@ -190,4 +190,41 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - Embedding in MCP-server: RAG-laag blijft volledig in MCP, FastAPI raakt ChromaDB niet
 - Provider-agnostisch patroon: wisselen = één nieuwe subklasse in embedding.py
 
-**Commit:** [wordt ingevuld na commit]
+**Commits:**
+- `a33ca43` — EmbeddingProvider ABC + OllamaEmbeddingProvider + tests
+- `d6b6763` — store_memory + recall_context tools met ChromaDB
+- `63a14d7` — MCP tools geregistreerd in main.py
+- `3b5c047` — ollama-init service + embedding env vars in docker-compose
+
+---
+
+## Stap 11 — 2026-05-08
+
+**Wat:** DL2 decision log en evidence geschreven voor embedding model keuze.
+
+**Gedaan:**
+- `portfolio/decision-logs/DL2_embedding_model_keuze.md` — volledige decision log: onderzoeksvraag, succescriteria, keuze bge-m3 onderbouwd, DOT-methode, BEIR-NL ranking gecorrigeerd naar #6
+- `portfolio/evidence/evidence_02_embedding_model_vergelijking.md` — vergelijkingstabel drie kandidaten, BEIR-NL screenshot, uitleg model-swapping, DOT-verantwoording
+- `portfolio/evidence/images/huggingface_mteb_leaderboard_BEIR-NL.png` — screenshot leaderboard als bewijs
+
+**Beslissingen:**
+- Succescriterium aangepast: niet "top-5" maar "hoogst gerankt lokaal beschikbaar model op BEIR-NL" — de 5 modellen erboven zijn niet in Ollama of hebben te korte context
+- Provider-agnostisch patroon expliciet gedocumenteerd als toekomstbestendig: overstap naar cloud provider = één nieuwe subklasse + ChromaDB opnieuw inrichten
+
+**Commit:** `3b156ad` — docs: add DL2 embedding model decision log and evidence
+
+---
+
+## Stap 12 — 2026-05-09
+
+**Wat:** Issue #3 gesloten, twee nieuwe issues aangemaakt voor openstaande MCP tools.
+
+**Gedaan:**
+- Issue #3 gesloten — acceptatiecriteria gehaald (store_memory + recall_context + source tags + poort 8001)
+- Issue #13 aangemaakt: `get_symptom_trends` — PostgreSQL week-aggregatie over symptoomdata
+- Issue #14 aangemaakt: `escalate_to_human` — stub notificatie + opslaan in escalations tabel
+- Beide issues op Iteratie 2 gezet in het project board
+
+**Beslissingen:**
+- get_symptom_trends en escalate_to_human losgemaakt uit #3: andere technologie (PostgreSQL vs ChromaDB), aparte scope
+- Iteratie 2 (start 2026-05-11) — past bij de aanbevolen bouwvolgorde in CLAUDE.md
