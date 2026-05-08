@@ -127,6 +127,18 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 
 ---
 
+## Stap 8 — 2026-05-05
+
+**Wat:** Decision log DL1 geschreven — vector database keuze ChromaDB vs pgvector.
+
+**Aanleiding:** twijfel over nut van ChromaDB naast PostgreSQL. Na vergelijking op projectschaal (20-30 patiënten, 100+ sessies ≈ 45.000 vectoren) en leerdoel bewust gekozen voor ChromaDB.
+
+**Beslissing:** ChromaDB houden — pgvector presteert technisch identiek op deze schaal, maar ChromaDB maakt de RAG-pipeline expliciet zichtbaar. Beter voor LO1 en LO4.
+
+**Commit:** zie git log — docs: add DL1 vector database decision log
+
+---
+
 ## Stap 6 — 2026-05-05
 
 **Wat:** GitHub Actions CI workflow aangemaakt.
