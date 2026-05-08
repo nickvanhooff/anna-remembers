@@ -228,3 +228,29 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 **Beslissingen:**
 - get_symptom_trends en escalate_to_human losgemaakt uit #3: andere technologie (PostgreSQL vs ChromaDB), aparte scope
 - Iteratie 2 (start 2026-05-11) — past bij de aanbevolen bouwvolgorde in CLAUDE.md
+
+---
+
+## Stap 13 — 2026-05-09
+
+**Wat:** Frontend project aangemaakt en UI-library gekozen voor Issue #4.
+
+**Gedaan:**
+- Next.js 15 project aangemaakt via `npx create-next-app@latest` in `frontend/`
+- TypeScript strict mode, Tailwind CSS, App Router ingeschakeld
+- Monorepo optie: **N** — Anna Remembers heeft al een monorepo op het hogere niveau (`anna_remembers/`)
+- shadcn/ui geïnitialiseerd via `npx shadcn@latest init`
+
+**Beslissingen:**
+- **shadcn/ui** gekozen als UI-library — componenten worden gekopieerd naar eigen codebase (`components/ui/`), volledige controle zonder override-hacks
+- Alternatief Stitch/Claude Code `/ui` bewust afgewezen: genereert UI maar leert de onderliggende patronen (Radix UI, Tailwind) niet — minder waarde voor portfolio en werkveld
+- MUI/Ant Design afgewezen: meer overkill, theming is complexer, minder gebruikelijk in Next.js App Router projecten
+- shadcn `Chart` component gebruikt voor symptoomtrends — installeert Recharts als peer dependency
+
+**Componenten per scherm:**
+- Patiëntbeheer: `Table`, `Dialog`, `Form`, `Input`, `Button`
+- Chat: `ScrollArea`, `Input`, `Button`, `Avatar`
+- Symptoomtrends: `Card` + `Chart` (Recharts)
+- Escalatiebeheer: `Table`, `Badge`, `Select`, `Button`
+
+**Commit:** nog niet — setup fase

@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C C:/fontys/semester_4/anna_remembers status)",
+      "Bash(gh project *)",
+      "Bash(gh issue *)",
+      "Bash(gh label *)",
+      "Bash(gh api graphql -f 'query= *)",
+      "Bash(python3 -c \"import json,sys; items=json.load\\(sys.stdin\\)['items']; [print\\(f\\\\\"#{i['content']['number']} — {i['id']}\\\\\"\\) for i in items]\")",
+      "Bash(python3 -c \"import json,sys; items=json.load\\(sys.stdin\\)['items']; [print\\(f\\\\\"#{i['content']['number']} — {i['status']}\\\\\"\\) for i in items]\")",
+      "Bash(gh repo *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(python -m pytest tests/test_embedding.py -v)",
+      "Bash(obsidian vaults *)",
+      "PowerShell(obsidian vaults *)",
+      "PowerShell(obsidian help *)",
+      "PowerShell(obsidian *)"
+    ]
+  }
+}
