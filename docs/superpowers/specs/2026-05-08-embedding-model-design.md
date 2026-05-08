@@ -127,6 +127,31 @@ EMBEDDING_MODEL=bge-m3
 
 ---
 
+## C4 — Level 3: Component diagram (MCP Server)
+
+```mermaid
+C4Component
+    title MCP Server — interne componenten
+
+    Container_Boundary(mcp, "MCP Server") {
+        Component(tools, "memory tools", "tools/memory.py", "store_memory en recall_context")
+        Component(embed, "OllamaEmbeddingProvider", "services/embedding.py", "Zet tekst om naar 1024-dim vector via Ollama")
+        Component(db, "ChromaDB Client", "chromadb SDK", "Slaat vectoren op en zoekt semantisch")
+    }
+
+    System_Ext(fastapi, "FastAPI", "Aanroeper via MCP-protocol")
+    System_Ext(ollama, "Ollama (bge-m3)", ":11434/api/embed")
+    System_Ext(chromadb, "ChromaDB", ":8000")
+
+    Rel(fastapi, tools, "store_memory / recall_context")
+    Rel(tools, embed, "embed(tekst)")
+    Rel(embed, ollama, "POST /api/embed")
+    Rel(tools, db, "add / query")
+    Rel(db, chromadb, "HTTP")
+```
+
+---
+
 ## Wat dit NIET omvat
 
 - Implementatie van `get_symptom_trends` en `escalate_to_human` — dat is los issue #3 werk
