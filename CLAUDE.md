@@ -243,7 +243,7 @@ Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat v
 | Vector database | ChromaDB lokaal in Docker (bewust, voor zichtbare RAG-pipeline) | `portfolio/decision-logs/DL1_vector_database_keuze.md` |
 | Relationele database | PostgreSQL 16 met JSONB | Nog te documenteren |
 | LLM provider | Ollama + gemma4:e4b (lokaal, GPU passthrough RTX 4050) | Nog te documenteren |
-| Embedding model | Nog te bepalen — vóór MCP-server implementatie kiezen | — |
+| Embedding model | bge-m3 via Ollama (meertalig, 1024-dim, 8192 context) | `docs/superpowers/specs/2026-05-08-embedding-model-design.md` |
 | Alembic vs init-script | Alembic (versie-gecontroleerde migraties, rollback mogelijk) | Nog te documenteren |
 
 ---
@@ -257,17 +257,25 @@ Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat v
 - **Issue #7** (CD) — GitHub Actions CD workflow (push naar Docker Hub op main)
 - **Issue #9** — CI/CD pipeline gedocumenteerd als GitHub issue
 
-### In uitvoering / open
-- **Issue #3** — MCP Server tools: `store_memory`, `recall_context` (ChromaDB), `get_symptom_trends`, `escalate_to_human`
-  - ⚠️ Embedding model eerst kiezen (DL2?) voordat ChromaDB-implementatie begint
+### MCP-server (issue #3) — gedeeltelijk klaar
+- ✅ `mcp-server/services/embedding.py` — `EmbeddingProvider` ABC + `OllamaEmbeddingProvider` (bge-m3)
+- ✅ `mcp-server/tools/memory.py` — `store_memory` + `recall_context` (ChromaDB, 7 tests groen)
+- ✅ `mcp-server/main.py` — tools geregistreerd als `@mcp.tool()`
+- ✅ `docker-compose.yml` — `ollama-init` service + env vars
+- ❌ `tools/trends.py` — `get_symptom_trends` nog niet gebouwd
+- ❌ `tools/escalation.py` — `escalate_to_human` nog niet gebouwd
+
+### Open
+- **Issue #3** (vervolg) — `get_symptom_trends` en `escalate_to_human` implementeren
 - **Issue #4** — Frontend Next.js 15 dashboard (4 schermen)
-- **Issue #5** — Decision log architectuurkeuzes Anna Remembers
+- **Issue #5** — Decision log architectuurkeuzes Anna Remembers (DL2 embedding model klaar)
+- Backend chat-router wiren met echte MCP-context (na issue #3 volledig)
 
 ### Volgorde aanbevolen
-1. Kies embedding model → DL2 → dan `store_memory` / `recall_context` implementeren
-2. MCP-server tools afmaken (issue #3)
-3. Backend chat-router wired met echte MCP-context
-4. Frontend dashboard (issue #4)
+1. Issue #3 afmaken: `get_symptom_trends` (PostgreSQL) + `escalate_to_human` (email/Slack stub)
+2. Backend `routers/chat.py` wiren met echte MCP-client calls
+3. Frontend dashboard (issue #4)
+4. Gesimuleerde patiënten (10 sessies elk) draaien
 
 ---
 
