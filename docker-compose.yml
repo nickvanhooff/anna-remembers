@@ -87,11 +87,26 @@ services:
       CHROMA_PORT: 8000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       MCP_PORT: 8001
+      OLLAMA_BASE_URL: http://ollama:11434
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
     depends_on:
       postgres:
         condition: service_healthy
       chromadb:
         condition: service_started
+      ollama:
+        condition: service_started
+
+  # --- Ollama model init (eenmalig bij opstart) ---
+
+  ollama-init:
+    image: ollama/ollama
+    depends_on:
+      - ollama
+    entrypoint: ["ollama", "pull", "bge-m3"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    restart: "no"
 
 volumes:
   postgres_data:    # persistente PostgreSQL data — blijft na container-restart
