@@ -171,3 +171,23 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - Aanbevolen volgorde: DL2 (embedding model) → MCP-server tools → backend chat-router met echte MCP-context → frontend
 
 **Commit:** geen — alleen documentatie bijgewerkt
+
+---
+
+## Stap 10 — 2026-05-08
+
+**Wat:** Embedding model gekozen en geïmplementeerd (DL2).
+
+**Gedaan:**
+- `services/embedding.py` — `EmbeddingProvider` ABC, `OllamaEmbeddingProvider`, `EmbeddingUnavailableError`
+- `tools/memory.py` — `store_memory` en `recall_context` met ChromaDB
+- `main.py` — tools geregistreerd als MCP tools
+- `docker-compose.yml` — `ollama-init` service toegevoegd voor `bge-m3` pull
+- 7 unit tests geschreven (TDD)
+
+**Beslissingen:**
+- bge-m3 gekozen: meertalig state-of-the-art, 8192-token context, past op RTX 4050 via Ollama model-swapping
+- Embedding in MCP-server: RAG-laag blijft volledig in MCP, FastAPI raakt ChromaDB niet
+- Provider-agnostisch patroon: wisselen = één nieuwe subklasse in embedding.py
+
+**Commit:** [wordt ingevuld na commit]
