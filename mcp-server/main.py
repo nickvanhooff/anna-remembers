@@ -1,13 +1,33 @@
 import os
 from fastmcp import FastMCP
 
-# Tool-implementaties worden geïmporteerd vanuit tools/ (issue #3).
-# Dit bestand is alleen de server-bootstrap.
-# from tools.memory import store_memory, recall_context
-# from tools.trends import get_symptom_trends
-# from tools.escalation import escalate_to_human
+from services.embedding import get_embedding_provider
+from tools.memory import recall_context as _recall_context
+from tools.memory import store_memory as _store_memory
 
 mcp = FastMCP("anna-remembers-mcp")
+_embed = get_embedding_provider()
+
+
+@mcp.tool()
+async def store_memory(
+    content: str,
+    source: str,
+    patient_id: str,
+    session_id: str,
+) -> str:
+    """Sla een geheugenblok op voor een patiënt."""
+    return await _store_memory(content, source, patient_id, session_id, _embed)
+
+
+@mcp.tool()
+async def recall_context(
+    query: str,
+    patient_id: str,
+    limit: int,
+) -> list[dict]:
+    """Haal semantisch gerelateerde herinneringen op voor een patiënt."""
+    return await _recall_context(query, patient_id, limit, _embed)
 
 if __name__ == "__main__":
     port = int(os.getenv("MCP_PORT", "8001"))
