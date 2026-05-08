@@ -154,3 +154,20 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - Node.js 24 geforceerd via env var om deprecation warning te onderdrukken
 
 **Commit:** `c331c30` — ci: add github actions workflow to build docker images on push to main
+
+---
+
+## Stap 9 — 2026-05-08
+
+**Wat:** CLAUDE.md bijgewerkt met huidige projectstaat en bekende beslissingen.
+
+**Gedaan:**
+- Tabel "Bekende beslissingen" uitgebreid: LLM-provider (Ollama + gemma4:e4b), Alembic-keuze, DL1-referentie voor ChromaDB toegevoegd
+- Embedding model als open punt gemarkeerd (moet beslist worden vóór MCP-server implementatie)
+- Sectie "Huidige bouwstaat" toegevoegd: overzicht van gesloten issues (#1, #2, #6, #7, #9) en open issues (#3, #4, #5) met aanbevolen vervolgvolgorde
+
+**Beslissingen:**
+- Embedding model nog niet vastgelegd — dit wordt DL2 vóór implementatie van `store_memory` en `recall_context` in de MCP-server
+- Aanbevolen volgorde: DL2 (embedding model) → MCP-server tools → backend chat-router met echte MCP-context → frontend
+
+**Commit:** geen — alleen documentatie bijgewerkt

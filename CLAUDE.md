@@ -235,13 +235,39 @@ anna_remembers/
 
 Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat vraag:
 
-| Beslissing | Keuze | Evidence bestand |
+| Beslissing | Keuze | Evidence / Decision log |
 |---|---|---|
 | Frontend framework | Next.js 15 | evidence_frontend_framework.docx |
 | Backend taal | Python + FastAPI | Nog te documenteren |
 | MCP server positie | Los draaiend proces op poort 8001 | Nog te documenteren |
-| Vector database | ChromaDB lokaal in Docker | Nog te documenteren |
-| Relationele database | PostgreSQL 16 | Nog te documenteren |
+| Vector database | ChromaDB lokaal in Docker (bewust, voor zichtbare RAG-pipeline) | `portfolio/decision-logs/DL1_vector_database_keuze.md` |
+| Relationele database | PostgreSQL 16 met JSONB | Nog te documenteren |
+| LLM provider | Ollama + gemma4:e4b (lokaal, GPU passthrough RTX 4050) | Nog te documenteren |
+| Embedding model | Nog te bepalen — vóór MCP-server implementatie kiezen | — |
+| Alembic vs init-script | Alembic (versie-gecontroleerde migraties, rollback mogelijk) | Nog te documenteren |
+
+---
+
+## Huidige bouwstaat (bijgewerkt 2026-05-08)
+
+### Klaar (issue gesloten)
+- **Issue #1** — Docker Compose setup: postgres, chromadb, ollama (GPU), backend, mcp-server
+- **Issue #2** — FastAPI scaffold: models, schemas, routers, LLM service, Alembic migratie
+- **Issue #6** (CI) — GitHub Actions CI workflow (build-check op push + PR)
+- **Issue #7** (CD) — GitHub Actions CD workflow (push naar Docker Hub op main)
+- **Issue #9** — CI/CD pipeline gedocumenteerd als GitHub issue
+
+### In uitvoering / open
+- **Issue #3** — MCP Server tools: `store_memory`, `recall_context` (ChromaDB), `get_symptom_trends`, `escalate_to_human`
+  - ⚠️ Embedding model eerst kiezen (DL2?) voordat ChromaDB-implementatie begint
+- **Issue #4** — Frontend Next.js 15 dashboard (4 schermen)
+- **Issue #5** — Decision log architectuurkeuzes Anna Remembers
+
+### Volgorde aanbevolen
+1. Kies embedding model → DL2 → dan `store_memory` / `recall_context` implementeren
+2. MCP-server tools afmaken (issue #3)
+3. Backend chat-router wired met echte MCP-context
+4. Frontend dashboard (issue #4)
 
 ---
 
