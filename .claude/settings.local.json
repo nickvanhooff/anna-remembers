@@ -20,7 +20,8 @@
       "PowerShell([System.IO.Directory]::GetFiles\\(\"C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\frontend\"\\) ; [System.IO.Directory]::GetDirectories\\(\"C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\frontend\"\\))",
       "PowerShell(Get-ChildItem \"C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\frontend\\\\Anna-remembers\\\\components\\\\ui\\\\\" | ForEach-Object { $_.Name })",
       "WebFetch(domain:medium.com)",
-      "WebFetch(domain:claude.ai)"
+      "WebFetch(domain:claude.ai)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
