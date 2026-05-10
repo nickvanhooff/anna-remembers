@@ -1,0 +1,128 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e5]:
+      - generic [ref=e7]:
+        - img [ref=e9]
+        - generic [ref=e12]: Anna Remembers
+      - generic [ref=e14]:
+        - generic [ref=e15]: Dashboard
+        - list [ref=e16]:
+          - listitem [ref=e17]:
+            - link "Patiëntbeheer" [ref=e18] [cursor=pointer]:
+              - /url: /patients
+              - img [ref=e19]
+              - generic [ref=e24]: Patiëntbeheer
+          - listitem [ref=e25]:
+            - link "Chat" [ref=e26] [cursor=pointer]:
+              - /url: /chat
+              - img [ref=e27]
+              - generic [ref=e29]: Chat
+          - listitem [ref=e30]:
+            - link "Symptoomtrends" [ref=e31] [cursor=pointer]:
+              - /url: /trends
+              - img [ref=e32]
+              - generic [ref=e35]: Symptoomtrends
+          - listitem [ref=e36]:
+            - link "Escalatiebeheer" [ref=e37] [cursor=pointer]:
+              - /url: /escalations
+              - img [ref=e38]
+              - generic [ref=e40]: Escalatiebeheer
+            - generic: "1"
+      - generic [ref=e41]:
+        - list [ref=e42]:
+          - listitem [ref=e43]:
+            - button "Instellingen" [ref=e44]:
+              - img [ref=e45]
+              - generic [ref=e48]: Instellingen
+        - generic [ref=e49]:
+          - generic [ref=e51]: JW
+          - generic [ref=e52]:
+            - generic [ref=e53]: J. de Wit
+            - generic [ref=e54]: Cardiologie-verpleegkundige
+    - main [ref=e55]:
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - button "Toggle Sidebar" [ref=e58]:
+            - img
+            - generic [ref=e59]: Toggle Sidebar
+          - generic [ref=e60]: Dashboard / Symptoomtrends
+        - generic [ref=e61]:
+          - generic [ref=e62]:
+            - generic [ref=e63]:
+              - heading "Symptoomtrends" [level=1] [ref=e64]
+              - paragraph [ref=e65]: Anna registreert symptomen per sessie. Gebruik trends om patronen te spotten.
+            - generic [ref=e66]:
+              - combobox [ref=e67]:
+                - option "Greta de Vries · P-001"
+                - option "Hendrik Bakker · P-002" [selected]
+                - option "Marja Kuipers · P-003"
+                - option "Johan van Dijk · P-004"
+                - option "Truus Hendriks · P-005"
+                - option "Ad Janssen · P-006"
+              - tablist [ref=e69]:
+                - tab "7d" [ref=e70]
+                - tab "14d" [ref=e71]
+                - tab "28d" [selected] [ref=e72]
+          - generic [ref=e74]:
+            - generic [ref=e76]: HB
+            - generic [ref=e77]:
+              - generic [ref=e78]: Hendrik Bakker
+              - generic [ref=e79]: 68 jaar · 10 sessies · Losartan 50 mg
+            - generic [ref=e80]: Aandacht
+          - generic [ref=e82]:
+            - button "Kortademigheid ↑1/10 3/10" [ref=e83]:
+              - generic [ref=e84]:
+                - generic [ref=e85]:
+                  - img [ref=e86]
+                  - generic [ref=e90]: Kortademigheid
+                - generic [ref=e91]: ↑1/10
+              - generic [ref=e92]: 3/10
+              - img [ref=e94]
+            - button "Gewicht ↑0.8kg 82.8kg" [ref=e97]:
+              - generic [ref=e98]:
+                - generic [ref=e99]:
+                  - img [ref=e100]
+                  - generic [ref=e104]: Gewicht
+                - generic [ref=e105]: ↑0.8kg
+              - generic [ref=e106]: 82.8kg
+              - img [ref=e108]
+            - button "Oedeem ↑1/10 3/10" [ref=e111]:
+              - generic [ref=e112]:
+                - generic [ref=e113]:
+                  - img [ref=e114]
+                  - generic [ref=e116]: Oedeem
+                - generic [ref=e117]: ↑1/10
+              - generic [ref=e118]: 3/10
+              - img [ref=e120]
+            - button "Medicatietrouw ↓20% 80%" [ref=e123]:
+              - generic [ref=e124]:
+                - generic [ref=e125]:
+                  - img [ref=e126]
+                  - generic [ref=e129]: Medicatietrouw
+                - generic [ref=e130]: ↓20%
+              - generic [ref=e131]: 80%
+              - img [ref=e133]
+            - button "Vermoeidheid ↑1/10 4/10" [ref=e136]:
+              - generic [ref=e137]:
+                - generic [ref=e138]:
+                  - img [ref=e139]
+                  - generic [ref=e142]: Vermoeidheid
+                - generic [ref=e143]: ↑1/10
+              - generic [ref=e144]: 4/10
+              - img [ref=e146]
+          - generic [ref=e149]:
+            - generic [ref=e151]:
+              - generic [ref=e152]:
+                - generic [ref=e153]:
+                  - img [ref=e154]
+                  - heading "Kortademigheid" [level=2] [ref=e158]
+                - paragraph [ref=e159]: Schaal /10 · afgelopen 4 weken
+              - generic [ref=e160]: Geregistreerd
+            - generic [ref=e164]:
+              - generic [ref=e165]: Anna's observaties
+              - generic [ref=e166]:
+                - generic [ref=e169]: Geleidelijke toename in 4 weken — gemiddelde stijging van ~0.1 per dag.
+                - generic [ref=e172]: Patiënt linkt het aan inspanning, maar pieken correleren met gewichtstoename.
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e178] [cursor=pointer]:
+    - img [ref=e179]

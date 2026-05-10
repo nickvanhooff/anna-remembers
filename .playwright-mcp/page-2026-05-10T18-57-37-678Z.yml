@@ -1,0 +1,127 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e5]:
+      - generic [ref=e7]:
+        - img [ref=e9]
+        - generic [ref=e12]: Anna Remembers
+      - generic [ref=e14]:
+        - generic [ref=e15]: Dashboard
+        - list [ref=e16]:
+          - listitem [ref=e17]:
+            - link "Patiëntbeheer" [ref=e18] [cursor=pointer]:
+              - /url: /patients
+              - img [ref=e19]
+              - generic [ref=e24]: Patiëntbeheer
+          - listitem [ref=e25]:
+            - link "Chat" [ref=e26] [cursor=pointer]:
+              - /url: /chat
+              - img [ref=e27]
+              - generic [ref=e29]: Chat
+          - listitem [ref=e30]:
+            - link "Symptoomtrends" [ref=e31] [cursor=pointer]:
+              - /url: /trends
+              - img [ref=e32]
+              - generic [ref=e35]: Symptoomtrends
+          - listitem [ref=e36]:
+            - link "Escalatiebeheer" [ref=e37] [cursor=pointer]:
+              - /url: /escalations
+              - img [ref=e38]
+              - generic [ref=e40]: Escalatiebeheer
+            - generic: "1"
+      - generic [ref=e41]:
+        - list [ref=e42]:
+          - listitem [ref=e43]:
+            - button "Instellingen" [ref=e44]:
+              - img [ref=e45]
+              - generic [ref=e48]: Instellingen
+        - generic [ref=e49]:
+          - generic [ref=e51]: JW
+          - generic [ref=e52]:
+            - generic [ref=e53]: J. de Wit
+            - generic [ref=e54]: Cardiologie-verpleegkundige
+    - main [ref=e55]:
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - button "Toggle Sidebar" [ref=e58]:
+            - img
+            - generic [ref=e59]: Toggle Sidebar
+          - generic [ref=e60]: Dashboard / Chat
+        - generic [ref=e61]:
+          - complementary [ref=e62]:
+            - generic [ref=e63]:
+              - generic [ref=e64]: Patiënt
+              - combobox [ref=e65]:
+                - option "Greta de Vries · P-001" [selected]
+                - option "Hendrik Bakker · P-002"
+                - option "Marja Kuipers · P-003"
+                - option "Johan van Dijk · P-004"
+                - option "Truus Hendriks · P-005"
+                - option "Ad Janssen · P-006"
+            - generic [ref=e66]:
+              - generic [ref=e67]: Sessies · 2
+              - button "Nieuwe sessie" [ref=e68]:
+                - img
+            - generic [ref=e69]:
+              - button "Sessie 12 2026-05-06 · 7 berichten" [ref=e70]:
+                - generic [ref=e71]: Sessie 12
+                - generic [ref=e72]: 2026-05-06 · 7 berichten
+              - button "Sessie 11 2026-04-29 · 4 berichten" [ref=e73]:
+                - generic [ref=e74]: Sessie 11
+                - generic [ref=e75]: 2026-04-29 · 4 berichten
+          - generic [ref=e76]:
+            - generic [ref=e77]:
+              - button [ref=e78]:
+                - img
+              - generic [ref=e80]: Gd
+              - generic [ref=e81]:
+                - generic [ref=e82]: Greta de Vries
+                - generic [ref=e83]: 74 jaar · P-001 · Furosemide 40 mg · Bisoprolol 5 mg
+              - generic [ref=e84]: Stabiel
+            - generic [ref=e86]:
+              - generic [ref=e87]: 2026-05-06
+              - generic [ref=e89]:
+                - generic [ref=e91]: A
+                - generic [ref=e92]:
+                  - generic [ref=e93]: Goedemorgen mevrouw De Vries. Vorige week vertelde u dat u 's nachts wat onrustig sliep — hoe is dat deze week gegaan?
+                  - generic [ref=e94]: Anna · 09:42
+              - generic [ref=e95]:
+                - generic [ref=e97]: Gd
+                - generic [ref=e98]:
+                  - generic [ref=e99]: Het ging beter. Ik heb maar één keer wakker gelegen.
+                  - generic [ref=e100]: Greta · 09:43
+              - generic [ref=e101]:
+                - generic [ref=e103]: A
+                - generic [ref=e104]:
+                  - generic [ref=e105]: Fijn om te horen. En de kortademigheid bij het traplopen — komt die nog terug?
+                  - generic [ref=e106]: Anna · 09:43
+              - generic [ref=e107]:
+                - generic [ref=e109]: Gd
+                - generic [ref=e110]:
+                  - generic [ref=e111]: Soms nog wel, vooral als ik de trap snel op ga. Maar minder dan vorige week.
+                  - generic [ref=e112]: Greta · 09:44
+              - generic [ref=e113]:
+                - generic [ref=e115]: A
+                - generic [ref=e116]:
+                  - generic [ref=e117]: Begrijp ik. Heeft u uw gewicht deze week gemeten?
+                  - generic [ref=e118]: Anna · 09:45
+              - generic [ref=e119]:
+                - generic [ref=e121]: Gd
+                - generic [ref=e122]:
+                  - generic [ref=e123]: 78,2 kilo. Net zoveel als vorige week.
+                  - generic [ref=e124]: Greta · 09:46
+              - generic [ref=e125]:
+                - generic [ref=e127]: A
+                - generic [ref=e128]:
+                  - generic [ref=e129]:
+                    - generic [ref=e130]: Anna vermoedt
+                    - text: Dat is goed nieuws — uw gewicht is al drie weken stabiel.
+                  - generic [ref=e131]: Anna · 09:46
+            - generic [ref=e132]:
+              - textbox "Typ als Greta… (Enter om te versturen)" [ref=e133]:
+                - /placeholder: Typ als Greta…  (Enter om te versturen)
+              - button "Versturen" [disabled]:
+                - img
+                - text: Versturen
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e139] [cursor=pointer]:
+    - img [ref=e140]

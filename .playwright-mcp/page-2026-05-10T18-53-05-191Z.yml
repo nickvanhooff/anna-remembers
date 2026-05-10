@@ -1,0 +1,204 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e5]:
+      - generic [ref=e7]:
+        - img [ref=e9]
+        - generic [ref=e12]: Anna Remembers
+      - generic [ref=e14]:
+        - generic [ref=e15]: Dashboard
+        - list [ref=e16]:
+          - listitem [ref=e17]:
+            - link "Patiëntbeheer" [ref=e18] [cursor=pointer]:
+              - /url: /patients
+              - img [ref=e19]
+              - generic [ref=e24]: Patiëntbeheer
+          - listitem [ref=e25]:
+            - link "Chat" [ref=e26] [cursor=pointer]:
+              - /url: /chat
+              - img [ref=e27]
+              - generic [ref=e29]: Chat
+          - listitem [ref=e30]:
+            - link "Symptoomtrends" [ref=e31] [cursor=pointer]:
+              - /url: /trends
+              - img [ref=e32]
+              - generic [ref=e35]: Symptoomtrends
+          - listitem [ref=e36]:
+            - link "Escalatiebeheer" [ref=e37] [cursor=pointer]:
+              - /url: /escalations
+              - img [ref=e38]
+              - generic [ref=e40]: Escalatiebeheer
+            - generic: "1"
+      - generic [ref=e41]:
+        - list [ref=e42]:
+          - listitem [ref=e43]:
+            - button "Instellingen" [ref=e44]:
+              - img [ref=e45]
+              - generic [ref=e48]: Instellingen
+        - generic [ref=e49]:
+          - generic [ref=e51]: JW
+          - generic [ref=e52]:
+            - generic [ref=e53]: J. de Wit
+            - generic [ref=e54]: Cardiologie-verpleegkundige
+    - main [ref=e55]:
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - button "Toggle Sidebar" [ref=e58]:
+            - img
+            - generic [ref=e59]: Toggle Sidebar
+          - generic [ref=e60]: Dashboard / Patiëntbeheer
+        - generic [ref=e61]:
+          - generic [ref=e62]:
+            - generic [ref=e63]:
+              - heading "Patiëntbeheer" [level=1] [ref=e64]
+              - paragraph [ref=e65]: 6 patiënten · 1 urgent · 2 aandacht
+            - button "Nieuwe patiënt" [ref=e66]:
+              - img
+              - text: Nieuwe patiënt
+          - generic [ref=e67]:
+            - generic [ref=e68]:
+              - generic [ref=e69]:
+                - img [ref=e70]
+                - textbox "Zoeken op naam of ID…" [ref=e73]
+              - tablist [ref=e75]:
+                - tab "Alle · 6" [selected] [ref=e76]
+                - tab "Stabiel · 3" [ref=e77]
+                - tab "Aandacht · 2" [ref=e78]
+                - tab "Urgent · 1" [ref=e79]
+            - table [ref=e81]:
+              - rowgroup [ref=e82]:
+                - row "ID Patiënt Leeftijd Medicatie Laatste sessie Status" [ref=e83]:
+                  - columnheader "ID" [ref=e84]
+                  - columnheader "Patiënt" [ref=e85]
+                  - columnheader "Leeftijd" [ref=e86]
+                  - columnheader "Medicatie" [ref=e87]
+                  - columnheader "Laatste sessie" [ref=e88]
+                  - columnheader "Status" [ref=e89]
+                  - columnheader [ref=e90]
+              - rowgroup [ref=e91]:
+                - row "P-001 Gd Greta de Vries Sessies · 12 74 Furosemide 40 mg · Bisoprolol 5 mg 4 dagen geleden Stabiel" [ref=e92] [cursor=pointer]:
+                  - cell "P-001" [ref=e93]
+                  - cell "Gd Greta de Vries Sessies · 12" [ref=e94]:
+                    - generic [ref=e95]:
+                      - generic [ref=e97]: Gd
+                      - generic [ref=e98]:
+                        - generic [ref=e99]: Greta de Vries
+                        - generic [ref=e100]: Sessies · 12
+                  - cell "74" [ref=e101]
+                  - cell "Furosemide 40 mg · Bisoprolol 5 mg" [ref=e102]
+                  - cell "4 dagen geleden" [ref=e103]
+                  - cell "Stabiel" [ref=e104]:
+                    - generic [ref=e105]: Stabiel
+                  - cell [ref=e107]:
+                    - generic [ref=e108]:
+                      - button "Chat openen" [ref=e109]:
+                        - img
+                      - button "Bewerken" [ref=e110]:
+                        - img
+                      - button "Verwijderen" [ref=e111]:
+                        - img
+                - row "P-002 HB Hendrik Bakker Sessies · 10 68 Losartan 50 mg 1 wk geleden Aandacht" [ref=e112] [cursor=pointer]:
+                  - cell "P-002" [ref=e113]
+                  - cell "HB Hendrik Bakker Sessies · 10" [ref=e114]:
+                    - generic [ref=e115]:
+                      - generic [ref=e117]: HB
+                      - generic [ref=e118]:
+                        - generic [ref=e119]: Hendrik Bakker
+                        - generic [ref=e120]: Sessies · 10
+                  - cell "68" [ref=e121]
+                  - cell "Losartan 50 mg" [ref=e122]
+                  - cell "1 wk geleden" [ref=e123]
+                  - cell "Aandacht" [ref=e124]:
+                    - generic [ref=e125]: Aandacht
+                  - cell [ref=e127]:
+                    - generic [ref=e128]:
+                      - button "Chat openen" [ref=e129]:
+                        - img
+                      - button "Bewerken" [ref=e130]:
+                        - img
+                      - button "Verwijderen" [ref=e131]:
+                        - img
+                - row "P-003 MK Marja Kuipers Sessies · 11 81 Furosemide 80 mg · Spironolacton 25 mg 2 dagen geleden Urgent" [ref=e132] [cursor=pointer]:
+                  - cell "P-003" [ref=e133]
+                  - cell "MK Marja Kuipers Sessies · 11" [ref=e134]:
+                    - generic [ref=e135]:
+                      - generic [ref=e137]: MK
+                      - generic [ref=e138]:
+                        - generic [ref=e139]: Marja Kuipers
+                        - generic [ref=e140]: Sessies · 11
+                  - cell "81" [ref=e141]
+                  - cell "Furosemide 80 mg · Spironolacton 25 mg" [ref=e142]
+                  - cell "2 dagen geleden" [ref=e143]
+                  - cell "Urgent" [ref=e144]:
+                    - generic [ref=e145]: Urgent
+                  - cell [ref=e147]:
+                    - generic [ref=e148]:
+                      - button "Chat openen" [ref=e149]:
+                        - img
+                      - button "Bewerken" [ref=e150]:
+                        - img
+                      - button "Verwijderen" [ref=e151]:
+                        - img
+                - row "P-004 Jv Johan van Dijk Sessies · 9 77 Bisoprolol 2.5 mg 1 wk geleden Stabiel" [ref=e152] [cursor=pointer]:
+                  - cell "P-004" [ref=e153]
+                  - cell "Jv Johan van Dijk Sessies · 9" [ref=e154]:
+                    - generic [ref=e155]:
+                      - generic [ref=e157]: Jv
+                      - generic [ref=e158]:
+                        - generic [ref=e159]: Johan van Dijk
+                        - generic [ref=e160]: Sessies · 9
+                  - cell "77" [ref=e161]
+                  - cell "Bisoprolol 2.5 mg" [ref=e162]
+                  - cell "1 wk geleden" [ref=e163]
+                  - cell "Stabiel" [ref=e164]:
+                    - generic [ref=e165]: Stabiel
+                  - cell [ref=e167]:
+                    - generic [ref=e168]:
+                      - button "Chat openen" [ref=e169]:
+                        - img
+                      - button "Bewerken" [ref=e170]:
+                        - img
+                      - button "Verwijderen" [ref=e171]:
+                        - img
+                - row "P-005 TH Truus Hendriks Sessies · 8 73 Losartan 100 mg · Furosemide 20 mg 6 dagen geleden Stabiel" [ref=e172] [cursor=pointer]:
+                  - cell "P-005" [ref=e173]
+                  - cell "TH Truus Hendriks Sessies · 8" [ref=e174]:
+                    - generic [ref=e175]:
+                      - generic [ref=e177]: TH
+                      - generic [ref=e178]:
+                        - generic [ref=e179]: Truus Hendriks
+                        - generic [ref=e180]: Sessies · 8
+                  - cell "73" [ref=e181]
+                  - cell "Losartan 100 mg · Furosemide 20 mg" [ref=e182]
+                  - cell "6 dagen geleden" [ref=e183]
+                  - cell "Stabiel" [ref=e184]:
+                    - generic [ref=e185]: Stabiel
+                  - cell [ref=e187]:
+                    - generic [ref=e188]:
+                      - button "Chat openen" [ref=e189]:
+                        - img
+                      - button "Bewerken" [ref=e190]:
+                        - img
+                      - button "Verwijderen" [ref=e191]:
+                        - img
+                - row "P-006 AJ Ad Janssen Sessies · 6 66 Bisoprolol 5 mg · Furosemide 40 mg 3 dagen geleden Aandacht" [ref=e192] [cursor=pointer]:
+                  - cell "P-006" [ref=e193]
+                  - cell "AJ Ad Janssen Sessies · 6" [ref=e194]:
+                    - generic [ref=e195]:
+                      - generic [ref=e197]: AJ
+                      - generic [ref=e198]:
+                        - generic [ref=e199]: Ad Janssen
+                        - generic [ref=e200]: Sessies · 6
+                  - cell "66" [ref=e201]
+                  - cell "Bisoprolol 5 mg · Furosemide 40 mg" [ref=e202]
+                  - cell "3 dagen geleden" [ref=e203]
+                  - cell "Aandacht" [ref=e204]:
+                    - generic [ref=e205]: Aandacht
+                  - cell [ref=e207]:
+                    - generic [ref=e208]:
+                      - button "Chat openen" [ref=e209]:
+                        - img
+                      - button "Bewerken" [ref=e210]:
+                        - img
+                      - button "Verwijderen" [ref=e211]:
+                        - img
+  - region "Notifications alt+T"
