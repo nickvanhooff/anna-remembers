@@ -20,7 +20,8 @@ def upgrade() -> None:
     op.create_table(
         "patients",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("name", sa.String(255), nullable=False),
+        sa.Column("first_name", sa.String(255), nullable=False),
+        sa.Column("last_name", sa.String(255), nullable=False),
         sa.Column("birth_date", sa.Date(), nullable=True),
         sa.Column(
             "medication_schedule",
@@ -29,6 +30,7 @@ def upgrade() -> None:
             server_default="{}",
         ),
         sa.Column("notes", sa.Text(), nullable=True),
+        sa.Column("status", sa.String(20), nullable=False, server_default="info"),
         sa.Column(
             "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
         ),

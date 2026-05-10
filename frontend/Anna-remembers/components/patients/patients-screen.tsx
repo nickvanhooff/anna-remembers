@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Search, Plus, MessageSquare, Pencil, Trash2, Users } from "lucide-react"
 import { toast } from "sonner"
@@ -21,19 +21,27 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 import { StatusBadge } from "@/components/dashboard/status-badge"
 import { fmtDate } from "@/lib/utils"
-import { PATIENTS as SEED } from "@/lib/mock-data"
+import { getPatients, createPatient, updatePatient, deletePatient as apiDeletePatient } from "@/lib/api"
 import type { Patient, PatientStatus } from "@/types"
 
 type StatusFilter = "all" | PatientStatus
 
 export function PatientsScreen() {
   const router = useRouter()
-  const [patients, setPatients] = useState<Patient[]>(SEED)
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [addOpen, setAddOpen] = useState(false)
   const [editPatient, setEditPatient] = useState<Patient | null>(null)
-  const [deletePatient, setDeletePatient] = useState<Patient | null>(null)
+  const [deletePatientState, setDeletePatientState] = useState<Patient | null>(null)
+
+  useEffect(() => {
+    getPatients()
+      .then(setPatients)
+      .catch(() => toast.error("Kon patiënten niet laden."))
+      .finally(() => setLoading(false))
+  }, [])
 
   const counts = useMemo(() => ({
     all:     patients.length,
@@ -48,22 +56,46 @@ export function PatientsScreen() {
     return true
   }), [patients, query, statusFilter])
 
-  function savePatient(form: Partial<Patient>, isNew: boolean) {
-    if (isNew) {
-      const id = `P-${String(patients.length + 1).padStart(3, "0")}`
-      const age = Math.floor((new Date("2026-05-10").getTime() - new Date(form.dob!).getTime()) / 31557600000)
-      setPatients(prev => [...prev, { ...form as Patient, id, age, sessions: 0, lastSession: null, status: "info", label: "Nieuw" }])
-      toast.success("Patiënt toegevoegd.")
-    } else {
-      setPatients(prev => prev.map(p => p.id === form.id ? { ...p, ...form } : p))
-      toast.success("Wijzigingen opgeslagen.")
+  async function savePatient(form: { first: string; last: string; dob: string; meds: string; notes: string }, isNew: boolean, id?: string) {
+    try {
+      if (isNew) {
+        const created = await createPatient(form)
+        setPatients(prev => [...prev, created])
+        toast.success("Patiënt toegevoegd.")
+      } else {
+        const updated = await updatePatient(id!, form)
+        setPatients(prev => prev.map(p => p.id === id ? updated : p))
+        toast.success("Wijzigingen opgeslagen.")
+      }
+    } catch {
+      toast.error("Opslaan mislukt. Controleer de verbinding met de backend.")
     }
   }
 
-  function removePatient(id: string) {
-    setPatients(prev => prev.filter(p => p.id !== id))
-    setDeletePatient(null)
-    toast.success("Patiënt verwijderd.")
+  async function removePatient(id: string) {
+    try {
+      await apiDeletePatient(id)
+      setPatients(prev => prev.filter(p => p.id !== id))
+      setDeletePatientState(null)
+      toast.success("Patiënt verwijderd.")
+    } catch {
+      toast.error("Verwijderen mislukt.")
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <header className="flex h-14 items-center gap-3 border-b px-6 shrink-0 bg-background">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="h-4" />
+          <span className="text-[13px] text-muted-foreground">Dashboard / <b className="text-foreground font-medium">Patiëntbeheer</b></span>
+        </header>
+        <div className="flex-1 p-6 flex flex-col gap-3 max-w-[1280px] w-full mx-auto">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -136,7 +168,7 @@ export function PatientsScreen() {
               <TableBody>
                 {filtered.map(p => (
                   <TableRow key={p.id} className="cursor-pointer">
-                    <TableCell className="font-mono text-[12px] text-muted-foreground">{p.id}</TableCell>
+                    <TableCell className="font-mono text-[12px] text-muted-foreground">{String(p.id).slice(0, 8)}…</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2.5">
                         <Avatar className="size-7 shrink-0">
@@ -150,7 +182,7 @@ export function PatientsScreen() {
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="tabular-nums">{p.age}</TableCell>
+                    <TableCell className="tabular-nums">{p.age || "—"}</TableCell>
                     <TableCell className="text-[12.5px] text-muted-foreground max-w-[180px] truncate">{p.meds || "—"}</TableCell>
                     <TableCell className="text-[13px] text-muted-foreground">{p.lastSession ? fmtDate(p.lastSession) : "—"}</TableCell>
                     <TableCell><StatusBadge status={p.status} label={p.label} /></TableCell>
@@ -165,7 +197,7 @@ export function PatientsScreen() {
                           <Pencil className="size-3.5" />
                         </Button>
                         <Button variant="ghost" size="icon" className="size-7" title="Verwijderen"
-                          onClick={e => { e.stopPropagation(); setDeletePatient(p) }}>
+                          onClick={e => { e.stopPropagation(); setDeletePatientState(p) }}>
                           <Trash2 className="size-3.5" />
                         </Button>
                       </div>
@@ -183,16 +215,20 @@ export function PatientsScreen() {
         open={addOpen || !!editPatient}
         patient={editPatient}
         onClose={() => { setAddOpen(false); setEditPatient(null) }}
-        onSave={(form, isNew) => { savePatient(form, isNew); setAddOpen(false); setEditPatient(null) }}
+        onSave={async (form, isNew) => {
+          await savePatient(form, isNew, editPatient?.id)
+          setAddOpen(false)
+          setEditPatient(null)
+        }}
       />
 
       {/* Delete confirmation */}
-      <AlertDialog open={!!deletePatient} onOpenChange={() => setDeletePatient(null)}>
+      <AlertDialog open={!!deletePatientState} onOpenChange={() => setDeletePatientState(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Patiënt verwijderen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Alle gespreksgeschiedenis en trends van {deletePatient?.first} {deletePatient?.last} gaan verloren.
+              Alle gespreksgeschiedenis en trends van {deletePatientState?.first} {deletePatientState?.last} gaan verloren.
               Deze actie kan niet ongedaan worden gemaakt.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -200,7 +236,7 @@ export function PatientsScreen() {
             <AlertDialogCancel>Annuleren</AlertDialogCancel>
             <AlertDialogAction
               style={{ backgroundColor: "var(--destructive-soft-bg)", color: "var(--destructive-soft-fg)" }}
-              onClick={() => deletePatient && removePatient(deletePatient.id)}
+              onClick={() => deletePatientState && removePatient(deletePatientState.id)}
             >
               Verwijderen
             </AlertDialogAction>
@@ -213,11 +249,19 @@ export function PatientsScreen() {
 
 // ─── PatientFormDialog ───────────────────────────────────────────
 
+interface PatientFormInput {
+  first: string
+  last: string
+  dob: string
+  meds: string
+  notes: string
+}
+
 interface PatientFormProps {
   open: boolean
   patient: Patient | null
   onClose: () => void
-  onSave: (form: Partial<Patient>, isNew: boolean) => void
+  onSave: (form: PatientFormInput, isNew: boolean) => Promise<void>
 }
 
 function PatientFormDialog({ open, patient, onClose, onSave }: PatientFormProps) {
@@ -227,14 +271,17 @@ function PatientFormDialog({ open, patient, onClose, onSave }: PatientFormProps)
   const [meds,  setMeds]  = useState(patient?.meds  ?? "")
   const [notes, setNotes] = useState(patient?.notes ?? "")
   const [errs,  setErrs]  = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
 
-  function submit() {
+  async function submit() {
     const e: Record<string, string> = {}
     if (!first.trim()) e.first = "Voornaam is verplicht."
     if (!last.trim())  e.last  = "Achternaam is verplicht."
     if (!dob)          e.dob   = "Geboortedatum is verplicht."
     if (Object.keys(e).length) { setErrs(e); return }
-    onSave({ ...(patient ?? {}), first, last, dob, meds, notes }, !patient)
+    setSaving(true)
+    await onSave({ first, last, dob, meds, notes }, !patient)
+    setSaving(false)
   }
 
   return (
@@ -296,8 +343,8 @@ function PatientFormDialog({ open, patient, onClose, onSave }: PatientFormProps)
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Annuleren</Button>
-          <Button onClick={submit}>{patient ? "Opslaan" : "Patiënt aanmaken"}</Button>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>Annuleren</Button>
+          <Button onClick={submit} disabled={saving}>{saving ? "Bezig…" : patient ? "Opslaan" : "Patiënt aanmaken"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from routers import patients, chat
 
@@ -7,6 +8,13 @@ app = FastAPI(
     title="Anna Remembers API",
     description="Backend API voor de Anna Remembers gezondheidsassistent",
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(patients.router)

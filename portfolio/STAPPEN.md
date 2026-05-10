@@ -254,3 +254,95 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - Escalatiebeheer: `Table`, `Badge`, `Select`, `Button`
 
 **Commit:** nog niet — setup fase
+
+---
+
+## Stap 14 — 2026-05-10
+
+**Wat:** shadcn/ui componenten geïnstalleerd voor alle vier dashboard-schermen.
+
+**Gedaan:**
+- `npx shadcn@latest add` uitgevoerd voor alle benodigde componenten
+- Geïnstalleerd: `avatar`, `badge`, `button`, `card`, `dialog`, `alert-dialog`, `input`, `label`, `select`, `separator`, `scroll-area`, `sidebar`, `table`, `tabs`, `textarea`, `tooltip`, `sonner` + `recharts` als peer dependency
+- shadcn style: `radix-nova` (warm neutrale kleuren, rounded-lg standaard)
+- Icon library: `lucide-react`
+
+**Beslissingen:**
+- shadcn `Chart` component niet gebruikt — Recharts direct geïmporteerd voor meer controle over assen en tooltip styling
+- `sonner` gekozen voor toasts: geen wrapper-setup nodig, werkt out-of-the-box met `toast()` call
+
+**Commit:** `9960be6` / `27ce596` / `df8e4ec` — add all components needed
+
+---
+
+## Stap 15 — 2026-05-10
+
+**Wat:** Design system gemaakt met Claude Design (claude.ai/design) voor de Anna Remembers dashboard-look.
+
+**Gedaan:**
+- Design opgezet op claude.ai/design met de volgende specificaties:
+  - Sage-teal als primaire kleur (healthcare, rustig, professioneel)
+  - Warme neutrale achtergronden (niet koud grijs)
+  - Semantische statuskleuren: success / warning / urgent / info — elk met een zachte achtergrond-variant (soft-bg/soft-fg) voor badges en kaarten
+  - shadcn/ui als basis — alleen kleuren, typografie en spatiepatronen aanpassen, componenten zelf niet herontwerpen
+- Design handoff verkregen (HTML/CSS/JSX prototype)
+
+**Beslissingen:**
+- Geist font (Next.js standaard) behouden — past bij de sage-teal kleurpalette en is al geconfigureerd
+- Semantische statuskleuren als CSS variabelen op `:root` — niet als Tailwind utilities — zodat ze direct bruikbaar zijn via `style={}` props zonder extra class-mapping
+- Soft-bg/soft-fg patroon: elke status heeft een gedempte achtergrondkleur + een contrast-kleur voor de tekst. Dit maakt StatusBadge-achtige componenten mogelijk zonder hardcoded hex-waarden
+
+---
+
+## Stap 16 — 2026-05-10
+
+**Wat:** Volledige Next.js 15 frontend geïmplementeerd — alle vier dashboard-schermen, design tokens, mock data en API-wrapper.
+
+**Gedaan:**
+- `app/globals.css` — design tokens geïntegreerd: sage-teal primair `oklch(0.48 0.07 185)`, warme achtergrond, semantische statuskleuren (success/warning/info/destructive met soft-bg/soft-fg varianten), 5 chart-kleuren, sidebar tokens. Dark mode toegevoegd.
+- `app/layout.tsx` — Geist font, `ThemeProvider`, `Toaster` (sonner), `TooltipProvider`
+- `app/page.tsx` — redirect naar `/patients`
+- `types/index.ts` — TypeScript interfaces: `Patient`, `Message`, `Session`, `Escalation`, `TrendPoint`, `PatientStatus`
+- `lib/mock-data.ts` — seed data voor 6 patiënten, 2 chatsessies, 5 escalaties, 28 trend-datapunten
+- `lib/api.ts` — API-wrapper met mock-returns en TODO-comments voor echte FastAPI-calls
+- `lib/utils.ts` — `fmtDate()` en `fmtTime()` hulpfuncties
+- `components/dashboard/status-badge.tsx` — custom badge die CSS variabelen gebruikt (shadcn Badge variants dekken success/warning/info niet)
+- `components/dashboard/dashboard-sidebar.tsx` — sidebar met navigatie, open escalatie badge, gebruikersvoettekst
+- `components/dashboard/shell.tsx` — `SidebarProvider` wrapper
+- `app/(dashboard)/layout.tsx` — route group layout met DashboardShell
+- `components/patients/patients-screen.tsx` — CRUD: Table, Dialog (toevoegen/bewerken), AlertDialog (verwijderen), zoeken, filteren op status
+- `components/chat/chat-screen.tsx` — sessierail, chat-bubbels (ScrollArea + Avatar), composer (Textarea + Button), typing-indicator, koppeling aan `sendMessage()` uit api.ts
+- `components/trends/trends-screen.tsx` — 5 KPI-tiles met custom SVG Sparkline, Recharts LineChart/BarChart per geselecteerd symptoom, observatieblok
+- `components/escalations/escalations-screen.tsx` — Table met urgentie/status badges, DetailDialog met Anna's redenering en klinische notitie
+
+**TypeScript-fixes:**
+- `NavItem` interface toegevoegd in sidebar — `badge?` optioneel — zodat TypeScript geen foutmelding geeft op het laatste array-element
+- Recharts Tooltip formatter: `Number(v).toFixed()` in plaats van `(v: number)` — Recharts typt de waarde als `ValueType | undefined`
+
+**Beslissingen:**
+- Feature-based componentstructuur: `components/patients/`, `components/chat/` etc. — dunne `page.tsx` files, alle logica in de schermcomponent
+- Mock data + API wrapper patroon: frontend werkt volledig offline, koppeling aan FastAPI = één TODO per functie vervangen
+- Recharts direct gebruikt (geen shadcn ChartContainer) — meer flexibiliteit voor custom assen en tooltips
+- Custom SVG Sparkline voor KPI-tiles — geen externe dependency, volledige controle over grootte en stijl
+
+**Commit:** `e8123a4` — add next js with shadcn frontend
+
+---
+
+## Stap 17 — 2026-05-10
+
+**Wat:** Backend patiëntenmodel aangepast en frontend gekoppeld aan FastAPI.
+
+**Gedaan:**
+- `backend/models/patient.py` — `name` gesplitst naar `first_name` + `last_name`, `status` veld toegevoegd (default `"info"`)
+- `backend/schemas/patient.py` — `PatientCreate`, `PatientUpdate`, `PatientResponse` bijgewerkt op nieuwe velden
+- `backend/alembic/versions/0001_initial_schema.py` — migratie aangepast (dev-fase, nog geen productiedata — `docker compose down -v` + rebuild)
+- `backend/main.py` — CORS middleware toegevoegd voor `http://localhost:3000`
+- `frontend/lib/api.ts` — echte `fetch` calls geïmplementeerd voor GET/POST/PATCH/DELETE `/patients/`; mapping `PatientAPI → Patient` (age berekend uit `birth_date`, meds string uit JSONB, status → label)
+- `frontend/components/patients/patients-screen.tsx` — `useEffect` laadt patiënten bij mount, CRUD roept API aan, loading skeletons, error toasts, disabled knop tijdens opslaan
+
+**Beslissingen:**
+- `name` → `first_name` + `last_name` in de DB: frontend had aparte velden nodig en één veld splitsen op spatie is fragiel
+- JSONB `medication_schedule` opgeslagen als `{ tekst: "..." }` voor invoer als vrije tekst — flexibel genoeg voor fase 1, uitbreidbaar naar gestructureerd schema later
+- Bestaande migratie aangepast (niet nieuwe revisie) — toegestaan omdat de database nog leeg was en alleen lokaal draait. Zodra er seeder-data is, worden schema-wijzigingen altijd als nieuwe Alembic-revisie gedaan
+- CORS beperkt tot `localhost:3000` — niet `"*"` zodat de instelling productie-klaar is (alleen whitelist uitbreiden)
