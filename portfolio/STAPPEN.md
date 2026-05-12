@@ -409,3 +409,14 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - Grenzen in prompt i.p.v. post-filter — lage latency, herhaalbaar in portfolio; echte medische escalatie blijft via geplande `escalate_to_human`-logica
 
 **Commit:** `0b2cf34` — fix(chat): tighten system prompt against alarmist and 112-style output
+
+---
+
+## Stap 21 — 2026-05-12
+
+**Wat:** Vastgelegd dat korte user-berichten **niet** worden overgeslagen voor RAG: elke turn blijft `recall_context` (parallel met `store_memory`) het volledige bericht gebruiken — geen trivial-skip pad.
+
+**Beslissingen:**
+- Op jouw verzoek: geen uitzondering op berichtlengte of begroeting; volledige pipeline en `context_proof` blijven per request vergelijkbaar
+
+**Commit:** `d47d1c4` — portfolio: STAPPEN stap 21 (code in `backend/routers/chat.py` was al zonder recall-skip)
