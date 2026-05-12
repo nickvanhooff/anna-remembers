@@ -560,6 +560,49 @@ Ruwe berichtenhistorie is geen geheugen. Een hartpatiënt-companion heeft na ver
 
 ---
 
+## Stap 28 — 2026-05-13
+
+**Wat:** Grondig RAG-recall onderzoek via NotebookLM (6 wetenschappelijke bronnen) + reeks iteratieve fixes op basis van de bevindingen. Conclusie: RAG-pipeline werkt correct, model is de bottleneck.
+
+**Aanleiding:**
+Na alle eerdere fixes bleef Anna in nieuwe sessies antwoorden met "Als een AI heb ik geen toegang tot je persoonlijke locatie", ook als het feit ("ik woon in eindhoven") aantoonbaar in de RAG-hits zat en de system prompt `system_prompt_includes_rag_block: true` toonde.
+
+**NotebookLM research (notebook: anna-remembers)**
+Bronnen toegevoegd: Lost in the Middle (Liu et al. 2023), Self-RAG (2023), RAG Survey (2023), Pinecone RAG docs, LangChain memory docs, eigen codebase als tekstbron.
+
+Drie bevindingen uit de literatuur:
+1. **"Lost in the Middle"** — feiten midden in de prompt worden genegeerd. Oplossing: RAG-blok naar het einde van de prompt.
+2. **Authoritative data** — sla alleen feitelijke uitspraken op, geen vragen. Vragen veroorzaken self-hits (distance ≈ 0) die feiten verdringen.
+3. **In-context history corrupts system prompt** — als de history weigeringsantwoorden bevat ("Ik heb geen toegang"), leert het model dat patroon voort te zetten, ook als het feit wél in de prompt staat.
+
+**Iteratieve fixes (chronologisch):**
+- RAG-blok verplaatst naar einde van de system prompt
+- `_is_question()` geïmplementeerd: detecteert Nederlandse vraagsignalen (`waar`, `wat`, `wie`, `hoe` etc.) én vraagtekens; vragen worden niet opgeslagen in ChromaDB
+- Weigeringsantwoorden gefilterd uit de conversation history vóór LLM-aanroep (`_is_refusal()`)
+- Noise-drempel verhoogd van 0.01 naar 0.08 (oude "waar woon ik" entries lagen op distance 0.045 en lekten nog door)
+- RAG-blok omgeformuleerd van "Wat de patiënt eerder heeft verteld" naar "PATIËNTENDOSSIER (geautoriseerde medische informatie)" — vermijdt dat het model het ziet als persoonlijke data waarover het geen bevoegdheid heeft
+
+**Conclusie uit context_proof analyse:**
+- `system_prompt_char_length` identiek in werkende en falende sessie (1284 chars)
+- `system_prompt_includes_rag_block: true` in beide gevallen
+- `store_memory` had geen `chroma_document_id` → vraagdetectie werkt, vragen worden niet opgeslagen
+- Enig verschil: de conversation history
+- **Maar**: zelfs de allereerste turn in een nieuwe sessie (geen history) faalt → het model negeert de RAG-context structureel voor locatievragen
+
+**Definitieve diagnose:** gemma4:e2b (~2B effectieve params, grotendeels CPU) heeft te sterke RLHF-training op "Ik heb geen toegang tot persoonlijke locatiegegevens". Die override is sterker dan de system prompt instructie. De RAG-pipeline is technisch correct.
+
+**Commits (chronologisch):**
+- `d016d07` — fix(chat): also store Anna response in ChromaDB for cross-session RAG recall
+- `3d191b3` — fix(mcp): deduplicate ChromaDB entries with deterministic content hash ID
+- `d6133f6` — fix(chat): filter RAG self-hits and ai_inferred noise, strengthen memory instruction
+- `d7b7d23` — fix(chat): store only facts not questions, move RAG block to end of prompt
+- `c0a666f` — fix(chat): detect Dutch questions without ?, filter refusal turns from LLM history
+- `38d0d02` — fix(chat): raise noise floor to 0.08, reframe RAG as patient dossier
+
+**Volgende stap:** cloud model testen (Claude Haiku via Anthropic API) — als dat wél werkt, bewijst het dat de pipeline correct is en het model de bottleneck.
+
+---
+
 ## Stap 28 — 2026-05-12
 
 **Wat:** RAG cross-sessie recall gerepareerd — Anna's antwoorden worden nu ook opgeslagen in ChromaDB.
