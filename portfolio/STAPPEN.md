@@ -420,3 +420,27 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - Op jouw verzoek: geen uitzondering op berichtlengte of begroeting; volledige pipeline en `context_proof` blijven per request vergelijkbaar
 
 **Commit:** `33af042` — docs(portfolio): STAPPEN 21 — no RAG skip for short messages
+
+---
+
+## Stap 22 — 2026-05-12
+
+**Wat:** Chat-endpoint werkt end-to-end met RAG. Architectuuranalyse gedaan voor lange-termijn geheugen. Twee nieuwe issues aangemaakt voor Iteration 3.
+
+**Aanleiding:**
+Het chat-systeem (PostgreSQL + ChromaDB RAG + LLM) werkt aantoonbaar: de `context_proof` in de response toont dat Postgres-historie, RAG-hits en `store_memory` allemaal correct samenkomen. Vervolgens is op basis van een externe analyse (ChatGPT) besproken hoe het systeem op lange termijn robuuster te maken is.
+
+**Kernbevinding uit de analyse:**
+Ruwe berichtenhistorie is geen geheugen. Een hartpatiënt-companion heeft na verloop van tijd een samenvatting van de patiënt nodig — niet de volledige chatlog. Het model moet weten *wie* de patiënt is en *wat terugkeert*, niet elke zin ooit gezegd.
+
+**Beslissingen:**
+- Punt 2 en 3 van de analyse zijn de meest waardevolle verbeteringen:
+  - Punt 2: periodieke medische samenvatting per patiënt, automatisch bijgehouden en opgeslagen in PostgreSQL
+  - Punt 3: RAG blijft voor semantisch zoeken op symptomen en uitspraken; samenvatting wordt daarnaast als apart blok geïnjecteerd in de system prompt
+- Punt 1 (selectief opslaan / filteren vóór ChromaDB) bewust uitgesteld — de gebruiker geeft de voorkeur aan brede opslag met een aparte samenvatting, niet aan een hard filter
+
+**Aangemaakt:**
+- Issue #28: `feat(memory): periodieke patiëntsamenvatting — update medische samenvatting elke N berichten` — Iteration 3
+- Issue #29: `feat(chat): injecteer patiëntsamenvatting in system prompt naast RAG-context` — Iteration 3
+
+**Volgende stap:** frontend werkend krijgen met de huidige staat (Postgres-patiënten, chat, trends, escalaties zichtbaar).

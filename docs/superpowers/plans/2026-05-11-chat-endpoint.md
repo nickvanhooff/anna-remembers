@@ -838,7 +838,7 @@ curl -X POST http://localhost:8000/patients \
 ```bash
 curl -X POST http://localhost:8000/chat/<PATIENT_ID> \
   -H "Content-Type: application/json" \
-  -d '{"content": "Ik voel me de laatste dagen wat kortademig na het traplopen."}'
+  -d '{"content": "Ik voel me de laatste dagen wat kortademig na bel het traplopen."}'
 ```
 Verwacht: JSON response met `role: "assistant"` en een antwoord van Anna. Response tijd: 1–5 seconden.
 
