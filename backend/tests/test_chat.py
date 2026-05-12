@@ -212,3 +212,67 @@ def test_chat_rag_memories_appear_in_system_prompt(client_with_patient):
     assert "Kortademig na traplopen" in captured_system["value"]
     assert "patient_stated" in captured_system["value"]
 
+
+def test_chat_debug_includes_context_proof(client_with_patient):
+    """Met ?debug=true bevat de response context_proof (Postgres vs RAG)."""
+    test_client, patient, mock_mcp = client_with_patient
+    doc_id = "chroma-doc-uuid-1"
+    mock_mcp.store_memory = AsyncMock(return_value=doc_id)
+    mock_mcp.recall_context = AsyncMock(
+        return_value=[
+            {
+                "content": "Eerder: moe na wandelen",
+                "source": "patient_stated",
+                "session_id": "prior-session",
+                "distance": 0.42,
+            },
+        ]
+    )
+
+    with patch("routers.chat.get_llm_provider") as mock_llm_factory:
+        mock_llm = AsyncMock()
+        mock_llm.chat = AsyncMock(return_value="Dank u, ik noteer het.")
+        mock_llm_factory.return_value = mock_llm
+
+        response = test_client.post(
+            f"/chat/{patient.id}?debug=true",
+            json={"content": "Vandaag weer moe."},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "context_proof" in data
+    proof = data["context_proof"]
+    assert proof["postgres"]["origin"] == "postgresql"
+    assert proof["postgres"]["database_table"] == "messages"
+    assert proof["postgres"]["messages_in_history"] >= 1
+    assert any(e["role"] == "user" for e in proof["postgres"]["history_entries"])
+    assert proof["rag"]["origin"] == "mcp_recall_context"
+    assert proof["rag"]["query"] == "Vandaag weer moe."
+    assert proof["rag"]["hit_count"] == 1
+    assert proof["rag"]["hits"][0]["content"] == "Eerder: moe na wandelen"
+    assert proof["store_memory"]["origin"] == "mcp_store_memory"
+    assert proof["store_memory"]["chroma_document_id"] == doc_id
+    assert proof["combined"]["system_prompt_includes_rag_block"] is True
+    assert proof["combined"]["history_messages_sent_to_llm"] == proof["postgres"][
+        "messages_in_history"
+    ]
+
+
+def test_chat_without_debug_omits_context_proof_key(client_with_patient):
+    """Zonder debug heeft de JSON geen context_proof veld (exclude_none)."""
+    test_client, patient, _mock_mcp = client_with_patient
+
+    with patch("routers.chat.get_llm_provider") as mock_llm_factory:
+        mock_llm = AsyncMock()
+        mock_llm.chat = AsyncMock(return_value="Ok.")
+        mock_llm_factory.return_value = mock_llm
+
+        response = test_client.post(
+            f"/chat/{patient.id}",
+            json={"content": "Hallo"},
+        )
+
+    assert response.status_code == 200
+    assert "context_proof" not in response.json()
+

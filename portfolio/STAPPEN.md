@@ -378,3 +378,20 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - TDD puur: geen code geschreven tot test faalde
 
 **Commit:** `d9bcb68` — feat(mcp): add escalate_to_human stub + register all tools
+
+---
+
+## Stap 19 — 2026-05-12
+
+**Wat:** Bewijsbaar maken wanneer PostgreSQL vs RAG (MCP/Chroma) wordt gebruikt en hoe dat samenhangt in één chat-request.
+
+**Gedaan:**
+- `backend/schemas/message.py` — Pydantic-modellen `ChatContextProof`, `PostgresContextProof`, `RAGContextProof`, `StoreMemoryProof`, `CombinedContextProof`; optioneel veld `context_proof` op `MessageResponse`
+- `backend/routers/chat.py` — query-parameter `debug` (default false); bij `?debug=true` wordt `context_proof` gevuld met: Postgres `messages`-historie (ids, rollen, preview), RAG-hits uit `recall_context`, `chroma_document_id` uit `store_memory`, en `combined` (o.a. `system_prompt_includes_rag_block`, char-lengte); `response_model_exclude_none=True` zodat zonder debug geen `context_proof`-key in JSON
+- `backend/tests/test_chat.py` — twee tests: debug-response bevat verwachte provenance; zonder debug ontbreekt `context_proof` in JSON
+
+**Beslissingen:**
+- Opt-in via query (`debug=true`) i.p.v. altijd aan — geen extra payload in productie-flow, wel reproduceerbaar voor portfolio (curl, OpenAPI, screen recording)
+- Geen volledige system prompt in de response (privacy/size); wel expliciete `origin`-labels en tellingen als bewijslijn
+
+**Commit:** `ea2ce96` — feat(chat): add debug context_proof for Postgres vs RAG provenance
