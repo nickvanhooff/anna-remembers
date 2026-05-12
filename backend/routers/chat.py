@@ -98,11 +98,22 @@ def _build_system_prompt(
     medication = json.dumps(patient.medication_schedule, ensure_ascii=False)
     notes = patient.notes or "Geen aanvullende notities."
 
+    # Filter self-hits (query teruggevonden als zichzelf, distance ≈ 0) en ai_inferred ruis
+    # (Anna's weigeringsantwoorden worden opgeslagen als ai_inferred en verstoren het model)
+    useful = [
+        m for m in memories
+        if (m.get("distance") or 0) > 0.01
+        and not (m.get("source") == "ai_inferred" and (m.get("distance") or 0) > 0.35)
+    ]
+
     memory_block = ""
-    if memories:
-        lines = "\n".join(f"- [{m['source']}] {m['content']}" for m in memories)
+    if useful:
+        lines = "\n".join(f"- {m['content']}" for m in useful)
         memory_block = (
-            f"\n\nEerdere uitspraken van {name} (opgehaald uit geheugen — gebruik dit actief):\n{lines}"
+            f"\n\nWat {name} eerder heeft verteld (opgehaald uit het geheugen):\n{lines}\n\n"
+            f"INSTRUCTIE: Als de patiënt vraagt naar iets dat hierboven staat, "
+            f"geef dan direct het antwoord vanuit dit geheugen. "
+            f"Zeg nooit dat je het niet weet als de informatie beschikbaar is."
         )
 
     return (
@@ -122,11 +133,6 @@ def _build_system_prompt(
         f"- Als de patiënt een telefoonnummer deelt: noteer het kort. Gebruik het niet voor "
         f"dramatische belplannen.\n"
         f"- Reageer proportioneel op het huidige bericht, niet op het patroon van eerdere berichten.\n\n"
-        f"Geheugen gebruiken:\n"
-        f"- De 'Eerdere uitspraken' bovenaan zijn echte herinneringen uit alle sessies van deze patiënt.\n"
-        f"- Wordt gevraagd naar iets dat eerder gedeeld is (nummer, naam, klacht, gewicht)? "
-        f"Geef het terug vanuit die herinneringen. Zeg nooit dat je vorige sessies niet kunt herinneren.\n"
-        f"- Staat iets niet in de herinneringen? Zeg eerlijk dat je het niet terugvindt.\n\n"
         f"Patiëntgegevens:\n"
         f"- Naam: {name}\n"
         f"- Medicatieschema: {medication}\n"
