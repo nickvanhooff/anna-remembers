@@ -159,7 +159,7 @@ interface MessageResponseAPI {
   created_at: string
 }
 
-const CHAT_TIMEOUT_MS = 90_000
+const CHAT_TIMEOUT_MS = 180_000
 
 export interface ChatSession {
   id: string
