@@ -31,7 +31,7 @@ from services.mcp_client import MCPClient, get_mcp_client
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-_HISTORY_LIMIT = 10
+_HISTORY_LIMIT = 6
 _RAG_LIMIT = 5
 _HISTORY_PREVIEW_CHARS = 200
 
@@ -101,11 +101,14 @@ def _build_system_prompt(
     memory_block = ""
     if memories:
         lines = "\n".join(f"- [{m['source']}] {m['content']}" for m in memories)
-        memory_block = f"\n\nRelevante eerdere uitspraken van deze patiënt:\n{lines}"
+        memory_block = (
+            f"\n\nEerdere uitspraken van {name} (opgehaald uit geheugen — gebruik dit actief):\n{lines}"
+        )
 
     return (
         f"Je bent Anna, een empathische AI-gezondheidsassistent voor hartfalenpatiënten. "
-        f"Je spreekt met {name}.\n\n"
+        f"Je spreekt met {name}.\n"
+        f"{memory_block}\n\n"
         f"Gedragsregels:\n"
         f"- Verzin nooit symptomen, medicatie of gewicht die de patiënt niet heeft gemeld.\n"
         f"- Stel maximaal één gerichte vervolgvraag per response.\n"
@@ -115,25 +118,19 @@ def _build_system_prompt(
         f"- Je bent geen meldkamer en geen vervanger van huisartsenpost of 112. Geef geen "
         f"stap-voor-stap noodscripts en noem geen alarmnummers (zoals 112), tenzij de patiënt daar "
         f"expliciet zelf om vraagt.\n"
-        f"- Je kunt geen telefoongesprekken voeren. Leg dat zo nodig kort en neutraal uit; koppel "
-        f"dat niet aan telefoonnummers of eerdere berichten om een kunstmatige crisis te creëren.\n"
-        f"- Als de patiënt een telefoonnummer deelt: noteer het feit kort en vraag of dit het juiste "
-        f"contact is voor de zorgverlener. Gebruik het nummer niet voor dramatische belplannen.\n"
-        f"- Reageer proportioneel op het huidige bericht. Eerdere RAG-regels met ernstige klachten "
-        f"zijn context, geen reden om de huidige boodschap te overschreeuwen.\n\n"
-        f"Geheugengebruik (BELANGRIJK):\n"
-        f"- Onderaan deze prompt staan 'Eerdere uitspraken van de patiënt'. Dit zijn echte herinneringen "
-        f"uit vorige en huidige sessies, opgehaald via semantisch zoeken.\n"
-        f"- Als de patiënt vraagt naar iets dat hij/zij eerder heeft gedeeld (een telefoonnummer, naam, "
-        f"gewicht, afspraak, klacht), zoek dan EERST in die herinneringen. Als het daar staat, geef het "
-        f"terug. Zeg nooit dat je vorige sessies niet kunt herinneren — die informatie staat in je context.\n"
-        f"- Als iets niet in de herinneringen staat, zeg dan eerlijk dat je het niet terugvindt, maar "
-        f"vraag de patiënt het opnieuw te delen.\n\n"
+        f"- Je kunt geen telefoongesprekken voeren. Leg dat zo nodig kort en neutraal uit.\n"
+        f"- Als de patiënt een telefoonnummer deelt: noteer het kort. Gebruik het niet voor "
+        f"dramatische belplannen.\n"
+        f"- Reageer proportioneel op het huidige bericht, niet op het patroon van eerdere berichten.\n\n"
+        f"Geheugen gebruiken:\n"
+        f"- De 'Eerdere uitspraken' bovenaan zijn echte herinneringen uit alle sessies van deze patiënt.\n"
+        f"- Wordt gevraagd naar iets dat eerder gedeeld is (nummer, naam, klacht, gewicht)? "
+        f"Geef het terug vanuit die herinneringen. Zeg nooit dat je vorige sessies niet kunt herinneren.\n"
+        f"- Staat iets niet in de herinneringen? Zeg eerlijk dat je het niet terugvindt.\n\n"
         f"Patiëntgegevens:\n"
         f"- Naam: {name}\n"
         f"- Medicatieschema: {medication}\n"
         f"- Notities zorgverlener: {notes}"
-        f"{memory_block}"
     )
 
 
