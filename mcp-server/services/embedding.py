@@ -40,7 +40,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
             EmbeddingUnavailableError: als Ollama niet bereikbaar is
         """
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
                     f"{self.base_url}/api/embed",
                     json={"model": self.model, "input": text},

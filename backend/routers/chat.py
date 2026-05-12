@@ -295,8 +295,8 @@ async def chat(
     db.add(user_message)
     db.commit()
 
-    # RAG-context ophalen + geheugen opslaan — parallel voor minimale latency
-    memories, chroma_doc_id = await asyncio.gather(
+    # RAG-context ophalen + geheugen opslaan — parallel, non-fatal als Ollama bezet is
+    rag_result, store_result = await asyncio.gather(
         mcp.recall_context(
             query=body.content,
             patient_id=str(patient_id),
@@ -308,7 +308,10 @@ async def chat(
             patient_id=str(patient_id),
             session_id=str(session.id),
         ),
+        return_exceptions=True,
     )
+    memories: list[dict] = rag_result if isinstance(rag_result, list) else []
+    chroma_doc_id: str | None = store_result if isinstance(store_result, str) else None
 
     # Laatste 10 berichten van de huidige sessie als conversation history
     recent = (
