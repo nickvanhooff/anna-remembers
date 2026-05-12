@@ -394,4 +394,4 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - Opt-in via query (`debug=true`) i.p.v. altijd aan — geen extra payload in productie-flow, wel reproduceerbaar voor portfolio (curl, OpenAPI, screen recording)
 - Geen volledige system prompt in de response (privacy/size); wel expliciete `origin`-labels en tellingen als bewijslijn
 
-**Commit:** `ea2ce96` — feat(chat): add debug context_proof for Postgres vs RAG provenance
+**Commit:** `3d6aaab` — feat(chat): add debug context_proof for Postgres vs RAG provenance
