@@ -797,7 +797,7 @@ pytest tests/ -v
 ```
 Verwacht: alle tests PASS (4 MCPClient tests + 6 chat tests)
 
-- [ ] **Stap 5: Commit**
+- [x] **Stap 5: Commit**
 
 ```bash
 git add backend/routers/chat.py backend/tests/test_chat.py
