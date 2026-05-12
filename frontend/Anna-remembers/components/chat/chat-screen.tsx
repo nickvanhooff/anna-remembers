@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react"
 import { Plus, ChevronRight, Send } from "lucide-react"
 import { toast } from "sonner"
 
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -14,22 +13,29 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 
 import { StatusBadge } from "@/components/dashboard/status-badge"
 import { fmtTime } from "@/lib/utils"
-import { getPatients, sendMessage } from "@/lib/api"
+import { getPatients, getChatSessions, getChatMessages, sendMessage } from "@/lib/api"
+import type { ChatSession } from "@/lib/api"
 import type { Patient, Message } from "@/types"
 
 export function ChatScreen() {
-  const [patients, setPatients]       = useState<Patient[]>([])
-  const [patientId, setPatientId]     = useState<string>("")
-  const [loadingPts, setLoadingPts]   = useState(true)
-  // berichten per patiënt: patientId → Message[]
-  const [msgMap, setMsgMap]           = useState<Record<string, Message[]>>({})
-  // session_id per patiënt, gevuld na eerste API-response
-  const [sessionIds, setSessionIds]   = useState<Record<string, string>>({})
-  const [draft, setDraft]             = useState("")
-  const [typing, setTyping]           = useState(false)
-  const [panelOpen, setPanelOpen]     = useState(true)
+  const [patients, setPatients]         = useState<Patient[]>([])
+  const [patientId, setPatientId]       = useState<string>("")
+  const [loadingPts, setLoadingPts]     = useState(true)
+
+  const [sessions, setSessions]         = useState<ChatSession[]>([])
+  const [activeId, setActiveId]         = useState<string | null>(null)
+  const [loadingSessions, setLoadingSessions] = useState(false)
+
+  // berichten per sessie-id
+  const [msgMap, setMsgMap]             = useState<Record<string, Message[]>>({})
+  const [loadingMsgs, setLoadingMsgs]   = useState(false)
+
+  const [draft, setDraft]               = useState("")
+  const [typing, setTyping]             = useState(false)
+  const [panelOpen, setPanelOpen]       = useState(true)
   const streamRef = useRef<HTMLDivElement>(null)
 
+  // Patiënten laden bij mount
   useEffect(() => {
     getPatients()
       .then(ps => {
@@ -40,9 +46,42 @@ export function ChatScreen() {
       .finally(() => setLoadingPts(false))
   }, [])
 
+  // Sessies laden bij patiëntwisseling
+  useEffect(() => {
+    if (!patientId) return
+    setLoadingSessions(true)
+    setSessions([])
+    setActiveId(null)
+    setMsgMap({})
+
+    getChatSessions(patientId)
+      .then(ss => {
+        setSessions(ss)
+        // open sessie automatisch selecteren
+        const open = ss.find(s => s.isOpen) ?? ss[0] ?? null
+        if (open) setActiveId(open.id)
+      })
+      .catch(() => toast.error("Kon sessies niet laden"))
+      .finally(() => setLoadingSessions(false))
+  }, [patientId])
+
+  // Berichten laden bij sessiewisseling
+  useEffect(() => {
+    if (!activeId || !patientId) return
+    if (msgMap[activeId]) return   // al geladen
+
+    const patient = patients.find(p => p.id === patientId)
+    if (!patient) return
+
+    setLoadingMsgs(true)
+    getChatMessages(patientId, activeId, patient.first)
+      .then(msgs => setMsgMap(prev => ({ ...prev, [activeId]: msgs })))
+      .catch(() => toast.error("Kon gesprekshistorie niet laden"))
+      .finally(() => setLoadingMsgs(false))
+  }, [activeId, patientId, patients, msgMap])
+
   const patient  = patients.find(p => p.id === patientId)
-  const messages = msgMap[patientId] ?? []
-  const sessionId = sessionIds[patientId] ?? null
+  const messages = activeId ? (msgMap[activeId] ?? []) : []
 
   useEffect(() => {
     if (streamRef.current) {
@@ -57,16 +96,27 @@ export function ChatScreen() {
     setDraft("")
 
     const userMsg: Message = { role: "me", who: patient.first, t: fmtTime(), body: text }
-    setMsgMap(prev => ({ ...prev, [patientId]: [...(prev[patientId] ?? []), userMsg] }))
+    const currentId = activeId
+
+    if (currentId) {
+      setMsgMap(prev => ({ ...prev, [currentId]: [...(prev[currentId] ?? []), userMsg] }))
+    }
     setTyping(true)
 
     try {
-      const { reply, sessionId: sid } = await sendMessage(patient.id, text)
-      if (!sessionIds[patientId]) {
-        setSessionIds(prev => ({ ...prev, [patientId]: sid }))
-      }
+      const { reply, sessionId } = await sendMessage(patient.id, text)
       const annaMsg: Message = { role: "them", who: "Anna", t: fmtTime(), body: reply }
-      setMsgMap(prev => ({ ...prev, [patientId]: [...(prev[patientId] ?? []), annaMsg] }))
+
+      if (!currentId) {
+        // eerste bericht van een nieuwe sessie — sessie bestaat nu in de backend
+        const newSession: ChatSession = { id: sessionId, date: new Date().toISOString().slice(0, 10), messageCount: 2, isOpen: true }
+        setSessions(prev => [newSession, ...prev])
+        setActiveId(sessionId)
+        setMsgMap(prev => ({ ...prev, [sessionId]: [userMsg, annaMsg] }))
+      } else {
+        setMsgMap(prev => ({ ...prev, [currentId]: [...(prev[currentId] ?? []), annaMsg] }))
+        setSessions(prev => prev.map(s => s.id === currentId ? { ...s, messageCount: s.messageCount + 2 } : s))
+      }
     } catch (err) {
       const isTimeout = err instanceof Error && err.message === "timeout"
       toast.error(
@@ -74,19 +124,12 @@ export function ChatScreen() {
           ? "Anna reageert niet (time-out na 90 s). Probeer opnieuw."
           : "Anna kon niet antwoorden. Controleer de verbinding en probeer opnieuw."
       )
-      // draai de optimistisch toegevoegde user-message terug
-      setMsgMap(prev => ({
-        ...prev,
-        [patientId]: (prev[patientId] ?? []).slice(0, -1),
-      }))
+      if (currentId) {
+        setMsgMap(prev => ({ ...prev, [currentId]: (prev[currentId] ?? []).slice(0, -1) }))
+      }
     } finally {
       setTyping(false)
     }
-  }
-
-  function clearSession() {
-    setMsgMap(prev => ({ ...prev, [patientId]: [] }))
-    setSessionIds(prev => { const n = { ...prev }; delete n[patientId]; return n })
   }
 
   const today = new Date().toISOString().slice(0, 10)
@@ -102,10 +145,9 @@ export function ChatScreen() {
         </span>
       </header>
 
-      {/* Body: session rail + chat */}
       <div
         className="flex flex-1 overflow-hidden transition-all duration-200"
-        style={{ gridTemplateColumns: panelOpen ? "260px 1fr" : "0 1fr", display: "grid" }}
+        style={{ display: "grid", gridTemplateColumns: panelOpen ? "260px 1fr" : "0 1fr" }}
       >
         {/* Session rail */}
         <aside
@@ -130,47 +172,56 @@ export function ChatScreen() {
             )}
           </div>
 
-          {/* Sessie header */}
+          {/* Sessie-header */}
           <div className="flex items-center justify-between px-3.5 py-2.5">
             <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Sessie
+              Sessies{sessions.length > 0 ? ` · ${sessions.length}` : ""}
             </span>
             <Button
               variant="ghost"
               size="icon"
               className="size-6"
-              onClick={clearSession}
-              title="Nieuw gesprek starten"
-              disabled={messages.length === 0}
+              title="Nieuw gesprek (backend opent automatisch nieuwe sessie)"
+              onClick={() => setActiveId(null)}
             >
               <Plus className="size-3.5" />
             </Button>
           </div>
 
+          {/* Sessielijst */}
           <div className="flex flex-col overflow-auto flex-1">
-            {messages.length === 0 ? (
+            {loadingSessions ? (
+              <div className="flex flex-col gap-1 p-2">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full rounded" />)}
+              </div>
+            ) : sessions.length === 0 ? (
               <div className="px-3.5 py-3 text-[12px] text-muted-foreground italic">
-                Nog geen berichten
+                Nog geen sessies
               </div>
             ) : (
-              <div
-                className="text-left px-3.5 py-2.5 flex flex-col gap-0.5"
-                style={{
-                  background:  "var(--accent)",
-                  color:       "var(--accent-foreground)",
-                  borderLeft:  "3px solid var(--primary)",
-                }}
-              >
-                <span className="text-[13px] font-medium">Huidige sessie</span>
-                <span className="font-mono text-[11px] opacity-70">
-                  {today} · {messages.length} berichten
-                </span>
-                {sessionId && (
-                  <span className="font-mono text-[10px] opacity-50 truncate" title={sessionId}>
-                    {sessionId.slice(0, 8)}…
-                  </span>
-                )}
-              </div>
+              sessions.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveId(s.id)}
+                  className="text-left px-3.5 py-2.5 flex flex-col gap-0.5 transition-colors duration-100"
+                  style={{
+                    background:  s.id === activeId ? "var(--accent)"   : "transparent",
+                    color:       s.id === activeId ? "var(--accent-foreground)" : "inherit",
+                    borderLeft:  `3px solid ${s.id === activeId ? "var(--primary)" : "transparent"}`,
+                  }}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[13px] font-medium">{s.date}</span>
+                    {s.isOpen && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                        style={{ backgroundColor: "var(--success-soft-bg)", color: "var(--success-soft-fg)" }}>
+                        open
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-mono text-[11px] opacity-70">{s.messageCount} berichten</span>
+                </button>
+              ))
             )}
           </div>
         </aside>
@@ -213,80 +264,102 @@ export function ChatScreen() {
 
           {/* Berichtenstroom */}
           <div ref={streamRef} className="flex-1 overflow-auto px-7 py-5 flex flex-col gap-3.5 bg-background">
-            {messages.length === 0 && !typing && (
-              <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
-                <span className="text-[13px]">Nog geen gesprek gestart.</span>
-                <span className="text-[12px] opacity-70">Typ een bericht om een check-in te beginnen.</span>
+            {loadingMsgs ? (
+              <div className="flex flex-col gap-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className={`flex gap-2.5 max-w-[60%] ${i % 2 === 0 ? "self-end flex-row-reverse" : ""}`}>
+                    <Skeleton className="size-7 rounded-full shrink-0" />
+                    <Skeleton className="h-12 w-48 rounded-2xl" />
+                  </div>
+                ))}
               </div>
-            )}
+            ) : (
+              <>
+                {!activeId && (
+                  <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+                    <span className="text-[13px]">Nog geen sessie geselecteerd.</span>
+                    <span className="text-[12px] opacity-70">Kies een sessie links, of stuur een bericht om een nieuwe te starten.</span>
+                  </div>
+                )}
 
-            {messages.length > 0 && (
-              <div className="text-center text-[11px] text-muted-foreground font-mono py-1 relative">
-                <span className="relative z-10 bg-background px-3">{today}</span>
-                <span className="absolute inset-x-0 top-1/2 h-px bg-border" />
-              </div>
-            )}
+                {activeId && messages.length === 0 && !typing && (
+                  <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+                    <span className="text-[13px]">Sessie leeg.</span>
+                    <span className="text-[12px] opacity-70">Stuur een bericht om te beginnen.</span>
+                  </div>
+                )}
 
-            {messages.map((m, i) => (
-              <div
-                key={i}
-                className="flex gap-2.5 max-w-[78%]"
-                style={{
-                  alignSelf:     m.role === "me" ? "flex-end" : "flex-start",
-                  flexDirection: m.role === "me" ? "row-reverse" : "row",
-                }}
-              >
-                <Avatar className="size-7 shrink-0 mt-0.5">
-                  <AvatarFallback
-                    className="text-xs font-medium"
-                    style={m.role === "them"
-                      ? { backgroundColor: "var(--primary)",  color: "var(--primary-foreground)" }
-                      : { backgroundColor: "var(--accent)",   color: "var(--accent-foreground)"  }}
-                  >
-                    {m.role === "them" ? "A" : `${patient?.first[0] ?? "?"}${patient?.last[0] ?? ""}`}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
+                {messages.length > 0 && (
+                  <div className="text-center text-[11px] text-muted-foreground font-mono py-1 relative">
+                    <span className="relative z-10 bg-background px-3">
+                      {sessions.find(s => s.id === activeId)?.date ?? today}
+                    </span>
+                    <span className="absolute inset-x-0 top-1/2 h-px bg-border" />
+                  </div>
+                )}
+
+                {messages.map((m, i) => (
                   <div
-                    className="px-3.5 py-2.5 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap"
-                    style={m.role === "them"
-                      ? { backgroundColor: "var(--accent)",  color: "var(--accent-foreground)",  borderTopLeftRadius:  4 }
-                      : { backgroundColor: "var(--primary)", color: "var(--primary-foreground)", borderTopRightRadius: 4 }}
+                    key={i}
+                    className="flex gap-2.5 max-w-[78%]"
+                    style={{
+                      alignSelf:     m.role === "me" ? "flex-end" : "flex-start",
+                      flexDirection: m.role === "me" ? "row-reverse" : "row",
+                    }}
                   >
-                    {m.tag && (
-                      <span
-                        className="inline-flex items-center h-5 px-1.5 rounded-full text-[11px] font-medium mr-1.5"
-                        style={{ backgroundColor: "oklch(1 0 0 / 0.20)" }}
+                    <Avatar className="size-7 shrink-0 mt-0.5">
+                      <AvatarFallback
+                        className="text-xs font-medium"
+                        style={m.role === "them"
+                          ? { backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }
+                          : { backgroundColor: "var(--accent)",  color: "var(--accent-foreground)" }}
                       >
-                        {m.tag}
-                      </span>
-                    )}
-                    {m.body}
+                        {m.role === "them" ? "A" : `${patient?.first[0] ?? "?"}${patient?.last[0] ?? ""}`}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div
+                        className="px-3.5 py-2.5 rounded-2xl text-[14px] leading-relaxed whitespace-pre-wrap"
+                        style={m.role === "them"
+                          ? { backgroundColor: "var(--accent)",  color: "var(--accent-foreground)",  borderTopLeftRadius:  4 }
+                          : { backgroundColor: "var(--primary)", color: "var(--primary-foreground)", borderTopRightRadius: 4 }}
+                      >
+                        {m.tag && (
+                          <span
+                            className="inline-flex items-center h-5 px-1.5 rounded-full text-[11px] font-medium mr-1.5"
+                            style={{ backgroundColor: "oklch(1 0 0 / 0.20)" }}
+                          >
+                            {m.tag}
+                          </span>
+                        )}
+                        {m.body}
+                      </div>
+                      <div
+                        className="text-[11px] text-muted-foreground font-mono mt-1"
+                        style={{ textAlign: m.role === "me" ? "right" : "left" }}
+                      >
+                        {m.who} · {m.t}
+                      </div>
+                    </div>
                   </div>
-                  <div
-                    className="text-[11px] text-muted-foreground font-mono mt-1"
-                    style={{ textAlign: m.role === "me" ? "right" : "left" }}
-                  >
-                    {m.who} · {m.t}
-                  </div>
-                </div>
-              </div>
-            ))}
+                ))}
 
-            {typing && (
-              <div className="flex gap-2.5 max-w-[78%]">
-                <Avatar className="size-7 shrink-0 mt-0.5">
-                  <AvatarFallback
-                    className="text-xs font-medium"
-                    style={{ backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }}
-                  >
-                    A
-                  </AvatarFallback>
-                </Avatar>
-                <div className="px-3.5 py-3 rounded-2xl" style={{ backgroundColor: "var(--accent)", borderTopLeftRadius: 4 }}>
-                  <TypingDots />
-                </div>
-              </div>
+                {typing && (
+                  <div className="flex gap-2.5 max-w-[78%]">
+                    <Avatar className="size-7 shrink-0 mt-0.5">
+                      <AvatarFallback
+                        className="text-xs font-medium"
+                        style={{ backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }}
+                      >
+                        A
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="px-3.5 py-3 rounded-2xl" style={{ backgroundColor: "var(--accent)", borderTopLeftRadius: 4 }}>
+                      <TypingDots />
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -298,9 +371,9 @@ export function ChatScreen() {
               value={draft}
               onChange={e => setDraft(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send() } }}
-              disabled={!patient || typing}
+              disabled={!patient || typing || loadingMsgs}
             />
-            <Button size="sm" onClick={() => void send()} disabled={!draft.trim() || !patient || typing}>
+            <Button size="sm" onClick={() => void send()} disabled={!draft.trim() || !patient || typing || loadingMsgs}>
               <Send data-icon="inline-start" />
               Versturen
             </Button>

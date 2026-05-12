@@ -6,6 +6,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models.message import Message
@@ -16,10 +17,12 @@ from schemas.message import (
     ChatRequest,
     CombinedContextProof,
     HistoryEntryProof,
+    MessageListItem,
     MessageResponse,
     PostgresContextProof,
     RAGContextProof,
     RAGHitProof,
+    SessionListItem,
     StoreMemoryProof,
 )
 from services.database import get_db
@@ -126,6 +129,76 @@ def _build_system_prompt(
         f"- Medicatieschema: {medication}\n"
         f"- Notities zorgverlener: {notes}"
         f"{memory_block}"
+    )
+
+
+@router.get(
+    "/{patient_id}/sessions",
+    response_model=list[SessionListItem],
+    responses={404: {"description": "Patiënt niet gevonden"}},
+)
+def list_sessions(
+    patient_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> list[dict]:
+    """Geef alle sessies voor een patiënt, inclusief berichtenaantal."""
+    from models.patient import Patient as PatientModel
+    if not db.get(PatientModel, patient_id):
+        raise HTTPException(status_code=404, detail="Patiënt niet gevonden")
+
+    sessions = (
+        db.query(ChatSession)
+        .filter(ChatSession.patient_id == patient_id)
+        .order_by(ChatSession.started_at.desc())
+        .all()
+    )
+
+    session_ids = [s.id for s in sessions]
+    counts: dict[uuid.UUID, int] = {}
+    if session_ids:
+        rows = (
+            db.query(Message.session_id, func.count(Message.id))
+            .filter(Message.session_id.in_(session_ids))
+            .group_by(Message.session_id)
+            .all()
+        )
+        counts = {sid: cnt for sid, cnt in rows}
+
+    return [
+        {
+            "id": s.id,
+            "started_at": s.started_at,
+            "ended_at": s.ended_at,
+            "message_count": counts.get(s.id, 0),
+            "is_open": s.ended_at is None,
+        }
+        for s in sessions
+    ]
+
+
+@router.get(
+    "/{patient_id}/sessions/{session_id}/messages",
+    response_model=list[MessageListItem],
+    responses={404: {"description": "Sessie niet gevonden"}},
+)
+def list_messages(
+    patient_id: uuid.UUID,
+    session_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> list[Message]:
+    """Geef alle berichten voor een sessie, chronologisch."""
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.patient_id == patient_id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessie niet gevonden")
+
+    return (
+        db.query(Message)
+        .filter(Message.session_id == session_id)
+        .order_by(Message.created_at.asc())
+        .all()
     )
 
 

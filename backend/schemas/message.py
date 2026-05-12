@@ -76,6 +76,26 @@ class ChatContextProof(BaseModel):
     combined: CombinedContextProof
 
 
+class SessionListItem(BaseModel):
+    id: uuid.UUID
+    started_at: datetime
+    ended_at: datetime | None = None
+    message_count: int
+    is_open: bool
+
+    model_config = {"from_attributes": True}
+
+
+class MessageListItem(BaseModel):
+    id: uuid.UUID
+    session_id: uuid.UUID
+    role: str
+    content: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class MessageResponse(BaseModel):
     id: uuid.UUID
     session_id: uuid.UUID

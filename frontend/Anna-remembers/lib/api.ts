@@ -143,6 +143,14 @@ export async function getEscalations(): Promise<Escalation[]> {
 
 // ─── Chat ─────────────────────────────────────────────────────────
 
+interface SessionAPI {
+  id: string
+  started_at: string
+  ended_at: string | null
+  message_count: number
+  is_open: boolean
+}
+
 interface MessageResponseAPI {
   id: string
   session_id: string
@@ -152,6 +160,39 @@ interface MessageResponseAPI {
 }
 
 const CHAT_TIMEOUT_MS = 90_000
+
+export interface ChatSession {
+  id: string
+  date: string
+  messageCount: number
+  isOpen: boolean
+}
+
+export async function getChatSessions(patientId: string): Promise<ChatSession[]> {
+  const data = await get<SessionAPI[]>(`/chat/${patientId}/sessions`)
+  return data.map(s => ({
+    id:           s.id,
+    date:         s.started_at.slice(0, 10),
+    messageCount: s.message_count,
+    isOpen:       s.is_open,
+  }))
+}
+
+export async function getChatMessages(
+  patientId: string,
+  sessionId: string,
+  patientFirst: string,
+): Promise<import("@/types").Message[]> {
+  const data = await get<MessageResponseAPI[]>(
+    `/chat/${patientId}/sessions/${sessionId}/messages`,
+  )
+  return data.map(m => ({
+    role: m.role === "user" ? "me" : "them",
+    who:  m.role === "user" ? patientFirst : "Anna",
+    t:    new Date(m.created_at).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" }),
+    body: m.content,
+  }))
+}
 
 export async function sendMessage(
   patientId: string,
