@@ -2,6 +2,7 @@ import os
 from fastmcp import FastMCP
 
 from services.embedding import get_embedding_provider
+from tools.escalation import escalate_to_human as _escalate_to_human
 from tools.memory import recall_context as _recall_context
 from tools.memory import store_memory as _store_memory
 
@@ -28,6 +29,17 @@ async def recall_context(
 ) -> list[dict]:
     """Haal semantisch gerelateerde herinneringen op voor een patiënt."""
     return await _recall_context(query, patient_id, limit, _embed)
+
+
+@mcp.tool()
+async def escalate_to_human(
+    patient_id: str,
+    reason: str,
+    urgency: str,
+) -> None:
+    """Escaleer naar een zorgverlener. urgency: low | medium | high."""
+    return await _escalate_to_human(patient_id, reason, urgency)
+
 
 if __name__ == "__main__":
     port = int(os.getenv("MCP_PORT", "8001"))
