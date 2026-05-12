@@ -339,6 +339,15 @@ async def chat(
     db.commit()
     db.refresh(assistant_message)
 
+    # Sla Anna's antwoord ook op in ChromaDB — zo kan "ik woon in X" teruggevonden
+    # worden via "waar woon ik?" (de vraag zelf is semantisch te ver van het antwoord)
+    await mcp.store_memory(
+        content=response_text,
+        source="ai_inferred",
+        patient_id=str(patient_id),
+        session_id=str(session.id),
+    )
+
     # Escalatie stub — implementatie volgt in een volgend issue
     await mcp.escalate_to_human(
         patient_id=str(patient_id),
