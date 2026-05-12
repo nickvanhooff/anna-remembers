@@ -395,3 +395,17 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - Geen volledige system prompt in de response (privacy/size); wel expliciete `origin`-labels en tellingen als bewijslijn
 
 **Commit:** `3d6aaab` — feat(chat): add debug context_proof for Postgres vs RAG provenance
+
+---
+
+## Stap 20 — 2026-05-12
+
+**Wat:** System prompt aangescherpt na ongewenst LLM-gedrag (alarmistische ALL CAPS, 112/doktersnummer-combinatie uit context + RAG).
+
+**Gedaan:**
+- `backend/routers/chat.py` — `_build_system_prompt`: extra regels voor rustige toon, geen meldkamer-rol, geen stap-voor-stap noodscripts of alarmnummers tenzij patiënt expliciet vraagt, neutrale uitleg dat Anna niet belt, doktersnummers alleen kort vastleggen zonder kunstmatig "BEL NU"-plan, proportioneel reageren op huidig bericht t.o.v. eerdere/RAG-context
+
+**Beslissingen:**
+- Grenzen in prompt i.p.v. post-filter — lage latency, herhaalbaar in portfolio; echte medische escalatie blijft via geplande `escalate_to_human`-logica
+
+**Commit:** (nog niet gecommit)
