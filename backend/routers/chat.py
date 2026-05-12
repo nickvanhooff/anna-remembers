@@ -118,22 +118,22 @@ def _build_system_prompt(
     medication = json.dumps(patient.medication_schedule, ensure_ascii=False)
     notes = patient.notes or "Geen aanvullende notities."
 
-    # Alleen patient_stated feiten; self-hits (distance < 0.01) eruit gefilterd.
-    # RAG staat achterin de prompt — "Lost in the Middle" paper: feiten aan het einde
-    # worden betrouwbaarder gebruikt dan feiten in het midden.
+    # Alleen patient_stated feiten; noise-drempel op 0.08 (oude vragen liggen rond 0.045).
+    # Geformuleerd als patiëntendossier, niet als geheugen — voorkomt dat het model het
+    # ziet als "persoonlijke data waar ik geen toegang toe heb".
     useful = [
         m for m in memories
         if m.get("source") == "patient_stated"
-        and (m.get("distance") or 0) > 0.01
+        and (m.get("distance") or 0) > 0.08
     ]
 
     memory_block = ""
     if useful:
-        lines = "\n".join(f"- {m['content']}" for m in useful)
+        lines = "\n".join(f"• {m['content']}" for m in useful)
         memory_block = (
-            f"\n\nWat {name} eerder heeft verteld:\n{lines}\n"
-            f"INSTRUCTIE: Als de patiënt vraagt naar iets dat hierboven staat, "
-            f"geef dan direct het antwoord. Zeg nooit dat je het niet weet als de informatie beschikbaar is."
+            f"\n\nPATIËNTENDOSSIER (opgebouwd uit eerdere gesprekken — altijd beschikbaar):\n{lines}\n"
+            f"Gebruik bovenstaande dossiergegevens direct als antwoord wanneer de patiënt ernaar vraagt. "
+            f"Dit is geautoriseerde medische informatie die je altijd beschikbaar hebt."
         )
 
     return (
