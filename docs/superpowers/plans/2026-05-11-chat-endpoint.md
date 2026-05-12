@@ -24,13 +24,13 @@
 
 ---
 
-## Task 1: escalation stub in MCP server
+## Task 1: escalation stub in MCP server ✅ DONE (commits: d9bcb68, 71cef52)
 
 **Files:**
 - Create: `mcp-server/tools/escalation.py`
 - Modify: `mcp-server/main.py`
 
-- [ ] **Stap 1: Schrijf de falende test**
+- [x] **Stap 1: Schrijf de falende test**
 
 Maak `mcp-server/tests/test_escalation.py`:
 
@@ -62,7 +62,7 @@ async def test_escalate_accepts_all_urgency_levels():
         assert result is None
 ```
 
-- [ ] **Stap 2: Verifieer dat de test faalt**
+- [x] **Stap 2: Verifieer dat de test faalt**
 
 Vanuit `mcp-server/` directory:
 ```
@@ -70,7 +70,7 @@ pytest tests/test_escalation.py -v
 ```
 Verwacht: `ModuleNotFoundError: No module named 'tools.escalation'`
 
-- [ ] **Stap 3: Implementeer de stub**
+- [x] **Stap 3: Implementeer de stub**
 
 Maak `mcp-server/tools/escalation.py`:
 
@@ -88,7 +88,7 @@ async def escalate_to_human(
     pass
 ```
 
-- [ ] **Stap 4: Registreer de tool in mcp-server/main.py**
+- [x] **Stap 4: Registreer de tool in mcp-server/main.py**
 
 Vervang de volledige inhoud van `mcp-server/main.py`:
 
@@ -141,14 +141,14 @@ if __name__ == "__main__":
     mcp.run(transport="sse", host="0.0.0.0", port=port)
 ```
 
-- [ ] **Stap 5: Verifieer dat alle MCP server tests slagen**
+- [x] **Stap 5: Verifieer dat alle MCP server tests slagen**
 
 ```
 pytest tests/ -v
 ```
 Verwacht: alle tests PASS (inclusief de 2 nieuwe escalatie tests + de 7 bestaande)
 
-- [ ] **Stap 6: Commit**
+- [x] **Stap 6: Commit**
 
 ```bash
 git add mcp-server/tools/escalation.py mcp-server/main.py mcp-server/tests/test_escalation.py
@@ -157,7 +157,7 @@ git commit -m "feat(mcp): add escalate_to_human stub + register all tools"
 
 ---
 
-## Task 2: MCPClient implementeren in backend
+## Task 2: MCPClient implementeren in backend ✅ DONE (commit: 9188dcc)
 
 **Files:**
 - Modify: `backend/requirements.txt`
@@ -165,7 +165,7 @@ git commit -m "feat(mcp): add escalate_to_human stub + register all tools"
 - Create: `backend/tests/__init__.py`
 - Create: `backend/tests/test_mcp_client.py`
 
-- [ ] **Stap 1: Voeg fastmcp toe aan backend requirements**
+- [x] **Stap 1: Voeg fastmcp toe aan backend requirements**
 
 `backend/requirements.txt`:
 
@@ -182,14 +182,14 @@ httpx>=0.27.0
 fastmcp>=2.0.0
 ```
 
-- [ ] **Stap 2: Maak backend/tests/__init__.py aan**
+- [x] **Stap 2: Maak backend/tests/__init__.py aan**
 
 Leeg bestand, zodat pytest de map vindt:
 
 ```python
 ```
 
-- [ ] **Stap 3: Schrijf de falende tests voor MCPClient**
+- [x] **Stap 3: Schrijf de falende tests voor MCPClient**
 
 Maak `backend/tests/test_mcp_client.py`:
 
@@ -409,7 +409,7 @@ git commit -m "feat(backend): implement MCPClient with fastmcp SSE transport"
 - Rewrite: `backend/routers/chat.py`
 - Create: `backend/tests/test_chat.py`
 
-- [ ] **Stap 1: Schrijf de falende tests voor de chat router**
+- [x] **Stap 1: Schrijf de falende tests voor de chat router**
 
 Maak `backend/tests/test_chat.py`:
 
@@ -622,14 +622,14 @@ def test_chat_rag_memories_appear_in_system_prompt(client_with_patient):
     assert "patient_stated" in captured_system["value"]
 ```
 
-- [ ] **Stap 2: Verifieer dat de tests falen**
+- [x] **Stap 2: Verifieer dat de tests falen**
 
 ```
 pytest tests/test_chat.py -v
 ```
 Verwacht: tests falen omdat `get_mcp_client` nog niet als `Depends()` in chat.py zit.
 
-- [ ] **Stap 3: Herschrijf chat.py met volledige flow**
+- [x] **Stap 3: Herschrijf chat.py met volledige flow**
 
 Vervang de volledige inhoud van `backend/routers/chat.py`:
 
@@ -790,7 +790,7 @@ async def chat(
     return assistant_message
 ```
 
-- [ ] **Stap 4: Verifieer dat alle backend tests slagen**
+- [x] **Stap 4: Verifieer dat alle backend tests slagen**
 
 ```
 pytest tests/ -v
