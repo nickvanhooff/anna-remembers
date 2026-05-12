@@ -557,3 +557,30 @@ Ruwe berichtenhistorie is geen geheugen. Een hartpatiënt-companion heeft na ver
 - `.env.example` — idem bijgewerkt
 
 **Verwachting:** gemma4:e2b past volledig in VRAM, inferentie zakt naar 5-20s. Zelfde prompt-structuur en Nederlands taalgedrag blijven van toepassing.
+
+---
+
+## Stap 28 — 2026-05-12
+
+**Wat:** RAG cross-sessie recall gerepareerd — Anna's antwoorden worden nu ook opgeslagen in ChromaDB.
+
+**Aanleiding:**
+Via `context_proof` aangetoond dat RAG semantisch faalde. De gebruiker vroeg "waar woon ik?" en de RAG-hits waren uitsluitend de vraag zelf ("waar woon ik", distance ≈ 0), niet het feit "ik woon in schaft". Oorzaak: `store_memory` sloeg alleen het user-bericht op. Bij een recall-query matcht de vraag zichzelf perfect — het antwoord zit er niet in.
+
+**Voorbeeld uit context_proof:**
+```json
+"hits": [
+  { "content": "waar woon ik",  "distance": 1.19e-7 },  ← vraag opgeslagen, niet het feit
+  { "content": "waar woon ik?", "distance": 1.19e-7 }
+]
+```
+"ik woon in schaft" verscheen nergens in de hits.
+
+**Fix:**
+- `backend/routers/chat.py` — na opslaan van `assistant_message`: extra `store_memory`-aanroep met `content=response_text`, `source="ai_inferred"`. Anna's antwoord ("Je woont in Schaft") heeft wél semantische overlap met "waar woon ik?".
+
+**Beslissingen:**
+- `source="ai_inferred"` — onderscheidt Anna's samenvattingen van directe patiëntuitspraken, conform architectuurregel (source-tag is verplicht)
+- Geen deduplicatie toegevoegd — duplicaten zijn acceptabel in demo-fase; de samenvatting (Issue #28) lost dit structureel op
+
+**Commit:** `d016d07` — fix(chat): also store Anna response in ChromaDB for cross-session RAG recall
