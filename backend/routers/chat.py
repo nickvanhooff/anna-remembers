@@ -98,28 +98,27 @@ def _build_system_prompt(
     medication = json.dumps(patient.medication_schedule, ensure_ascii=False)
     notes = patient.notes or "Geen aanvullende notities."
 
-    # Filter self-hits (query teruggevonden als zichzelf, distance ≈ 0) en ai_inferred ruis
-    # (Anna's weigeringsantwoorden worden opgeslagen als ai_inferred en verstoren het model)
+    # Alleen patient_stated feiten; self-hits (distance < 0.01) eruit gefilterd.
+    # RAG staat achterin de prompt — "Lost in the Middle" paper: feiten aan het einde
+    # worden betrouwbaarder gebruikt dan feiten in het midden.
     useful = [
         m for m in memories
-        if (m.get("distance") or 0) > 0.01
-        and not (m.get("source") == "ai_inferred" and (m.get("distance") or 0) > 0.35)
+        if m.get("source") == "patient_stated"
+        and (m.get("distance") or 0) > 0.01
     ]
 
     memory_block = ""
     if useful:
         lines = "\n".join(f"- {m['content']}" for m in useful)
         memory_block = (
-            f"\n\nWat {name} eerder heeft verteld (opgehaald uit het geheugen):\n{lines}\n\n"
+            f"\n\nWat {name} eerder heeft verteld:\n{lines}\n"
             f"INSTRUCTIE: Als de patiënt vraagt naar iets dat hierboven staat, "
-            f"geef dan direct het antwoord vanuit dit geheugen. "
-            f"Zeg nooit dat je het niet weet als de informatie beschikbaar is."
+            f"geef dan direct het antwoord. Zeg nooit dat je het niet weet als de informatie beschikbaar is."
         )
 
     return (
         f"Je bent Anna, een empathische AI-gezondheidsassistent voor hartfalenpatiënten. "
-        f"Je spreekt met {name}.\n"
-        f"{memory_block}\n\n"
+        f"Je spreekt met {name}.\n\n"
         f"Gedragsregels:\n"
         f"- Verzin nooit symptomen, medicatie of gewicht die de patiënt niet heeft gemeld.\n"
         f"- Stel maximaal één gerichte vervolgvraag per response.\n"
@@ -137,6 +136,7 @@ def _build_system_prompt(
         f"- Naam: {name}\n"
         f"- Medicatieschema: {medication}\n"
         f"- Notities zorgverlener: {notes}"
+        f"{memory_block}"
     )
 
 
@@ -301,6 +301,21 @@ async def chat(
     db.add(user_message)
     db.commit()
 
+    # Sla alleen feitelijke uitspraken op — geen vragen (eindigen op ?) en geen korte berichten.
+    # Vragen als "waar woon ik?" veroorzaken self-hits in ChromaDB (distance ≈ 0) en verdringen feiten.
+    is_question = body.content.strip().endswith("?") or len(body.content.strip()) < 10
+
+    store_coro = (
+        mcp.store_memory(
+            content=body.content,
+            source="patient_stated",
+            patient_id=str(patient_id),
+            session_id=str(session.id),
+        )
+        if not is_question
+        else asyncio.sleep(0)
+    )
+
     # RAG-context ophalen + geheugen opslaan — parallel, non-fatal als Ollama bezet is
     rag_result, store_result = await asyncio.gather(
         mcp.recall_context(
@@ -308,12 +323,7 @@ async def chat(
             patient_id=str(patient_id),
             limit=_RAG_LIMIT,
         ),
-        mcp.store_memory(
-            content=body.content,
-            source="patient_stated",
-            patient_id=str(patient_id),
-            session_id=str(session.id),
-        ),
+        store_coro,
         return_exceptions=True,
     )
     memories: list[dict] = rag_result if isinstance(rag_result, list) else []
@@ -344,15 +354,6 @@ async def chat(
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
-
-    # Sla Anna's antwoord ook op in ChromaDB — zo kan "ik woon in X" teruggevonden
-    # worden via "waar woon ik?" (de vraag zelf is semantisch te ver van het antwoord)
-    await mcp.store_memory(
-        content=response_text,
-        source="ai_inferred",
-        patient_id=str(patient_id),
-        session_id=str(session.id),
-    )
 
     # Escalatie stub — implementatie volgt in een volgend issue
     await mcp.escalate_to_human(
