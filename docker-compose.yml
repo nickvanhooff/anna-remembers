@@ -88,7 +88,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       MCP_PORT: 8001
       OLLAMA_BASE_URL: http://ollama:11434
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3:latest}
     depends_on:
       postgres:
         condition: service_healthy

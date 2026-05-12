@@ -9,6 +9,32 @@ import os
 from fastmcp import Client
 
 
+def _first_text(result) -> str:
+    """Extract the first TextContent.text from fastmcp call_tool result.
+
+    fastmcp has had multiple return shapes across versions:
+    - list[TextContent]
+    - CallToolResult(content=[TextContent, ...])
+    """
+    content = getattr(result, "content", result)
+    if not content:
+        return ""
+    first = content[0]
+    return getattr(first, "text", str(first))
+
+
+def _unwrap_tool_result(result):
+    """Return the tool result value across fastmcp versions.
+
+    fastmcp 3.x may return CallToolResult(structured_content={'result': ...}).
+    Older versions returned a list of TextContent where .text held the result.
+    """
+    structured = getattr(result, "structured_content", None)
+    if isinstance(structured, dict) and "result" in structured:
+        return structured["result"]
+    return _first_text(result)
+
+
 class MCPClient:
     """Wrapper om fastmcp.Client die de MCP tools als Python-methodes aanbiedt."""
 
@@ -27,7 +53,10 @@ class MCPClient:
                 "recall_context",
                 {"query": query, "patient_id": patient_id, "limit": limit},
             )
-        return json.loads(result[0].text)
+        value = _unwrap_tool_result(result)
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
 
     async def store_memory(
         self,
@@ -51,7 +80,10 @@ class MCPClient:
                     "session_id": session_id,
                 },
             )
-        return result[0].text
+        value = _unwrap_tool_result(result)
+        if isinstance(value, str):
+            return value
+        return str(value)
 
     async def get_symptom_trends(
         self,
