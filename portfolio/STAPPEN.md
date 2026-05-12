@@ -408,4 +408,4 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 **Beslissingen:**
 - Grenzen in prompt i.p.v. post-filter — lage latency, herhaalbaar in portfolio; echte medische escalatie blijft via geplande `escalate_to_human`-logica
 
-**Commit:** (nog niet gecommit)
+**Commit:** `0b2cf34` — fix(chat): tighten system prompt against alarmist and 112-style output
