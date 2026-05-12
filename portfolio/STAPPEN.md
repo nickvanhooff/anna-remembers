@@ -346,3 +346,35 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - JSONB `medication_schedule` opgeslagen als `{ tekst: "..." }` voor invoer als vrije tekst — flexibel genoeg voor fase 1, uitbreidbaar naar gestructureerd schema later
 - Bestaande migratie aangepast (niet nieuwe revisie) — toegestaan omdat de database nog leeg was en alleen lokaal draait. Zodra er seeder-data is, worden schema-wijzigingen altijd als nieuwe Alembic-revisie gedaan
 - CORS beperkt tot `localhost:3000` — niet `"*"` zodat de instelling productie-klaar is (alleen whitelist uitbreiden)
+
+---
+
+## Stap 18 — 2026-05-12
+
+**Wat:** `escalate_to_human` stub geïmplementeerd met TDD (Issue #14 voorbereiding).
+
+**Gedaan (TDD):**
+1. Test-driven development: eerst twee tests geschreven — `test_escalate_to_human_is_stub()` en `test_escalate_accepts_all_urgency_levels()`
+2. Test liet zien: `ModuleNotFoundError: No module named 'tools.escalation'` — verwachte failure
+3. `mcp-server/tools/escalation.py` aangemaakt met `async def escalate_to_human()` stub
+4. `mcp-server/main.py` aangepast: import + registratie als `@mcp.tool()`
+5. Alle 9 tests slagen: 2 escalation + 7 bestaande (embedding + memory)
+
+**Aangemaakt:**
+- `mcp-server/tools/escalation.py` — `escalate_to_human(patient_id, reason, urgency) -> None` stub
+- `mcp-server/tests/test_escalation.py` — twee async tests, geen externe afhankelijkheden
+
+**Aangepasst:**
+- `mcp-server/main.py` — `from tools.escalation import escalate_to_human as _escalate_to_human` + registratie als tool
+
+**Resultaat:**
+- Tests: 9/9 PASS (embedding: 4, escalation: 2, memory: 3)
+- MCP server kan escalatie-calls ontvangen (stub gooit geen fout)
+- Signaal gereed voor vervolgstap: PostgreSQL escalations-tabel opvragen + email/Slack stub in tools/escalation.py
+
+**Beslissingen:**
+- Stub retourneert `None` zodat async context correct werkt — geen hardcoded placeholder-waarden
+- Geen mock/patch nodig: escalation is stateless, geen afhankelijkheden op ChromaDB/Ollama
+- TDD puur: geen code geschreven tot test faalde
+
+**Commit:** `d9bcb68` — feat(mcp): add escalate_to_human stub + register all tools
