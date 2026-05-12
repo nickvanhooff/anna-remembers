@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, String, Text, func
+from sqlalchemy import JSON, Date, DateTime, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -19,7 +19,9 @@ class Patient(Base):
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # JSONB voor flexibel medicatieschema — structuur kan per patiënt verschillen
     medication_schedule: Mapped[dict] = mapped_column(
-        JSONB, nullable=False, server_default="{}"
+        JSON().with_variant(JSONB, "postgresql"),
+        nullable=False,
+        server_default="{}",
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="info")

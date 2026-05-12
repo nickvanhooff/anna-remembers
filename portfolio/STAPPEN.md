@@ -378,3 +378,69 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 - TDD puur: geen code geschreven tot test faalde
 
 **Commit:** `d9bcb68` — feat(mcp): add escalate_to_human stub + register all tools
+
+---
+
+## Stap 19 — 2026-05-12
+
+**Wat:** Bewijsbaar maken wanneer PostgreSQL vs RAG (MCP/Chroma) wordt gebruikt en hoe dat samenhangt in één chat-request.
+
+**Gedaan:**
+- `backend/schemas/message.py` — Pydantic-modellen `ChatContextProof`, `PostgresContextProof`, `RAGContextProof`, `StoreMemoryProof`, `CombinedContextProof`; optioneel veld `context_proof` op `MessageResponse`
+- `backend/routers/chat.py` — query-parameter `debug` (default false); bij `?debug=true` wordt `context_proof` gevuld met: Postgres `messages`-historie (ids, rollen, preview), RAG-hits uit `recall_context`, `chroma_document_id` uit `store_memory`, en `combined` (o.a. `system_prompt_includes_rag_block`, char-lengte); `response_model_exclude_none=True` zodat zonder debug geen `context_proof`-key in JSON
+- `backend/tests/test_chat.py` — twee tests: debug-response bevat verwachte provenance; zonder debug ontbreekt `context_proof` in JSON
+
+**Beslissingen:**
+- Opt-in via query (`debug=true`) i.p.v. altijd aan — geen extra payload in productie-flow, wel reproduceerbaar voor portfolio (curl, OpenAPI, screen recording)
+- Geen volledige system prompt in de response (privacy/size); wel expliciete `origin`-labels en tellingen als bewijslijn
+
+**Commit:** `3d6aaab` — feat(chat): add debug context_proof for Postgres vs RAG provenance
+
+---
+
+## Stap 20 — 2026-05-12
+
+**Wat:** System prompt aangescherpt na ongewenst LLM-gedrag (alarmistische ALL CAPS, 112/doktersnummer-combinatie uit context + RAG).
+
+**Gedaan:**
+- `backend/routers/chat.py` — `_build_system_prompt`: extra regels voor rustige toon, geen meldkamer-rol, geen stap-voor-stap noodscripts of alarmnummers tenzij patiënt expliciet vraagt, neutrale uitleg dat Anna niet belt, doktersnummers alleen kort vastleggen zonder kunstmatig "BEL NU"-plan, proportioneel reageren op huidig bericht t.o.v. eerdere/RAG-context
+
+**Beslissingen:**
+- Grenzen in prompt i.p.v. post-filter — lage latency, herhaalbaar in portfolio; echte medische escalatie blijft via geplande `escalate_to_human`-logica
+
+**Commit:** `0b2cf34` — fix(chat): tighten system prompt against alarmist and 112-style output
+
+---
+
+## Stap 21 — 2026-05-12
+
+**Wat:** Vastgelegd dat korte user-berichten **niet** worden overgeslagen voor RAG: elke turn blijft `recall_context` (parallel met `store_memory`) het volledige bericht gebruiken — geen trivial-skip pad.
+
+**Beslissingen:**
+- Op jouw verzoek: geen uitzondering op berichtlengte of begroeting; volledige pipeline en `context_proof` blijven per request vergelijkbaar
+
+**Commit:** `33af042` — docs(portfolio): STAPPEN 21 — no RAG skip for short messages
+
+---
+
+## Stap 22 — 2026-05-12
+
+**Wat:** Chat-endpoint werkt end-to-end met RAG. Architectuuranalyse gedaan voor lange-termijn geheugen. Twee nieuwe issues aangemaakt voor Iteration 3.
+
+**Aanleiding:**
+Het chat-systeem (PostgreSQL + ChromaDB RAG + LLM) werkt aantoonbaar: de `context_proof` in de response toont dat Postgres-historie, RAG-hits en `store_memory` allemaal correct samenkomen. Vervolgens is op basis van een externe analyse (ChatGPT) besproken hoe het systeem op lange termijn robuuster te maken is.
+
+**Kernbevinding uit de analyse:**
+Ruwe berichtenhistorie is geen geheugen. Een hartpatiënt-companion heeft na verloop van tijd een samenvatting van de patiënt nodig — niet de volledige chatlog. Het model moet weten *wie* de patiënt is en *wat terugkeert*, niet elke zin ooit gezegd.
+
+**Beslissingen:**
+- Punt 2 en 3 van de analyse zijn de meest waardevolle verbeteringen:
+  - Punt 2: periodieke medische samenvatting per patiënt, automatisch bijgehouden en opgeslagen in PostgreSQL
+  - Punt 3: RAG blijft voor semantisch zoeken op symptomen en uitspraken; samenvatting wordt daarnaast als apart blok geïnjecteerd in de system prompt
+- Punt 1 (selectief opslaan / filteren vóór ChromaDB) bewust uitgesteld — de gebruiker geeft de voorkeur aan brede opslag met een aparte samenvatting, niet aan een hard filter
+
+**Aangemaakt:**
+- Issue #28: `feat(memory): periodieke patiëntsamenvatting — update medische samenvatting elke N berichten` — Iteration 3
+- Issue #29: `feat(chat): injecteer patiëntsamenvatting in system prompt naast RAG-context` — Iteration 3
+
+**Volgende stap:** frontend werkend krijgen met de huidige staat (Postgres-patiënten, chat, trends, escalaties zichtbaar).

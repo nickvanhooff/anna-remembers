@@ -1,49 +1,167 @@
-"""Chat router — wekelijkse check-in gesprekken met Anna.
+"""Chat router — wekelijkse check-in gesprekken met Anna."""
 
-Huidige status: opzet klaar, LLM-aanroep is stub.
-Volgende stap (issue #3): MCP-tools aanroepen voor context + geheugen.
-"""
+import asyncio
+import json
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from models.message import Message
 from models.patient import Patient
 from models.session import Session as ChatSession
-from schemas.message import ChatRequest, MessageResponse
+from schemas.message import (
+    ChatContextProof,
+    ChatRequest,
+    CombinedContextProof,
+    HistoryEntryProof,
+    MessageResponse,
+    PostgresContextProof,
+    RAGContextProof,
+    RAGHitProof,
+    StoreMemoryProof,
+)
 from services.database import get_db
 from services.llm import get_llm_provider
+from services.mcp_client import MCPClient, get_mcp_client
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
+_HISTORY_LIMIT = 10
+_RAG_LIMIT = 5
+_HISTORY_PREVIEW_CHARS = 200
 
-@router.post("/{patient_id}", response_model=MessageResponse)
+
+def _build_context_proof(
+    *,
+    patient_id: uuid.UUID,
+    session_id: uuid.UUID,
+    memories: list[dict],
+    user_query: str,
+    rag_limit: int,
+    history_rows: list[Message],
+    system_prompt: str,
+    chroma_document_id: str | None,
+) -> ChatContextProof:
+    """Assemble portfolio-friendly provenance for Postgres vs RAG in one turn."""
+    history_entries = [
+        HistoryEntryProof(
+            message_id=m.id,
+            role=m.role,
+            content_preview=(m.content or "")[:_HISTORY_PREVIEW_CHARS],
+        )
+        for m in history_rows
+    ]
+    hits = [
+        RAGHitProof(
+            content=h.get("content", ""),
+            source=h.get("source", ""),
+            session_id=str(h.get("session_id", "")),
+            distance=h.get("distance"),
+        )
+        for h in memories
+    ]
+    memory_block_present = bool(memories)
+    return ChatContextProof(
+        postgres=PostgresContextProof(
+            session_id=session_id,
+            patient_id=patient_id,
+            history_query_limit=_HISTORY_LIMIT,
+            messages_in_history=len(history_rows),
+            history_entries=history_entries,
+        ),
+        rag=RAGContextProof(
+            query=user_query,
+            limit=rag_limit,
+            hit_count=len(memories),
+            hits=hits,
+        ),
+        store_memory=StoreMemoryProof(chroma_document_id=chroma_document_id),
+        combined=CombinedContextProof(
+            history_messages_sent_to_llm=len(history_rows),
+            system_prompt_includes_rag_block=memory_block_present,
+            system_prompt_char_length=len(system_prompt),
+        ),
+    )
+
+
+def _build_system_prompt(
+    patient: Patient,
+    memories: list[dict],
+) -> str:
+    """Bouw de 3-laags system prompt voor Anna."""
+    name = f"{patient.first_name} {patient.last_name}"
+    medication = json.dumps(patient.medication_schedule, ensure_ascii=False)
+    notes = patient.notes or "Geen aanvullende notities."
+
+    memory_block = ""
+    if memories:
+        lines = "\n".join(f"- [{m['source']}] {m['content']}" for m in memories)
+        memory_block = f"\n\nRelevante eerdere uitspraken van deze patiënt:\n{lines}"
+
+    return (
+        f"Je bent Anna, een empathische AI-gezondheidsassistent voor hartfalenpatiënten. "
+        f"Je spreekt met {name}.\n\n"
+        f"Gedragsregels:\n"
+        f"- Verzin nooit symptomen, medicatie of gewicht die de patiënt niet heeft gemeld.\n"
+        f"- Refereer aan eerdere uitspraken als die relevant zijn voor het huidige gesprek.\n"
+        f"- Stel maximaal één gerichte vervolgvraag per response.\n"
+        f"- Spreek altijd Nederlands.\n"
+        f"- Toon: rustig, professioneel en respectvol. Geen schreeuwende tekst (geen hele zinnen in "
+        f"HOOFDLETTERS), geen overdreven waarschuwingen of 'poster'-achtige opmaak met emoji's.\n"
+        f"- Je bent geen meldkamer en geen vervanger van huisartsenpost of 112. Geef geen "
+        f"stap-voor-stap noodscripts en noem geen alarmnummers (zoals 112), tenzij de patiënt daar "
+        f"expliciet zelf om vraagt.\n"
+        f"- Je kunt geen telefoongesprekken voeren. Leg dat zo nodig kort en neutraal uit; koppel "
+        f"dat niet aan telefoonnummers of eerdere berichten om een kunstmatige crisis te creëren.\n"
+        f"- Als de patiënt een telefoonnummer deelt: noteer het feit kort (bijv. voor het dossier) "
+        f"en vraag desgewenst of dit het juiste contact is voor de zorgverlener; gebruik het nummer "
+        f"niet om zelf een dramatisch belplan of 'BEL NU'-commando's te fabriceren.\n"
+        f"- Eerdere berichten of RAG-regels kunnen ernstige klachten bevatten. Reageer proportioneel "
+        f"op het huidige bericht; escaleer inhoudelijk via het zorgpad van dit systeem, niet via "
+        f"theatrale instructies.\n\n"
+        f"Patiëntgegevens:\n"
+        f"- Naam: {name}\n"
+        f"- Medicatieschema: {medication}\n"
+        f"- Notities zorgverlener: {notes}"
+        f"{memory_block}"
+    )
+
+
+@router.post(
+    "/{patient_id}",
+    response_model=MessageResponse,
+    response_model_exclude_none=True,
+    responses={404: {"description": "Patiënt niet gevonden"}},
+)
 async def chat(
     patient_id: uuid.UUID,
     body: ChatRequest,
-    db: Session = Depends(get_db),
-) -> Message:
-    """Stuur een bericht namens de patiënt en ontvang Anna's response.
-
-    Flow (volledig — geïmplementeerd in latere issues):
-    1. Laad patiëntcontext uit PostgreSQL
-    2. Haal relevante herinneringen op via MCP recall_context()     [issue #3]
-    3. Haal symptoomtrends op via MCP get_symptom_trends()          [issue #3]
-    4. Sla user-bericht op in PostgreSQL + ChromaDB                 [issue #3]
-    5. Roep LLM aan met context + herinneringen
-    6. Sla Anna's response op
-    7. Escaleer indien nodig via MCP escalate_to_human()            [issue #3]
-    """
-    # Controleer of patiënt bestaat
+    db: Annotated[Session, Depends(get_db)],
+    mcp: Annotated[MCPClient, Depends(get_mcp_client)],
+    debug: Annotated[
+        bool,
+        Query(
+            description=(
+                "If true, response includes context_proof: PostgreSQL message "
+                "history vs MCP recall_context / store_memory (RAG) and how they combine."
+            ),
+        ),
+    ] = False,
+) -> MessageResponse:
+    """Stuur een bericht namens de patiënt en ontvang Anna's response."""
     patient = db.get(Patient, patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patiënt niet gevonden")
 
-    # Maak sessie aan of hergebruik bestaande open sessie
+    # Haal bestaande open sessie op, of maak een nieuwe
     session = (
         db.query(ChatSession)
-        .filter(ChatSession.patient_id == patient_id, ChatSession.ended_at.is_(None))
+        .filter(
+            ChatSession.patient_id == patient_id,
+            ChatSession.ended_at.is_(None),
+        )
         .first()
     )
     if not session:
@@ -52,29 +170,74 @@ async def chat(
         db.commit()
         db.refresh(session)
 
-    # Sla user-bericht op
-    user_message = Message(session_id=session.id, role="user", content=body.content)
+    # Sla het user-bericht op in PostgreSQL
+    user_message = Message(
+        session_id=session.id,
+        role="user",
+        content=body.content,
+    )
     db.add(user_message)
     db.commit()
 
-    # --- LLM aanroep (stub — MCP-context volgt in issue #3) ---
-    llm = get_llm_provider()
-    system_prompt = (
-        f"Je bent Anna, een empathische AI-gezondheidsassistent voor hartfalenpatiënten. "
-        f"Je spreekt met {patient.name}. Stel gerichte vervolgvragen over symptomen "
-        f"zoals kortademigheid, enkeloedeem en gewicht. Verzin nooit informatie."
-    )
-    response_text = await llm.chat(
-        messages=[{"role": "user", "content": body.content}],
-        system=system_prompt,
+    # RAG-context ophalen + geheugen opslaan — parallel voor minimale latency
+    memories, chroma_doc_id = await asyncio.gather(
+        mcp.recall_context(
+            query=body.content,
+            patient_id=str(patient_id),
+            limit=_RAG_LIMIT,
+        ),
+        mcp.store_memory(
+            content=body.content,
+            source="patient_stated",
+            patient_id=str(patient_id),
+            session_id=str(session.id),
+        ),
     )
 
-    # Sla Anna's response op
+    # Laatste 10 berichten van de huidige sessie als conversation history
+    recent = (
+        db.query(Message)
+        .filter(Message.session_id == session.id)
+        .order_by(Message.created_at.desc())
+        .limit(_HISTORY_LIMIT)
+        .all()
+    )
+    recent.reverse()
+    history = [{"role": m.role, "content": m.content} for m in recent]
+
+    # Bouw system prompt en roep LLM aan
+    system_prompt = _build_system_prompt(patient, memories)
+    llm = get_llm_provider()
+    response_text = await llm.chat(messages=history, system=system_prompt)
+
+    # Sla Anna's antwoord op
     assistant_message = Message(
-        session_id=session.id, role="assistant", content=response_text
+        session_id=session.id,
+        role="assistant",
+        content=response_text,
     )
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
 
-    return assistant_message
+    # Escalatie stub — implementatie volgt in een volgend issue
+    await mcp.escalate_to_human(
+        patient_id=str(patient_id),
+        reason="",
+        urgency="low",
+    )
+
+    base = MessageResponse.model_validate(assistant_message)
+    if not debug:
+        return base
+    proof = _build_context_proof(
+        patient_id=patient_id,
+        session_id=session.id,
+        memories=memories,
+        user_query=body.content,
+        rag_limit=_RAG_LIMIT,
+        history_rows=recent,
+        system_prompt=system_prompt,
+        chroma_document_id=chroma_doc_id or None,
+    )
+    return base.model_copy(update={"context_proof": proof})
