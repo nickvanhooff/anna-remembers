@@ -469,3 +469,91 @@ Ruwe berichtenhistorie is geen geheugen. Een hartpatiënt-companion heeft na ver
 - Mock `CHAT` volledig verwijderd uit api.ts; sessierail toont nu de live lopende sessie of een lege staat
 
 **TypeScript check:** geen fouten (`npx tsc --noEmit`).
+
+**Commit:** `9b0af3f` — feat(frontend): wire chat to FastAPI — real sendMessage + patient load from API
+
+---
+
+## Stap 24 — 2026-05-12
+
+**Wat:** Sessierail werkend gemaakt — GET-endpoints voor sessies en berichten toegevoegd.
+
+**Aanleiding:** Na koppeling van de chat aan de API werden sessies niet weergegeven in de sessierail. De backend had nog geen endpoints om sessies of berichten op te halen.
+
+**Gedaan:**
+- `backend/schemas/message.py` — `SessionListItem` en `MessageListItem` Pydantic-modellen toegevoegd
+- `backend/routers/chat.py` — `GET /chat/{patient_id}/sessions` toegevoegd met berichtentelling via één aggregatiequery (geen N+1); `GET /chat/{patient_id}/sessions/{session_id}/messages` toegevoegd
+- `frontend/lib/api.ts` — `getChatSessions()` en `getChatMessages()` geïmplementeerd; berichten gemapped van `role` (`user`/`assistant`) naar UI-waarden (`me`/`them`)
+- `frontend/components/chat/chat-screen.tsx` — sessierail laadt live sessies via API; berichten worden per sessie gecached in `msgMap`; klikken op sessie laadt de bijbehorende berichten
+
+**Beslissingen:**
+- Berichtentelling via één aggregatiequery (`GROUP BY session_id`) — voorkomt N+1 bij patiënten met veel sessies
+- Berichten gecached per sessie-ID in frontend-state — geen herhaalde API-calls bij terugschakelen naar eerdere sessie
+
+**Commit:** `54ccf9c` — feat(chat): add sessions/messages GET endpoints + load history in frontend
+
+---
+
+## Stap 25 — 2026-05-12
+
+**Wat:** Anna herinnerde zich informatie niet die aantoonbaar in RAG stond. Systeem prompt herschikt en geheugeninstructies toegevoegd.
+
+**Aanleiding:** Aantoonbaar via `context_proof`: doktersnummer (06-84184389) stond in RAG-hits op distance 0.21, maar Anna beweerde het niet te weten. Oorzaak: LLM las het geheugenblok pas nadat de crisis-history al dominant was.
+
+**Gedaan:**
+- `backend/routers/chat.py` — `_build_system_prompt`:
+  - RAG-blok verplaatst van onderaan naar bóven in de system prompt (hoogste prioriteit voor de LLM)
+  - Expliciete instructie toegevoegd: "Wordt gevraagd naar iets dat eerder gedeeld is? Geef het terug vanuit die herinneringen. Zeg nooit dat je vorige sessies niet kunt herinneren."
+  - `_HISTORY_LIMIT` verlaagd van 10 naar 6 — minder crisis-berichten die het prompt domineren
+- `frontend/components/chat/chat-screen.tsx` — `POST /chat/{patient_id}/sessions/close` aangeroepen bij `+` knop; daarna sessies opnieuw geladen en staat gereset
+
+**Beslissingen:**
+- Prompt-volgorde is instructie-prioriteit: wat boven staat weegt zwaarder voor LLM. RAG bovenaan → inhoud wordt eerder verwerkt dan crisis-patronen uit de history
+- History van 10 naar 6: ruim genoeg voor conversatieflow, klein genoeg om niet te domineren
+
+**Commits:**
+- `977563c` — fix(chat): instruct Anna to use RAG context for recall queries across sessions
+- `3a8b176` — fix(chat): move RAG block to top of prompt, reduce history to 6 to prevent crisis spiral
+- `16f6e6b` — feat(chat): add close session endpoint + new session button closes current session
+
+---
+
+## Stap 26 — 2026-05-12
+
+**Wat:** Timeout- en stabiliteitsproblemen opgelost — chat reageerde niet na ~90s, MCP-aanroepen crashten bij bezet Ollama.
+
+**Aanleiding:**
+- Frontend gooide "Anna reageert niet (time-out na 90 s)" terwijl de LLM na 2-5 min wél antwoordde (te laat zichtbaar na handmatige refresh)
+- Docker Compose logs toonden `ReadTimeout` op `store_memory`/`recall_context` wanneer Ollama tegelijk infereerde
+
+**Oorzaak:**
+- gemma4:e4b = 9,4 GiB totaal; RTX 4050 Laptop (6 GiB VRAM) laadt slechts 2,8 GiB op GPU — 6,6 GiB draait op CPU → inferentie duurt 2-5 minuten
+- bge-m3 embed-call had een timeout van 30s, te kort als Ollama al bezig was met de LLM
+
+**Gedaan:**
+- `mcp-server/services/embedding.py` — httpx timeout 30s → 120s
+- `backend/services/llm.py` — httpx timeout 120s → 600s
+- `frontend/lib/api.ts` — AbortController timeout 90s → 600s
+- `backend/routers/chat.py` — `asyncio.gather(return_exceptions=True)` zodat een fout in `store_memory` of `recall_context` de chat niet afbreekt; fallback: lege memories-lijst, geen chroma_doc_id
+
+**Beslissingen:**
+- 600s (10 min) als timeout: ruim genoeg voor worst-case CPU-inferentie, duidelijk slechter dan productie; acceptabel voor demo/portfolio fase
+- Non-fatal MCP-calls: RAG-degradatie is beter dan een crashende chat
+
+**Commits:**
+- `39be187` — fix(mcp): raise embed timeout to 120s, make RAG gather non-fatal when Ollama is busy
+- `7e45af7` — fix: increase LLM and frontend timeout to 600s for CPU-offloaded gemma4:e4b
+
+---
+
+## Stap 27 — 2026-05-12
+
+**Wat:** LLM gewisseld van `gemma4:e4b` naar `gemma4:e2b` om timeouts op te lossen.
+
+**Aanleiding:** gemma4:e4b (9,4 GiB) past niet in het VRAM van de RTX 4050 Laptop (6 GiB). Daardoor draait 6,6 GiB op CPU, wat leidt tot inferentietijden van 2-5 minuten. gemma4:e2b is de kleinere variant van dezelfde modelfamilie en is beschikbaar via Ollama.
+
+**Gedaan:**
+- `.env` — `OLLAMA_MODEL=gemma4:e4b` → `OLLAMA_MODEL=gemma4:e2b`
+- `.env.example` — idem bijgewerkt
+
+**Verwachting:** gemma4:e2b past volledig in VRAM, inferentie zakt naar 5-20s. Zelfde prompt-structuur en Nederlands taalgedrag blijven van toepassing.
