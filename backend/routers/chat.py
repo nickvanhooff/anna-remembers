@@ -35,6 +35,26 @@ _HISTORY_LIMIT = 6
 _RAG_LIMIT = 5
 _HISTORY_PREVIEW_CHARS = 200
 
+_QUESTION_STARTERS = {"waar", "wat", "wie", "hoe", "wanneer", "waarom", "welke", "hoeveel", "kan", "kunt", "weet", "bent", "heeft", "hebben", "is", "zijn"}
+_REFUSAL_PATTERNS = ["geen toegang", "geen toegang tot", "heb ik geen", "weet ik niet", "weet niet waar", "kan ik niet weten", "heb geen toegang", "als een ai", "als taalmodel"]
+
+
+def _is_question(text: str) -> bool:
+    """Detecteer of een bericht een vraag is en geen feit om op te slaan."""
+    stripped = text.strip().lower()
+    if stripped.endswith("?"):
+        return True
+    if len(stripped) < 12:
+        return True
+    first_word = stripped.split()[0] if stripped.split() else ""
+    return first_word in _QUESTION_STARTERS
+
+
+def _is_refusal(content: str) -> bool:
+    """Detecteer Anna's weigeringsantwoorden — die mogen niet als in-context voorbeeld meegestuurd worden."""
+    lower = content.lower()
+    return any(p in lower for p in _REFUSAL_PATTERNS)
+
 
 def _build_context_proof(
     *,
@@ -301,9 +321,8 @@ async def chat(
     db.add(user_message)
     db.commit()
 
-    # Sla alleen feitelijke uitspraken op — geen vragen (eindigen op ?) en geen korte berichten.
-    # Vragen als "waar woon ik?" veroorzaken self-hits in ChromaDB (distance ≈ 0) en verdringen feiten.
-    is_question = body.content.strip().endswith("?") or len(body.content.strip()) < 10
+    # Sla alleen feitelijke uitspraken op — geen vragen en geen korte berichten.
+    # Vragen veroorzaken self-hits in ChromaDB (distance ≈ 0) en verdringen feiten.
 
     store_coro = (
         mcp.store_memory(
@@ -312,7 +331,7 @@ async def chat(
             patient_id=str(patient_id),
             session_id=str(session.id),
         )
-        if not is_question
+        if not _is_question(body.content)
         else asyncio.sleep(0)
     )
 
@@ -338,7 +357,13 @@ async def chat(
         .all()
     )
     recent.reverse()
-    history = [{"role": m.role, "content": m.content} for m in recent]
+    # Verwijder Anna's weigeringsantwoorden uit de history — die werken als negatief in-context voorbeeld
+    # en leren het model om te blijven weigeren, ook als het feit wél in de RAG staat.
+    history = [
+        {"role": m.role, "content": m.content}
+        for m in recent
+        if not (m.role == "assistant" and _is_refusal(m.content))
+    ]
 
     # Bouw system prompt en roep LLM aan
     system_prompt = _build_system_prompt(patient, memories)
