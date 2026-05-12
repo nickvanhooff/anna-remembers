@@ -205,6 +205,47 @@ def list_messages(
 
 
 @router.post(
+    "/{patient_id}/sessions/close",
+    response_model=SessionListItem,
+    responses={404: {"description": "Geen open sessie gevonden"}},
+)
+def close_session(
+    patient_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Sluit de huidige open sessie af zodat de volgende chat een nieuwe aanmaakt."""
+    session = (
+        db.query(ChatSession)
+        .filter(
+            ChatSession.patient_id == patient_id,
+            ChatSession.ended_at.is_(None),
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Geen open sessie gevonden")
+
+    from datetime import datetime
+    session.ended_at = datetime.utcnow()
+    db.commit()
+    db.refresh(session)
+
+    count = (
+        db.query(func.count(Message.id))
+        .filter(Message.session_id == session.id)
+        .scalar()
+    ) or 0
+
+    return {
+        "id": session.id,
+        "started_at": session.started_at,
+        "ended_at": session.ended_at,
+        "message_count": count,
+        "is_open": False,
+    }
+
+
+@router.post(
     "/{patient_id}",
     response_model=MessageResponse,
     response_model_exclude_none=True,

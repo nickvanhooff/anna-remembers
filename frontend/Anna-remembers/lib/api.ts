@@ -168,6 +168,10 @@ export interface ChatSession {
   isOpen: boolean
 }
 
+export async function closeSession(patientId: string): Promise<void> {
+  await post(`/chat/${patientId}/sessions/close`, {})
+}
+
 export async function getChatSessions(patientId: string): Promise<ChatSession[]> {
   const data = await get<SessionAPI[]>(`/chat/${patientId}/sessions`)
   return data.map(s => ({

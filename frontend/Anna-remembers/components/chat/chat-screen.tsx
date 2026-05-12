@@ -13,7 +13,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 
 import { StatusBadge } from "@/components/dashboard/status-badge"
 import { fmtTime } from "@/lib/utils"
-import { getPatients, getChatSessions, getChatMessages, sendMessage } from "@/lib/api"
+import { getPatients, getChatSessions, getChatMessages, sendMessage, closeSession } from "@/lib/api"
 import type { ChatSession } from "@/lib/api"
 import type { Patient, Message } from "@/types"
 
@@ -181,8 +181,21 @@ export function ChatScreen() {
               variant="ghost"
               size="icon"
               className="size-6"
-              title="Nieuw gesprek (backend opent automatisch nieuwe sessie)"
-              onClick={() => setActiveId(null)}
+              title="Sessie afsluiten en nieuw gesprek starten"
+              onClick={async () => {
+                if (!patientId) return
+                try {
+                  await closeSession(patientId)
+                  // Sessies herladen — gesloten sessie staat nu in de lijst, activeId wordt null
+                  const ss = await getChatSessions(patientId)
+                  setSessions(ss)
+                  setActiveId(null)
+                  setMsgMap({})
+                } catch {
+                  toast.error("Kon sessie niet afsluiten")
+                }
+              }}
+              disabled={!sessions.some(s => s.isOpen)}
             >
               <Plus className="size-3.5" />
             </Button>
