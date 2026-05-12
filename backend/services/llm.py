@@ -44,8 +44,8 @@ class OllamaProvider(LLMProvider):
         if system:
             payload["system"] = system
 
-        # Timeout van 120s — lokale LLM kan traag zijn bij eerste token
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        # Timeout van 600s — gemma4:e4b draait deels op CPU, inferentie kan 2-5 min duren
+        async with httpx.AsyncClient(timeout=600.0) as client:
             response = await client.post(f"{self.base_url}/api/chat", json=payload)
             response.raise_for_status()
             return response.json()["message"]["content"]
