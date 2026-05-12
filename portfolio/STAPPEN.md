@@ -419,4 +419,4 @@ Doorlopend bouwlogboek. Elke stap wordt direct na uitvoering toegevoegd.
 **Beslissingen:**
 - Op jouw verzoek: geen uitzondering op berichtlengte of begroeting; volledige pipeline en `context_proof` blijven per request vergelijkbaar
 
-**Commit:** `d47d1c4` — portfolio: STAPPEN stap 21 (code in `backend/routers/chat.py` was al zonder recall-skip)
+**Commit:** `33af042` — docs(portfolio): STAPPEN 21 — no RAG skip for short messages
