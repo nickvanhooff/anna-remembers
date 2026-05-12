@@ -444,3 +444,28 @@ Ruwe berichtenhistorie is geen geheugen. Een hartpatiënt-companion heeft na ver
 - Issue #29: `feat(chat): injecteer patiëntsamenvatting in system prompt naast RAG-context` — Iteration 3
 
 **Volgende stap:** frontend werkend krijgen met de huidige staat (Postgres-patiënten, chat, trends, escalaties zichtbaar).
+
+---
+
+## Stap 23 — 2026-05-12
+
+**Wat:** Chat-scherm gekoppeld aan FastAPI (issue #19 afgesloten).
+
+**Gedaan:**
+- `frontend/lib/api.ts` — `sendMessage` mock vervangen door echte `POST /chat/{patient_id}` aanroep met 90 seconden AbortController-timeout; retourneert `{ reply, sessionId }` op basis van `MessageResponse` uit de backend
+- `frontend/components/chat/chat-screen.tsx` — volledig herschreven:
+  - Patiënten laden via `getPatients()` API (verwijderd: mock `PATIENTS`)
+  - Berichten per patiënt bijgehouden in een `Record<patientId, Message[]>` state-map
+  - `session_id` van de eerste API-response bijgehouden per patiënt
+  - `send()` met echte API, toast bij timeout en bij andere fouten, optimistisch toegevoegde user-message teruggedraaid bij fout
+  - Skeleton loading-state voor patiëntenselector en patiënt-header
+  - Lege-state in de berichtenstroom ("Nog geen gesprek gestart")
+  - `+` knop in session rail: wist de lokale berichten en reset session_id (nieuw gesprek starten; backend maakt nieuwe sessie zodra bericht gestuurd wordt)
+  - Composer en verstuurknop uitgeschakeld tijdens het laden en tijdens LLM-wacht
+
+**Beslissingen:**
+- Backend auto-manages sessies (één open sessie per patiënt) — frontend beheert geen session_id als invoer voor de API-call
+- 90 seconden timeout: LLM via Ollama (lokaal, GPU) kan 10-30 seconden duren; ruime marge voor slechte GPU-bezetting
+- Mock `CHAT` volledig verwijderd uit api.ts; sessierail toont nu de live lopende sessie of een lege staat
+
+**TypeScript check:** geen fouten (`npx tsc --noEmit`).
