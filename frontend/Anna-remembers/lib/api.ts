@@ -43,6 +43,7 @@ interface PatientAPI {
   birth_date: string | null
   medication_schedule: Record<string, unknown>
   notes: string | null
+  medical_summary: string | null
   status: PatientStatus
   created_at: string
 }
@@ -70,17 +71,18 @@ function medsString(schedule: Record<string, unknown>): string {
 
 function toPatient(p: PatientAPI): Patient {
   return {
-    id:          p.id,
-    first:       p.first_name,
-    last:        p.last_name,
-    dob:         p.birth_date ?? "",
-    age:         calcAge(p.birth_date),
-    sessions:    0,
-    lastSession: null,
-    status:      p.status,
-    label:       STATUS_LABEL[p.status],
-    meds:        medsString(p.medication_schedule),
-    notes:       p.notes ?? "",
+    id:             p.id,
+    first:          p.first_name,
+    last:           p.last_name,
+    dob:            p.birth_date ?? "",
+    age:            calcAge(p.birth_date),
+    sessions:       0,
+    lastSession:    null,
+    status:         p.status,
+    label:          STATUS_LABEL[p.status],
+    meds:           medsString(p.medication_schedule),
+    notes:          p.notes ?? "",
+    medicalSummary: p.medical_summary ?? null,
   }
 }
 
@@ -89,6 +91,11 @@ function toPatient(p: PatientAPI): Patient {
 export async function getPatients(): Promise<Patient[]> {
   const data = await get<PatientAPI[]>("/patients/")
   return data.map(toPatient)
+}
+
+export async function getPatient(id: string): Promise<Patient> {
+  const data = await get<PatientAPI>(`/patients/${id}`)
+  return toPatient(data)
 }
 
 export interface PatientCreateInput {

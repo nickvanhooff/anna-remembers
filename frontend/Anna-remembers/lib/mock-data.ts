@@ -1,12 +1,12 @@
 import type { Patient, Session, Escalation, TrendPoint } from "@/types"
 
 export const PATIENTS: Patient[] = [
-  { id: "P-001", first: "Greta",   last: "de Vries",  dob: "1951-04-12", age: 74, sessions: 12, lastSession: "2026-05-06", status: "success", label: "Stabiel",   meds: "Furosemide 40 mg · Bisoprolol 5 mg",          notes: "Voelt zich kortademig bij de trap. Gewicht stabiel." },
-  { id: "P-002", first: "Hendrik", last: "Bakker",    dob: "1957-09-30", age: 68, sessions: 10, lastSession: "2026-05-03", status: "warning", label: "Aandacht",  meds: "Losartan 50 mg",                               notes: "Slaapt onrustig. Gewicht +1.2 kg afgelopen 2 weken." },
-  { id: "P-003", first: "Marja",   last: "Kuipers",   dob: "1944-12-01", age: 81, sessions: 11, lastSession: "2026-05-08", status: "urgent",  label: "Urgent",    meds: "Furosemide 80 mg · Spironolacton 25 mg",      notes: "Zware kortademigheid sinds maandag. Anna heeft geëscaleerd." },
-  { id: "P-004", first: "Johan",   last: "van Dijk",  dob: "1948-07-22", age: 77, sessions: 9,  lastSession: "2026-04-30", status: "success", label: "Stabiel",   meds: "Bisoprolol 2.5 mg",                           notes: "Doet wandelingen, voelt zich beter dan vorige maand." },
-  { id: "P-005", first: "Truus",   last: "Hendriks",  dob: "1953-02-15", age: 73, sessions: 8,  lastSession: "2026-05-04", status: "success", label: "Stabiel",   meds: "Losartan 100 mg · Furosemide 20 mg",          notes: "" },
-  { id: "P-006", first: "Ad",      last: "Janssen",   dob: "1959-11-08", age: 66, sessions: 6,  lastSession: "2026-05-07", status: "warning", label: "Aandacht",  meds: "Bisoprolol 5 mg · Furosemide 40 mg",          notes: "Vermoeidheid toegenomen. Zegt medicatie wel goed te nemen." },
+  { id: "P-001", first: "Greta",   last: "de Vries",  dob: "1951-04-12", age: 74, sessions: 12, lastSession: "2026-05-06", status: "success", label: "Stabiel",   meds: "Furosemide 40 mg · Bisoprolol 5 mg",          notes: "Voelt zich kortademig bij de trap. Gewicht stabiel.", medicalSummary: null },
+  { id: "P-002", first: "Hendrik", last: "Bakker",    dob: "1957-09-30", age: 68, sessions: 10, lastSession: "2026-05-03", status: "warning", label: "Aandacht",  meds: "Losartan 50 mg",                               notes: "Slaapt onrustig. Gewicht +1.2 kg afgelopen 2 weken.", medicalSummary: null },
+  { id: "P-003", first: "Marja",   last: "Kuipers",   dob: "1944-12-01", age: 81, sessions: 11, lastSession: "2026-05-08", status: "urgent",  label: "Urgent",    meds: "Furosemide 80 mg · Spironolacton 25 mg",      notes: "Zware kortademigheid sinds maandag. Anna heeft geëscaleerd.", medicalSummary: null },
+  { id: "P-004", first: "Johan",   last: "van Dijk",  dob: "1948-07-22", age: 77, sessions: 9,  lastSession: "2026-04-30", status: "success", label: "Stabiel",   meds: "Bisoprolol 2.5 mg",                           notes: "Doet wandelingen, voelt zich beter dan vorige maand.", medicalSummary: null },
+  { id: "P-005", first: "Truus",   last: "Hendriks",  dob: "1953-02-15", age: 73, sessions: 8,  lastSession: "2026-05-04", status: "success", label: "Stabiel",   meds: "Losartan 100 mg · Furosemide 20 mg",          notes: "", medicalSummary: null },
+  { id: "P-006", first: "Ad",      last: "Janssen",   dob: "1959-11-08", age: 66, sessions: 6,  lastSession: "2026-05-07", status: "warning", label: "Aandacht",  meds: "Bisoprolol 5 mg · Furosemide 40 mg",          notes: "Vermoeidheid toegenomen. Zegt medicatie wel goed te nemen.", medicalSummary: null },
 ]
 
 export const CHAT: Session[] = [

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Plus, ChevronRight, Send } from "lucide-react"
+import { Plus, ChevronRight, Send, ScrollText } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -10,10 +10,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 
 import { StatusBadge } from "@/components/dashboard/status-badge"
 import { fmtTime } from "@/lib/utils"
-import { getPatients, getChatSessions, getChatMessages, sendMessage, closeSession } from "@/lib/api"
+import { getPatients, getPatient, getChatSessions, getChatMessages, sendMessage, closeSession } from "@/lib/api"
 import type { ChatSession } from "@/lib/api"
 import type { Patient, Message } from "@/types"
 
@@ -33,6 +34,7 @@ export function ChatScreen() {
   const [draft, setDraft]               = useState("")
   const [typing, setTyping]             = useState(false)
   const [panelOpen, setPanelOpen]       = useState(true)
+  const [summaryOpen, setSummaryOpen]   = useState(false)
   const streamRef = useRef<HTMLDivElement>(null)
 
   // Patiënten laden bij mount
@@ -110,8 +112,15 @@ export function ChatScreen() {
       if (summaryUpdateTriggered) {
         toast("Patiëntsamenvatting wordt bijgewerkt", {
           description: "Op de achtergrond wordt een nieuw medisch dossier gegenereerd.",
-          duration: 4000,
+          duration: 5000,
+          action: { label: "Bekijk", onClick: () => setSummaryOpen(true) },
         })
+        // Ververs de patiëntdata na 8s — geeft de background task tijd om af te ronden
+        setTimeout(() => {
+          getPatient(patient.id)
+            .then(updated => setPatients(prev => prev.map(p => p.id === updated.id ? updated : p)))
+            .catch(() => { /* stil falen — niet kritisch */ })
+        }, 8000)
       }
 
       if (!currentId) {
@@ -278,6 +287,19 @@ export function ChatScreen() {
                   </div>
                 </div>
                 <StatusBadge status={patient.status} label={patient.label} />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-[12.5px] text-muted-foreground hover:text-foreground"
+                  onClick={() => setSummaryOpen(true)}
+                  title="Medisch dossier bekijken"
+                >
+                  <ScrollText className="size-3.5" />
+                  Dossier
+                  {patient.medicalSummary && (
+                    <span className="size-1.5 rounded-full bg-green-500 ml-0.5" />
+                  )}
+                </Button>
               </>
             )}
           </div>
@@ -400,6 +422,29 @@ export function ChatScreen() {
           </div>
         </div>
       </div>
+
+      <Sheet open={summaryOpen} onOpenChange={setSummaryOpen}>
+        <SheetContent side="right" className="w-[420px] sm:w-[480px] overflow-y-auto">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="flex items-center gap-2">
+              <ScrollText className="size-4" />
+              Medisch dossier — {patient?.first} {patient?.last}
+            </SheetTitle>
+          </SheetHeader>
+          {patient?.medicalSummary ? (
+            <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-foreground">
+              {patient.medicalSummary}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 text-muted-foreground text-[13px]">
+              <p>Nog geen samenvatting beschikbaar.</p>
+              <p className="text-[12px]">
+                Na {10} berichten genereert Anna automatisch een medische samenvatting op basis van de gesprekken.
+              </p>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       <style>{`
         @keyframes blink { 0%, 100% { opacity: 0.25 } 50% { opacity: 1 } }

@@ -14,6 +14,7 @@ export interface Patient {
   label: string
   meds: string
   notes: string
+  medicalSummary: string | null
 }
 
 export interface Message {
