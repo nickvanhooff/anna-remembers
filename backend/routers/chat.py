@@ -38,7 +38,7 @@ _HISTORY_LIMIT = 6
 _RAG_LIMIT = 5
 _HISTORY_PREVIEW_CHARS = 200
 # Elke N berichten (over alle sessies) wordt de medische samenvatting opnieuw gegenereerd.
-_SUMMARY_INTERVAL = int(os.getenv("SUMMARY_INTERVAL", "10"))
+_SUMMARY_INTERVAL = int(os.getenv("SUMMARY_INTERVAL", "3"))
 # Hoeveel berichten meesturen als context voor de samenvatting
 _SUMMARY_CONTEXT_MESSAGES = 40
 
@@ -134,15 +134,13 @@ def _build_summary_prompt(patient_name: str, current_summary: str | None, messag
     )
 
 
-def _trigger_summary_update(patient_id: uuid.UUID) -> None:
+async def _trigger_summary_update(patient_id: uuid.UUID) -> None:
     """Achtergrondtaak — genereert een nieuwe medische samenvatting en slaat die op.
 
     Draait via FastAPI BackgroundTasks zodat de HTTP-response niet geblokkeerd wordt.
     Gebruikt een eigen DB-sessie (de request-sessie is al gesloten op dit punt).
     """
-    import asyncio
-
-    asyncio.run(_async_summary_update(patient_id))
+    await _async_summary_update(patient_id)
 
 
 async def _async_summary_update(patient_id: uuid.UUID) -> None:

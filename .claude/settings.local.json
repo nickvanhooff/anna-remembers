@@ -53,7 +53,8 @@
       "PowerShell(cd \"C:\\\\Users\\\\nickv\\\\.claude\\\\skills\\\\notebooklm\"; $env:PYTHONIOENCODING=\"utf-8\"; & \".venv\\\\Scripts\\\\python.exe\" -m nlm login 2>&1)",
       "PowerShell(nlm *)",
       "mcp__notebooklm-mcp__source_add",
-      "mcp__notebooklm-mcp__notebook_query"
+      "mcp__notebooklm-mcp__notebook_query",
+      "WebFetch(domain:langfuse.com)"
     ]
   }
 }
