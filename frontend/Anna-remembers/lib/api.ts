@@ -157,6 +157,7 @@ interface MessageResponseAPI {
   role: string
   content: string
   created_at: string
+  summary_update_triggered?: boolean
 }
 
 const CHAT_TIMEOUT_MS = 600_000
@@ -201,7 +202,7 @@ export async function getChatMessages(
 export async function sendMessage(
   patientId: string,
   content: string,
-): Promise<{ reply: string; sessionId: string }> {
+): Promise<{ reply: string; sessionId: string; summaryUpdateTriggered: boolean }> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
 
@@ -214,7 +215,7 @@ export async function sendMessage(
     })
     if (!res.ok) throw new Error(`API ${res.status}`)
     const data = await res.json() as MessageResponseAPI
-    return { reply: data.content, sessionId: data.session_id }
+    return { reply: data.content, sessionId: data.session_id, summaryUpdateTriggered: data.summary_update_triggered ?? false }
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       throw new Error("timeout")

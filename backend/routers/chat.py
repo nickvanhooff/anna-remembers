@@ -472,7 +472,8 @@ async def chat(
         .filter(Message.session.has(patient_id=patient_id))
         .scalar()
     ) or 0
-    if total_messages % _SUMMARY_INTERVAL == 0:
+    summary_triggered = total_messages % _SUMMARY_INTERVAL == 0
+    if summary_triggered:
         background_tasks.add_task(_trigger_summary_update, patient_id)
 
     # Escalatie stub — implementatie volgt in een volgend issue
@@ -483,6 +484,7 @@ async def chat(
     )
 
     base = MessageResponse.model_validate(assistant_message)
+    base = base.model_copy(update={"summary_update_triggered": summary_triggered})
     if not debug:
         return base
     proof = _build_context_proof(

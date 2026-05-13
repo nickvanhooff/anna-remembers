@@ -102,6 +102,10 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     created_at: datetime
+    summary_update_triggered: bool = Field(
+        default=False,
+        description="True when this response triggered a background medical summary update.",
+    )
     context_proof: ChatContextProof | None = Field(
         default=None,
         description="Present when POST /chat/{id}?debug=true — audit trail for Postgres vs RAG.",

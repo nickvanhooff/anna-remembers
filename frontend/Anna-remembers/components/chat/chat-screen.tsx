@@ -104,8 +104,15 @@ export function ChatScreen() {
     setTyping(true)
 
     try {
-      const { reply, sessionId } = await sendMessage(patient.id, text)
+      const { reply, sessionId, summaryUpdateTriggered } = await sendMessage(patient.id, text)
       const annaMsg: Message = { role: "them", who: "Anna", t: fmtTime(), body: reply }
+
+      if (summaryUpdateTriggered) {
+        toast("Patiëntsamenvatting wordt bijgewerkt", {
+          description: "Op de achtergrond wordt een nieuw medisch dossier gegenereerd.",
+          duration: 4000,
+        })
+      }
 
       if (!currentId) {
         // eerste bericht van een nieuwe sessie — sessie bestaat nu in de backend
