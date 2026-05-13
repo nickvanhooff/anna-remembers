@@ -662,3 +662,25 @@ Anna haalt correct twee feiten op uit een eerdere sessie (`session_id` verschilt
 - Groq gekozen boven Anthropic/OpenRouter voor eerste test: gratis tier, geen betaalkaart nodig, llama-3.3-70b is capabel genoeg voor RLHF override te omzeilen
 - Provider-agnostische abstractie behouden — wisselen van provider vereist alleen `.env` aanpassen, geen codewijziging
 - API keys nooit als default-waarde in code — altijd lege string, ValueError als de key ontbreekt
+
+---
+
+## Stap 30 — 2026-05-13
+
+**Wat:** Periodieke medische samenvatting per patiënt geïmplementeerd (issue #28).
+
+**Gedaan:**
+- Alembic migratie `0002_add_medical_summary.py`: `ALTER TABLE patients ADD COLUMN medical_summary TEXT`
+- `Patient` model uitgebreid met `medical_summary: Mapped[str | None]`
+- `_build_summary_prompt()` toegevoegd in `chat.py` — stuurt laatste 40 berichten + huidige samenvatting naar LLM met instructie alleen patiënt-gemelde feiten op te nemen
+- `_trigger_summary_update()` + `_async_summary_update()` toegevoegd — draait als FastAPI `BackgroundTask` zodat de HTTP-response niet geblokkeerd wordt; gebruikt eigen `SessionLocal`-sessie
+- Trigger in `chat()` endpoint: na opslaan assistant-bericht worden alle berichten van de patiënt geteld; als `total % SUMMARY_INTERVAL == 0` start de achtergrondtaak
+- `SUMMARY_INTERVAL` configureerbaar via env var (default: 10)
+- `_build_system_prompt()` injecteert samenvatting als `MEDISCHE SAMENVATTING`-blok boven het RAG-dossier
+
+**Beslissingen:**
+- BackgroundTasks gekozen boven `asyncio.create_task()`: FastAPI beheert de levenscyclus, geen race condition met request-sessie
+- Eigen `SessionLocal` in de achtergrondtaak — de request-DB-sessie is al gesloten als de taak start
+- Samenvatting staat bóven het RAG-blok in de prompt — stabiele context-voor-sessie vs. query-specifieke hits
+
+**Commit:** (volgt na commit)

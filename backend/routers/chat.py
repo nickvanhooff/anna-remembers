@@ -2,10 +2,11 @@
 
 import asyncio
 import json
+import os
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -25,7 +26,7 @@ from schemas.message import (
     SessionListItem,
     StoreMemoryProof,
 )
-from services.database import get_db
+from services.database import SessionLocal, get_db
 from services.llm import get_llm_provider
 from services.mcp_client import MCPClient, get_mcp_client
 
@@ -34,6 +35,10 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 _HISTORY_LIMIT = 6
 _RAG_LIMIT = 5
 _HISTORY_PREVIEW_CHARS = 200
+# Elke N berichten (over alle sessies) wordt de medische samenvatting opnieuw gegenereerd.
+_SUMMARY_INTERVAL = int(os.getenv("SUMMARY_INTERVAL", "10"))
+# Hoeveel berichten meesturen als context voor de samenvatting
+_SUMMARY_CONTEXT_MESSAGES = 40
 
 _QUESTION_STARTERS = {"waar", "wat", "wie", "hoe", "wanneer", "waarom", "welke", "hoeveel", "kan", "kunt", "weet", "bent", "heeft", "hebben", "is", "zijn"}
 _REFUSAL_PATTERNS = ["geen toegang", "geen toegang tot", "heb ik geen", "weet ik niet", "weet niet waar", "kan ik niet weten", "heb geen toegang", "als een ai", "als taalmodel"]
@@ -109,6 +114,74 @@ def _build_context_proof(
     )
 
 
+def _build_summary_prompt(patient_name: str, current_summary: str | None, messages: list[dict]) -> str:
+    """Bouw de prompt die de medische samenvatting genereert of bijwerkt."""
+    lines = "\n".join(
+        f"[{m['role'].upper()}] {m['content']}" for m in messages
+    )
+    current = current_summary or "Nog geen samenvatting beschikbaar."
+    return (
+        f"Je bent een medisch assistent die een beknopt patiëntendossier bijhoudt.\n"
+        f"Patiënt: {patient_name}\n\n"
+        f"Huidige samenvatting:\n{current}\n\n"
+        f"Recente gespreksberichten:\n{lines}\n\n"
+        f"Schrijf een bijgewerkte, gestructureerde samenvatting van medisch relevante feiten. "
+        f"Categorieën: terugkerende symptomen, medicatietrouw, gewichtsverloop, gedragspatronen, overig. "
+        f"Noteer uitsluitend feiten die de patiënt zelf heeft gemeld — geen aannames. "
+        f"Maximaal 200 woorden. Schrijf in het Nederlands."
+    )
+
+
+def _trigger_summary_update(patient_id: uuid.UUID) -> None:
+    """Achtergrondtaak — genereert een nieuwe medische samenvatting en slaat die op.
+
+    Draait via FastAPI BackgroundTasks zodat de HTTP-response niet geblokkeerd wordt.
+    Gebruikt een eigen DB-sessie (de request-sessie is al gesloten op dit punt).
+    """
+    import asyncio
+
+    asyncio.run(_async_summary_update(patient_id))
+
+
+async def _async_summary_update(patient_id: uuid.UUID) -> None:
+    """Async kern van de samenvattingsupdate — apart zodat we asyncio.run() kunnen gebruiken."""
+    db = SessionLocal()
+    try:
+        patient = db.get(Patient, patient_id)
+        if not patient:
+            return
+
+        # Haal de laatste N berichten op over alle sessies van deze patiënt
+        recent_messages = (
+            db.query(Message)
+            .join(Message.session)
+            .filter(Message.session.has(patient_id=patient_id))
+            .order_by(Message.created_at.desc())
+            .limit(_SUMMARY_CONTEXT_MESSAGES)
+            .all()
+        )
+        recent_messages.reverse()
+
+        if not recent_messages:
+            return
+
+        messages_for_prompt = [
+            {"role": m.role, "content": m.content} for m in recent_messages
+        ]
+        name = f"{patient.first_name} {patient.last_name}"
+        prompt = _build_summary_prompt(name, patient.medical_summary, messages_for_prompt)
+
+        llm = get_llm_provider()
+        new_summary = await llm.chat(
+            messages=[{"role": "user", "content": prompt}],
+        )
+
+        patient.medical_summary = new_summary
+        db.commit()
+    finally:
+        db.close()
+
+
 def _build_system_prompt(
     patient: Patient,
     memories: list[dict],
@@ -136,6 +209,15 @@ def _build_system_prompt(
             f"Dit is geautoriseerde medische informatie die je altijd beschikbaar hebt."
         )
 
+    summary_block = ""
+    if patient.medical_summary:
+        summary_block = (
+            f"\n\nMEDISCHE SAMENVATTING (automatisch bijgehouden over alle gesprekken):\n"
+            f"{patient.medical_summary}\n"
+            f"Gebruik deze samenvatting als achtergrondinformatie. Refereer er subtiel aan "
+            f"wanneer de patiënt over eerder besproken onderwerpen begint."
+        )
+
     return (
         f"Je bent Anna, een empathische AI-gezondheidsassistent voor hartfalenpatiënten. "
         f"Je spreekt met {name}.\n\n"
@@ -156,6 +238,7 @@ def _build_system_prompt(
         f"- Naam: {name}\n"
         f"- Medicatieschema: {medication}\n"
         f"- Notities zorgverlener: {notes}"
+        f"{summary_block}"
         f"{memory_block}"
     )
 
@@ -280,6 +363,7 @@ def close_session(
 async def chat(
     patient_id: uuid.UUID,
     body: ChatRequest,
+    background_tasks: BackgroundTasks,
     db: Annotated[Session, Depends(get_db)],
     mcp: Annotated[MCPClient, Depends(get_mcp_client)],
     debug: Annotated[
@@ -379,6 +463,17 @@ async def chat(
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
+
+    # Elke _SUMMARY_INTERVAL berichten de medische samenvatting opnieuw genereren.
+    # Tel alle berichten van deze patiënt over alle sessies.
+    total_messages: int = (
+        db.query(func.count(Message.id))
+        .join(Message.session)
+        .filter(Message.session.has(patient_id=patient_id))
+        .scalar()
+    ) or 0
+    if total_messages % _SUMMARY_INTERVAL == 0:
+        background_tasks.add_task(_trigger_summary_update, patient_id)
 
     # Escalatie stub — implementatie volgt in een volgend issue
     await mcp.escalate_to_human(
