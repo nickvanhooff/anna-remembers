@@ -627,3 +627,38 @@ Via `context_proof` aangetoond dat RAG semantisch faalde. De gebruiker vroeg "wa
 - Geen deduplicatie toegevoegd — duplicaten zijn acceptabel in demo-fase; de samenvatting (Issue #28) lost dit structureel op
 
 **Commit:** `d016d07` — fix(chat): also store Anna response in ChromaDB for cross-session RAG recall
+
+---
+
+## Stap 29 — 2026-05-13
+
+**Wat:** Cloud LLM-providers (Anthropic, OpenRouter, Groq) toegevoegd aan `backend/services/llm.py`. RAG-recall bevestigd werkend met Groq (llama-3.3-70b-versatile).
+
+**Aanleiding:**
+Stap 28 concludeerde dat gemma4:e2b de bottleneck is: RLHF-training overschrijft de system prompt, zelfs als de RAG-hits correct zijn. Om dit te bewijzen én een werkend systeem te hebben voor de demo, zijn drie cloud-providers toegevoegd zonder de rest van de codebase te raken.
+
+**Gedaan:**
+- `AnthropicProvider` toegevoegd — gebruikt officiële `anthropic` Python SDK
+- `OpenRouterProvider` toegevoegd — OpenAI-compatibele HTTP API via `httpx`, geen extra dependencies
+- `GroqProvider` toegevoegd — OpenAI-compatibele HTTP API via `httpx`, gratis tier met snelle LPU-inferentie
+- `get_llm_provider()` factory uitgebreid voor alle vier providers
+- Security fix: hardcoded API key als default verwijderd (`""` i.p.v. `"sk-or-v1-..."`)
+- `anthropic>=0.40.0` toegevoegd aan `backend/requirements.txt`
+- `docker-compose.yml` uitgebreid: `GROQ_API_KEY`, `GROQ_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` doorgegeven aan backend container
+- `.env` ingesteld op `LLM_PROVIDER=groq` met Groq API key
+
+**Bewijs RAG werkt:**
+`context_proof` van eerste Groq-sessie toont:
+```json
+"content": "Je woont in Eindhoven. Wil je praten over je planning om te verhuizen naar Londen?"
+"hits": [
+  { "content": "ik woon in eindhoven", "distance": 0.297 },
+  { "content": "ik wil verhuizen naar londn", "distance": 0.381 }
+]
+```
+Anna haalt correct twee feiten op uit een eerdere sessie (`session_id` verschilt van huidige sessie) en verwerkt ze in een vloeiend antwoord. De pipeline was altijd correct — het model was de bottleneck.
+
+**Beslissingen:**
+- Groq gekozen boven Anthropic/OpenRouter voor eerste test: gratis tier, geen betaalkaart nodig, llama-3.3-70b is capabel genoeg voor RLHF override te omzeilen
+- Provider-agnostische abstractie behouden — wisselen van provider vereist alleen `.env` aanpassen, geen codewijziging
+- API keys nooit als default-waarde in code — altijd lege string, ValueError als de key ontbreekt
