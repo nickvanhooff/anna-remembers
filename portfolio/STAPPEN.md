@@ -683,4 +683,4 @@ Anna haalt correct twee feiten op uit een eerdere sessie (`session_id` verschilt
 - Eigen `SessionLocal` in de achtergrondtaak — de request-DB-sessie is al gesloten als de taak start
 - Samenvatting staat bóven het RAG-blok in de prompt — stabiele context-voor-sessie vs. query-specifieke hits
 
-**Commit:** (volgt na commit)
+**Commit:** `46f6697` — feat(memory): periodic medical summary — update patients.medical_summary every N messages
