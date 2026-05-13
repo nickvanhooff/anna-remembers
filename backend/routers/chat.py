@@ -6,6 +6,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from models.message import Message
@@ -16,10 +17,12 @@ from schemas.message import (
     ChatRequest,
     CombinedContextProof,
     HistoryEntryProof,
+    MessageListItem,
     MessageResponse,
     PostgresContextProof,
     RAGContextProof,
     RAGHitProof,
+    SessionListItem,
     StoreMemoryProof,
 )
 from services.database import get_db
@@ -28,9 +31,29 @@ from services.mcp_client import MCPClient, get_mcp_client
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-_HISTORY_LIMIT = 10
+_HISTORY_LIMIT = 6
 _RAG_LIMIT = 5
 _HISTORY_PREVIEW_CHARS = 200
+
+_QUESTION_STARTERS = {"waar", "wat", "wie", "hoe", "wanneer", "waarom", "welke", "hoeveel", "kan", "kunt", "weet", "bent", "heeft", "hebben", "is", "zijn"}
+_REFUSAL_PATTERNS = ["geen toegang", "geen toegang tot", "heb ik geen", "weet ik niet", "weet niet waar", "kan ik niet weten", "heb geen toegang", "als een ai", "als taalmodel"]
+
+
+def _is_question(text: str) -> bool:
+    """Detecteer of een bericht een vraag is en geen feit om op te slaan."""
+    stripped = text.strip().lower()
+    if stripped.endswith("?"):
+        return True
+    if len(stripped) < 12:
+        return True
+    first_word = stripped.split()[0] if stripped.split() else ""
+    return first_word in _QUESTION_STARTERS
+
+
+def _is_refusal(content: str) -> bool:
+    """Detecteer Anna's weigeringsantwoorden — die mogen niet als in-context voorbeeld meegestuurd worden."""
+    lower = content.lower()
+    return any(p in lower for p in _REFUSAL_PATTERNS)
 
 
 def _build_context_proof(
@@ -95,17 +118,29 @@ def _build_system_prompt(
     medication = json.dumps(patient.medication_schedule, ensure_ascii=False)
     notes = patient.notes or "Geen aanvullende notities."
 
+    # Alleen patient_stated feiten; noise-drempel op 0.08 (oude vragen liggen rond 0.045).
+    # Geformuleerd als patiëntendossier, niet als geheugen — voorkomt dat het model het
+    # ziet als "persoonlijke data waar ik geen toegang toe heb".
+    useful = [
+        m for m in memories
+        if m.get("source") == "patient_stated"
+        and (m.get("distance") or 0) > 0.08
+    ]
+
     memory_block = ""
-    if memories:
-        lines = "\n".join(f"- [{m['source']}] {m['content']}" for m in memories)
-        memory_block = f"\n\nRelevante eerdere uitspraken van deze patiënt:\n{lines}"
+    if useful:
+        lines = "\n".join(f"• {m['content']}" for m in useful)
+        memory_block = (
+            f"\n\nPATIËNTENDOSSIER (opgebouwd uit eerdere gesprekken — altijd beschikbaar):\n{lines}\n"
+            f"Gebruik bovenstaande dossiergegevens direct als antwoord wanneer de patiënt ernaar vraagt. "
+            f"Dit is geautoriseerde medische informatie die je altijd beschikbaar hebt."
+        )
 
     return (
         f"Je bent Anna, een empathische AI-gezondheidsassistent voor hartfalenpatiënten. "
         f"Je spreekt met {name}.\n\n"
         f"Gedragsregels:\n"
         f"- Verzin nooit symptomen, medicatie of gewicht die de patiënt niet heeft gemeld.\n"
-        f"- Refereer aan eerdere uitspraken als die relevant zijn voor het huidige gesprek.\n"
         f"- Stel maximaal één gerichte vervolgvraag per response.\n"
         f"- Spreek altijd Nederlands.\n"
         f"- Toon: rustig, professioneel en respectvol. Geen schreeuwende tekst (geen hele zinnen in "
@@ -113,20 +148,127 @@ def _build_system_prompt(
         f"- Je bent geen meldkamer en geen vervanger van huisartsenpost of 112. Geef geen "
         f"stap-voor-stap noodscripts en noem geen alarmnummers (zoals 112), tenzij de patiënt daar "
         f"expliciet zelf om vraagt.\n"
-        f"- Je kunt geen telefoongesprekken voeren. Leg dat zo nodig kort en neutraal uit; koppel "
-        f"dat niet aan telefoonnummers of eerdere berichten om een kunstmatige crisis te creëren.\n"
-        f"- Als de patiënt een telefoonnummer deelt: noteer het feit kort (bijv. voor het dossier) "
-        f"en vraag desgewenst of dit het juiste contact is voor de zorgverlener; gebruik het nummer "
-        f"niet om zelf een dramatisch belplan of 'BEL NU'-commando's te fabriceren.\n"
-        f"- Eerdere berichten of RAG-regels kunnen ernstige klachten bevatten. Reageer proportioneel "
-        f"op het huidige bericht; escaleer inhoudelijk via het zorgpad van dit systeem, niet via "
-        f"theatrale instructies.\n\n"
+        f"- Je kunt geen telefoongesprekken voeren. Leg dat zo nodig kort en neutraal uit.\n"
+        f"- Als de patiënt een telefoonnummer deelt: noteer het kort. Gebruik het niet voor "
+        f"dramatische belplannen.\n"
+        f"- Reageer proportioneel op het huidige bericht, niet op het patroon van eerdere berichten.\n\n"
         f"Patiëntgegevens:\n"
         f"- Naam: {name}\n"
         f"- Medicatieschema: {medication}\n"
         f"- Notities zorgverlener: {notes}"
         f"{memory_block}"
     )
+
+
+@router.get(
+    "/{patient_id}/sessions",
+    response_model=list[SessionListItem],
+    responses={404: {"description": "Patiënt niet gevonden"}},
+)
+def list_sessions(
+    patient_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> list[dict]:
+    """Geef alle sessies voor een patiënt, inclusief berichtenaantal."""
+    from models.patient import Patient as PatientModel
+    if not db.get(PatientModel, patient_id):
+        raise HTTPException(status_code=404, detail="Patiënt niet gevonden")
+
+    sessions = (
+        db.query(ChatSession)
+        .filter(ChatSession.patient_id == patient_id)
+        .order_by(ChatSession.started_at.desc())
+        .all()
+    )
+
+    session_ids = [s.id for s in sessions]
+    counts: dict[uuid.UUID, int] = {}
+    if session_ids:
+        rows = (
+            db.query(Message.session_id, func.count(Message.id))
+            .filter(Message.session_id.in_(session_ids))
+            .group_by(Message.session_id)
+            .all()
+        )
+        counts = {sid: cnt for sid, cnt in rows}
+
+    return [
+        {
+            "id": s.id,
+            "started_at": s.started_at,
+            "ended_at": s.ended_at,
+            "message_count": counts.get(s.id, 0),
+            "is_open": s.ended_at is None,
+        }
+        for s in sessions
+    ]
+
+
+@router.get(
+    "/{patient_id}/sessions/{session_id}/messages",
+    response_model=list[MessageListItem],
+    responses={404: {"description": "Sessie niet gevonden"}},
+)
+def list_messages(
+    patient_id: uuid.UUID,
+    session_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> list[Message]:
+    """Geef alle berichten voor een sessie, chronologisch."""
+    session = db.query(ChatSession).filter(
+        ChatSession.id == session_id,
+        ChatSession.patient_id == patient_id,
+    ).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessie niet gevonden")
+
+    return (
+        db.query(Message)
+        .filter(Message.session_id == session_id)
+        .order_by(Message.created_at.asc())
+        .all()
+    )
+
+
+@router.post(
+    "/{patient_id}/sessions/close",
+    response_model=SessionListItem,
+    responses={404: {"description": "Geen open sessie gevonden"}},
+)
+def close_session(
+    patient_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Sluit de huidige open sessie af zodat de volgende chat een nieuwe aanmaakt."""
+    session = (
+        db.query(ChatSession)
+        .filter(
+            ChatSession.patient_id == patient_id,
+            ChatSession.ended_at.is_(None),
+        )
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Geen open sessie gevonden")
+
+    from datetime import datetime
+    session.ended_at = datetime.utcnow()
+    db.commit()
+    db.refresh(session)
+
+    count = (
+        db.query(func.count(Message.id))
+        .filter(Message.session_id == session.id)
+        .scalar()
+    ) or 0
+
+    return {
+        "id": session.id,
+        "started_at": session.started_at,
+        "ended_at": session.ended_at,
+        "message_count": count,
+        "is_open": False,
+    }
 
 
 @router.post(
@@ -179,20 +321,32 @@ async def chat(
     db.add(user_message)
     db.commit()
 
-    # RAG-context ophalen + geheugen opslaan — parallel voor minimale latency
-    memories, chroma_doc_id = await asyncio.gather(
-        mcp.recall_context(
-            query=body.content,
-            patient_id=str(patient_id),
-            limit=_RAG_LIMIT,
-        ),
+    # Sla alleen feitelijke uitspraken op — geen vragen en geen korte berichten.
+    # Vragen veroorzaken self-hits in ChromaDB (distance ≈ 0) en verdringen feiten.
+
+    store_coro = (
         mcp.store_memory(
             content=body.content,
             source="patient_stated",
             patient_id=str(patient_id),
             session_id=str(session.id),
-        ),
+        )
+        if not _is_question(body.content)
+        else asyncio.sleep(0)
     )
+
+    # RAG-context ophalen + geheugen opslaan — parallel, non-fatal als Ollama bezet is
+    rag_result, store_result = await asyncio.gather(
+        mcp.recall_context(
+            query=body.content,
+            patient_id=str(patient_id),
+            limit=_RAG_LIMIT,
+        ),
+        store_coro,
+        return_exceptions=True,
+    )
+    memories: list[dict] = rag_result if isinstance(rag_result, list) else []
+    chroma_doc_id: str | None = store_result if isinstance(store_result, str) else None
 
     # Laatste 10 berichten van de huidige sessie als conversation history
     recent = (
@@ -203,7 +357,13 @@ async def chat(
         .all()
     )
     recent.reverse()
-    history = [{"role": m.role, "content": m.content} for m in recent]
+    # Verwijder Anna's weigeringsantwoorden uit de history — die werken als negatief in-context voorbeeld
+    # en leren het model om te blijven weigeren, ook als het feit wél in de RAG staat.
+    history = [
+        {"role": m.role, "content": m.content}
+        for m in recent
+        if not (m.role == "assistant" and _is_refusal(m.content))
+    ]
 
     # Bouw system prompt en roep LLM aan
     system_prompt = _build_system_prompt(patient, memories)

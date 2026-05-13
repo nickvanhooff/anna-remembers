@@ -444,3 +444,221 @@ Ruwe berichtenhistorie is geen geheugen. Een hartpatiënt-companion heeft na ver
 - Issue #29: `feat(chat): injecteer patiëntsamenvatting in system prompt naast RAG-context` — Iteration 3
 
 **Volgende stap:** frontend werkend krijgen met de huidige staat (Postgres-patiënten, chat, trends, escalaties zichtbaar).
+
+---
+
+## Stap 23 — 2026-05-12
+
+**Wat:** Chat-scherm gekoppeld aan FastAPI (issue #19 afgesloten).
+
+**Gedaan:**
+- `frontend/lib/api.ts` — `sendMessage` mock vervangen door echte `POST /chat/{patient_id}` aanroep met 90 seconden AbortController-timeout; retourneert `{ reply, sessionId }` op basis van `MessageResponse` uit de backend
+- `frontend/components/chat/chat-screen.tsx` — volledig herschreven:
+  - Patiënten laden via `getPatients()` API (verwijderd: mock `PATIENTS`)
+  - Berichten per patiënt bijgehouden in een `Record<patientId, Message[]>` state-map
+  - `session_id` van de eerste API-response bijgehouden per patiënt
+  - `send()` met echte API, toast bij timeout en bij andere fouten, optimistisch toegevoegde user-message teruggedraaid bij fout
+  - Skeleton loading-state voor patiëntenselector en patiënt-header
+  - Lege-state in de berichtenstroom ("Nog geen gesprek gestart")
+  - `+` knop in session rail: wist de lokale berichten en reset session_id (nieuw gesprek starten; backend maakt nieuwe sessie zodra bericht gestuurd wordt)
+  - Composer en verstuurknop uitgeschakeld tijdens het laden en tijdens LLM-wacht
+
+**Beslissingen:**
+- Backend auto-manages sessies (één open sessie per patiënt) — frontend beheert geen session_id als invoer voor de API-call
+- 90 seconden timeout: LLM via Ollama (lokaal, GPU) kan 10-30 seconden duren; ruime marge voor slechte GPU-bezetting
+- Mock `CHAT` volledig verwijderd uit api.ts; sessierail toont nu de live lopende sessie of een lege staat
+
+**TypeScript check:** geen fouten (`npx tsc --noEmit`).
+
+**Commit:** `9b0af3f` — feat(frontend): wire chat to FastAPI — real sendMessage + patient load from API
+
+---
+
+## Stap 24 — 2026-05-12
+
+**Wat:** Sessierail werkend gemaakt — GET-endpoints voor sessies en berichten toegevoegd.
+
+**Aanleiding:** Na koppeling van de chat aan de API werden sessies niet weergegeven in de sessierail. De backend had nog geen endpoints om sessies of berichten op te halen.
+
+**Gedaan:**
+- `backend/schemas/message.py` — `SessionListItem` en `MessageListItem` Pydantic-modellen toegevoegd
+- `backend/routers/chat.py` — `GET /chat/{patient_id}/sessions` toegevoegd met berichtentelling via één aggregatiequery (geen N+1); `GET /chat/{patient_id}/sessions/{session_id}/messages` toegevoegd
+- `frontend/lib/api.ts` — `getChatSessions()` en `getChatMessages()` geïmplementeerd; berichten gemapped van `role` (`user`/`assistant`) naar UI-waarden (`me`/`them`)
+- `frontend/components/chat/chat-screen.tsx` — sessierail laadt live sessies via API; berichten worden per sessie gecached in `msgMap`; klikken op sessie laadt de bijbehorende berichten
+
+**Beslissingen:**
+- Berichtentelling via één aggregatiequery (`GROUP BY session_id`) — voorkomt N+1 bij patiënten met veel sessies
+- Berichten gecached per sessie-ID in frontend-state — geen herhaalde API-calls bij terugschakelen naar eerdere sessie
+
+**Commit:** `54ccf9c` — feat(chat): add sessions/messages GET endpoints + load history in frontend
+
+---
+
+## Stap 25 — 2026-05-12
+
+**Wat:** Anna herinnerde zich informatie niet die aantoonbaar in RAG stond. Systeem prompt herschikt en geheugeninstructies toegevoegd.
+
+**Aanleiding:** Aantoonbaar via `context_proof`: doktersnummer (06-84184389) stond in RAG-hits op distance 0.21, maar Anna beweerde het niet te weten. Oorzaak: LLM las het geheugenblok pas nadat de crisis-history al dominant was.
+
+**Gedaan:**
+- `backend/routers/chat.py` — `_build_system_prompt`:
+  - RAG-blok verplaatst van onderaan naar bóven in de system prompt (hoogste prioriteit voor de LLM)
+  - Expliciete instructie toegevoegd: "Wordt gevraagd naar iets dat eerder gedeeld is? Geef het terug vanuit die herinneringen. Zeg nooit dat je vorige sessies niet kunt herinneren."
+  - `_HISTORY_LIMIT` verlaagd van 10 naar 6 — minder crisis-berichten die het prompt domineren
+- `frontend/components/chat/chat-screen.tsx` — `POST /chat/{patient_id}/sessions/close` aangeroepen bij `+` knop; daarna sessies opnieuw geladen en staat gereset
+
+**Beslissingen:**
+- Prompt-volgorde is instructie-prioriteit: wat boven staat weegt zwaarder voor LLM. RAG bovenaan → inhoud wordt eerder verwerkt dan crisis-patronen uit de history
+- History van 10 naar 6: ruim genoeg voor conversatieflow, klein genoeg om niet te domineren
+
+**Commits:**
+- `977563c` — fix(chat): instruct Anna to use RAG context for recall queries across sessions
+- `3a8b176` — fix(chat): move RAG block to top of prompt, reduce history to 6 to prevent crisis spiral
+- `16f6e6b` — feat(chat): add close session endpoint + new session button closes current session
+
+---
+
+## Stap 26 — 2026-05-12
+
+**Wat:** Timeout- en stabiliteitsproblemen opgelost — chat reageerde niet na ~90s, MCP-aanroepen crashten bij bezet Ollama.
+
+**Aanleiding:**
+- Frontend gooide "Anna reageert niet (time-out na 90 s)" terwijl de LLM na 2-5 min wél antwoordde (te laat zichtbaar na handmatige refresh)
+- Docker Compose logs toonden `ReadTimeout` op `store_memory`/`recall_context` wanneer Ollama tegelijk infereerde
+
+**Oorzaak:**
+- gemma4:e4b = 9,4 GiB totaal; RTX 4050 Laptop (6 GiB VRAM) laadt slechts 2,8 GiB op GPU — 6,6 GiB draait op CPU → inferentie duurt 2-5 minuten
+- bge-m3 embed-call had een timeout van 30s, te kort als Ollama al bezig was met de LLM
+
+**Gedaan:**
+- `mcp-server/services/embedding.py` — httpx timeout 30s → 120s
+- `backend/services/llm.py` — httpx timeout 120s → 600s
+- `frontend/lib/api.ts` — AbortController timeout 90s → 600s
+- `backend/routers/chat.py` — `asyncio.gather(return_exceptions=True)` zodat een fout in `store_memory` of `recall_context` de chat niet afbreekt; fallback: lege memories-lijst, geen chroma_doc_id
+
+**Beslissingen:**
+- 600s (10 min) als timeout: ruim genoeg voor worst-case CPU-inferentie, duidelijk slechter dan productie; acceptabel voor demo/portfolio fase
+- Non-fatal MCP-calls: RAG-degradatie is beter dan een crashende chat
+
+**Commits:**
+- `39be187` — fix(mcp): raise embed timeout to 120s, make RAG gather non-fatal when Ollama is busy
+- `7e45af7` — fix: increase LLM and frontend timeout to 600s for CPU-offloaded gemma4:e4b
+
+---
+
+## Stap 27 — 2026-05-12
+
+**Wat:** LLM gewisseld van `gemma4:e4b` naar `gemma4:e2b` om timeouts op te lossen.
+
+**Aanleiding:** gemma4:e4b (9,4 GiB) past niet in het VRAM van de RTX 4050 Laptop (6 GiB). Daardoor draait 6,6 GiB op CPU, wat leidt tot inferentietijden van 2-5 minuten. gemma4:e2b is de kleinere variant van dezelfde modelfamilie en is beschikbaar via Ollama.
+
+**Gedaan:**
+- `.env` — `OLLAMA_MODEL=gemma4:e4b` → `OLLAMA_MODEL=gemma4:e2b`
+- `.env.example` — idem bijgewerkt
+
+**Verwachting:** gemma4:e2b past volledig in VRAM, inferentie zakt naar 5-20s. Zelfde prompt-structuur en Nederlands taalgedrag blijven van toepassing.
+
+---
+
+## Stap 28 — 2026-05-13
+
+**Wat:** Grondig RAG-recall onderzoek via NotebookLM (6 wetenschappelijke bronnen) + reeks iteratieve fixes op basis van de bevindingen. Conclusie: RAG-pipeline werkt correct, model is de bottleneck.
+
+**Aanleiding:**
+Na alle eerdere fixes bleef Anna in nieuwe sessies antwoorden met "Als een AI heb ik geen toegang tot je persoonlijke locatie", ook als het feit ("ik woon in eindhoven") aantoonbaar in de RAG-hits zat en de system prompt `system_prompt_includes_rag_block: true` toonde.
+
+**NotebookLM research (notebook: anna-remembers)**
+Bronnen toegevoegd: Lost in the Middle (Liu et al. 2023), Self-RAG (2023), RAG Survey (2023), Pinecone RAG docs, LangChain memory docs, eigen codebase als tekstbron.
+
+Drie bevindingen uit de literatuur:
+1. **"Lost in the Middle"** — feiten midden in de prompt worden genegeerd. Oplossing: RAG-blok naar het einde van de prompt.
+2. **Authoritative data** — sla alleen feitelijke uitspraken op, geen vragen. Vragen veroorzaken self-hits (distance ≈ 0) die feiten verdringen.
+3. **In-context history corrupts system prompt** — als de history weigeringsantwoorden bevat ("Ik heb geen toegang"), leert het model dat patroon voort te zetten, ook als het feit wél in de prompt staat.
+
+**Iteratieve fixes (chronologisch):**
+- RAG-blok verplaatst naar einde van de system prompt
+- `_is_question()` geïmplementeerd: detecteert Nederlandse vraagsignalen (`waar`, `wat`, `wie`, `hoe` etc.) én vraagtekens; vragen worden niet opgeslagen in ChromaDB
+- Weigeringsantwoorden gefilterd uit de conversation history vóór LLM-aanroep (`_is_refusal()`)
+- Noise-drempel verhoogd van 0.01 naar 0.08 (oude "waar woon ik" entries lagen op distance 0.045 en lekten nog door)
+- RAG-blok omgeformuleerd van "Wat de patiënt eerder heeft verteld" naar "PATIËNTENDOSSIER (geautoriseerde medische informatie)" — vermijdt dat het model het ziet als persoonlijke data waarover het geen bevoegdheid heeft
+
+**Conclusie uit context_proof analyse:**
+- `system_prompt_char_length` identiek in werkende en falende sessie (1284 chars)
+- `system_prompt_includes_rag_block: true` in beide gevallen
+- `store_memory` had geen `chroma_document_id` → vraagdetectie werkt, vragen worden niet opgeslagen
+- Enig verschil: de conversation history
+- **Maar**: zelfs de allereerste turn in een nieuwe sessie (geen history) faalt → het model negeert de RAG-context structureel voor locatievragen
+
+**Definitieve diagnose:** gemma4:e2b (~2B effectieve params, grotendeels CPU) heeft te sterke RLHF-training op "Ik heb geen toegang tot persoonlijke locatiegegevens". Die override is sterker dan de system prompt instructie. De RAG-pipeline is technisch correct.
+
+**Commits (chronologisch):**
+- `d016d07` — fix(chat): also store Anna response in ChromaDB for cross-session RAG recall
+- `3d191b3` — fix(mcp): deduplicate ChromaDB entries with deterministic content hash ID
+- `d6133f6` — fix(chat): filter RAG self-hits and ai_inferred noise, strengthen memory instruction
+- `d7b7d23` — fix(chat): store only facts not questions, move RAG block to end of prompt
+- `c0a666f` — fix(chat): detect Dutch questions without ?, filter refusal turns from LLM history
+- `38d0d02` — fix(chat): raise noise floor to 0.08, reframe RAG as patient dossier
+
+**Volgende stap:** cloud model testen (Claude Haiku via Anthropic API) — als dat wél werkt, bewijst het dat de pipeline correct is en het model de bottleneck.
+
+---
+
+## Stap 28 — 2026-05-12
+
+**Wat:** RAG cross-sessie recall gerepareerd — Anna's antwoorden worden nu ook opgeslagen in ChromaDB.
+
+**Aanleiding:**
+Via `context_proof` aangetoond dat RAG semantisch faalde. De gebruiker vroeg "waar woon ik?" en de RAG-hits waren uitsluitend de vraag zelf ("waar woon ik", distance ≈ 0), niet het feit "ik woon in schaft". Oorzaak: `store_memory` sloeg alleen het user-bericht op. Bij een recall-query matcht de vraag zichzelf perfect — het antwoord zit er niet in.
+
+**Voorbeeld uit context_proof:**
+```json
+"hits": [
+  { "content": "waar woon ik",  "distance": 1.19e-7 },  ← vraag opgeslagen, niet het feit
+  { "content": "waar woon ik?", "distance": 1.19e-7 }
+]
+```
+"ik woon in schaft" verscheen nergens in de hits.
+
+**Fix:**
+- `backend/routers/chat.py` — na opslaan van `assistant_message`: extra `store_memory`-aanroep met `content=response_text`, `source="ai_inferred"`. Anna's antwoord ("Je woont in Schaft") heeft wél semantische overlap met "waar woon ik?".
+
+**Beslissingen:**
+- `source="ai_inferred"` — onderscheidt Anna's samenvattingen van directe patiëntuitspraken, conform architectuurregel (source-tag is verplicht)
+- Geen deduplicatie toegevoegd — duplicaten zijn acceptabel in demo-fase; de samenvatting (Issue #28) lost dit structureel op
+
+**Commit:** `d016d07` — fix(chat): also store Anna response in ChromaDB for cross-session RAG recall
+
+---
+
+## Stap 29 — 2026-05-13
+
+**Wat:** Cloud LLM-providers (Anthropic, OpenRouter, Groq) toegevoegd aan `backend/services/llm.py`. RAG-recall bevestigd werkend met Groq (llama-3.3-70b-versatile).
+
+**Aanleiding:**
+Stap 28 concludeerde dat gemma4:e2b de bottleneck is: RLHF-training overschrijft de system prompt, zelfs als de RAG-hits correct zijn. Om dit te bewijzen én een werkend systeem te hebben voor de demo, zijn drie cloud-providers toegevoegd zonder de rest van de codebase te raken.
+
+**Gedaan:**
+- `AnthropicProvider` toegevoegd — gebruikt officiële `anthropic` Python SDK
+- `OpenRouterProvider` toegevoegd — OpenAI-compatibele HTTP API via `httpx`, geen extra dependencies
+- `GroqProvider` toegevoegd — OpenAI-compatibele HTTP API via `httpx`, gratis tier met snelle LPU-inferentie
+- `get_llm_provider()` factory uitgebreid voor alle vier providers
+- Security fix: hardcoded API key als default verwijderd (`""` i.p.v. `"sk-or-v1-..."`)
+- `anthropic>=0.40.0` toegevoegd aan `backend/requirements.txt`
+- `docker-compose.yml` uitgebreid: `GROQ_API_KEY`, `GROQ_MODEL`, `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` doorgegeven aan backend container
+- `.env` ingesteld op `LLM_PROVIDER=groq` met Groq API key
+
+**Bewijs RAG werkt:**
+`context_proof` van eerste Groq-sessie toont:
+```json
+"content": "Je woont in Eindhoven. Wil je praten over je planning om te verhuizen naar Londen?"
+"hits": [
+  { "content": "ik woon in eindhoven", "distance": 0.297 },
+  { "content": "ik wil verhuizen naar londn", "distance": 0.381 }
+]
+```
+Anna haalt correct twee feiten op uit een eerdere sessie (`session_id` verschilt van huidige sessie) en verwerkt ze in een vloeiend antwoord. De pipeline was altijd correct — het model was de bottleneck.
+
+**Beslissingen:**
+- Groq gekozen boven Anthropic/OpenRouter voor eerste test: gratis tier, geen betaalkaart nodig, llama-3.3-70b is capabel genoeg voor RLHF override te omzeilen
+- Provider-agnostische abstractie behouden — wisselen van provider vereist alleen `.env` aanpassen, geen codewijziging
+- API keys nooit als default-waarde in code — altijd lege string, ValueError als de key ontbreekt

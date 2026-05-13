@@ -1,5 +1,5 @@
 import type { Patient, Session, Escalation, TrendPoint, PatientStatus } from "@/types"
-import { CHAT, TRENDS, ESCALATIONS } from "./mock-data"
+import { TRENDS, ESCALATIONS } from "./mock-data"
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
@@ -130,12 +130,6 @@ export async function deletePatient(id: string): Promise<void> {
 
 // ─── Overige endpoints (nog mock) ────────────────────────────────
 
-export async function getSessions(patientId: string): Promise<Session[]> {
-  // TODO: return get<Session[]>(`/patients/${patientId}/sessions`)
-  void patientId
-  return Promise.resolve(CHAT)
-}
-
 export async function getTrends(patientId: string): Promise<TrendPoint[]> {
   // TODO: return get<TrendPoint[]>(`/patients/${patientId}/trends`)
   void patientId
@@ -147,21 +141,86 @@ export async function getEscalations(): Promise<Escalation[]> {
   return Promise.resolve(ESCALATIONS)
 }
 
-export async function sendMessage(patientId: string, sessionId: string, body: string): Promise<{ reply: string; tag?: string }> {
-  // TODO: return post<...>(`/patients/${patientId}/sessions/${sessionId}/messages`, { body })
-  void patientId; void sessionId
-  const lower = body.toLowerCase()
-  let reply: string
-  let tag: string | undefined
-  if (lower.includes("moe") || lower.includes("slaap")) {
-    reply = "Vervelend om te horen. Heeft u een idee waardoor het komt — was er iets bijzonders deze week?"
-  } else if (lower.includes("beter") || lower.includes("goed")) {
-    reply = "Fijn dat het beter gaat. Ik zal dit noteren in uw dossier."
-    tag = "Anna vermoedt"
-  } else if (lower.includes("kortademig") || lower.includes("adem")) {
-    reply = "Begrijp ik. Wanneer merkt u het het sterkst — bij inspanning, of ook in rust?"
-  } else {
-    reply = "Dank u. Mag ik vragen hoe het deze week met uw gewicht en medicatie is gegaan?"
+// ─── Chat ─────────────────────────────────────────────────────────
+
+interface SessionAPI {
+  id: string
+  started_at: string
+  ended_at: string | null
+  message_count: number
+  is_open: boolean
+}
+
+interface MessageResponseAPI {
+  id: string
+  session_id: string
+  role: string
+  content: string
+  created_at: string
+}
+
+const CHAT_TIMEOUT_MS = 600_000
+
+export interface ChatSession {
+  id: string
+  date: string
+  messageCount: number
+  isOpen: boolean
+}
+
+export async function closeSession(patientId: string): Promise<void> {
+  await post(`/chat/${patientId}/sessions/close`, {})
+}
+
+export async function getChatSessions(patientId: string): Promise<ChatSession[]> {
+  const data = await get<SessionAPI[]>(`/chat/${patientId}/sessions`)
+  return data.map(s => ({
+    id:           s.id,
+    date:         s.started_at.slice(0, 10),
+    messageCount: s.message_count,
+    isOpen:       s.is_open,
+  }))
+}
+
+export async function getChatMessages(
+  patientId: string,
+  sessionId: string,
+  patientFirst: string,
+): Promise<import("@/types").Message[]> {
+  const data = await get<MessageResponseAPI[]>(
+    `/chat/${patientId}/sessions/${sessionId}/messages`,
+  )
+  return data.map(m => ({
+    role: m.role === "user" ? "me" : "them",
+    who:  m.role === "user" ? patientFirst : "Anna",
+    t:    new Date(m.created_at).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" }),
+    body: m.content,
+  }))
+}
+
+export async function sendMessage(
+  patientId: string,
+  content: string,
+): Promise<{ reply: string; sessionId: string }> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
+
+  try {
+    const res = await fetch(`${BASE}/chat/${patientId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+      signal: controller.signal,
+    })
+    if (!res.ok) throw new Error(`API ${res.status}`)
+    const data = await res.json() as MessageResponseAPI
+    return { reply: data.content, sessionId: data.session_id }
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error("timeout")
+    }
+    throw err
+  } finally {
+    clearTimeout(timeoutId)
   }
-  return new Promise(resolve => setTimeout(() => resolve({ reply, tag }), 1100))
 }

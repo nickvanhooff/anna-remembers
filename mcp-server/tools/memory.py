@@ -1,5 +1,5 @@
+import hashlib
 import os
-import uuid
 from datetime import datetime, timezone
 
 import chromadb
@@ -34,8 +34,9 @@ async def store_memory(
     """Embedt content en slaat het op in ChromaDB."""
     vector = await embed.embed(content)
     collection = get_collection()
-    doc_id = str(uuid.uuid4())
-    collection.add(
+    # Deterministisch ID: zelfde inhoud + zelfde patiënt → zelfde document (geen duplicaten)
+    doc_id = hashlib.sha256(f"{patient_id}:{content}".encode()).hexdigest()[:32]
+    collection.upsert(
         embeddings=[vector],
         documents=[content],
         metadatas=[
