@@ -26,6 +26,8 @@ from schemas.message import (
     SessionListItem,
     StoreMemoryProof,
 )
+from langfuse import get_client as get_langfuse, propagate_attributes
+
 from services.database import SessionLocal, get_db
 from services.llm import get_llm_provider
 from services.mcp_client import MCPClient, get_mcp_client
@@ -171,10 +173,18 @@ async def _async_summary_update(patient_id: uuid.UUID) -> None:
         name = f"{patient.first_name} {patient.last_name}"
         prompt = _build_summary_prompt(name, patient.medical_summary, messages_for_prompt)
 
-        llm = get_llm_provider()
-        new_summary = await llm.chat(
-            messages=[{"role": "user", "content": prompt}],
-        )
+        langfuse = get_langfuse()
+        with langfuse.start_as_current_observation(as_type="span", name="summary-update") as root:
+            with propagate_attributes(
+                user_id=str(patient_id),
+                trace_name="summary-update",
+                metadata={"patient_name": name, "messages_used": len(messages_for_prompt)},
+            ):
+                llm = get_llm_provider()
+                new_summary = await llm.chat(
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                root.update(output=new_summary)
 
         patient.medical_summary = new_summary
         db.commit()
@@ -449,10 +459,27 @@ async def chat(
         if not (m.role == "assistant" and _is_refusal(m.content))
     ]
 
-    # Bouw system prompt en roep LLM aan
+    # Bouw system prompt en roep LLM aan — gewikkeld in een Langfuse root trace
     system_prompt = _build_system_prompt(patient, memories)
-    llm = get_llm_provider()
-    response_text = await llm.chat(messages=history, system=system_prompt)
+    langfuse = get_langfuse()
+    with langfuse.start_as_current_observation(
+        as_type="span",
+        name="chat-turn",
+        input=body.content,
+    ) as root_span:
+        with propagate_attributes(
+            user_id=str(patient_id),
+            session_id=str(session.id),
+            trace_name="chat-turn",
+            metadata={
+                "patient_name": f"{patient.first_name} {patient.last_name}",
+                "rag_hits": len(memories),
+                "history_messages": len(history),
+            },
+        ):
+            llm = get_llm_provider()
+            response_text = await llm.chat(messages=history, system=system_prompt)
+            root_span.update(output=response_text)
 
     # Sla Anna's antwoord op
     assistant_message = Message(
