@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import patients, chat
+from routers import chat, escalations, patients
 
 # Geen logica in dit bestand — alleen app-setup en router-registratie.
 app = FastAPI(
@@ -19,6 +19,7 @@ app.add_middleware(
 
 app.include_router(patients.router)
 app.include_router(chat.router)
+app.include_router(escalations.router)
 
 
 @app.get("/health")

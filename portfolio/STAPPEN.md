@@ -726,3 +726,27 @@ Anna haalt correct twee feiten op uit een eerdere sessie (`session_id` verschilt
 
 **Beslissingen:**
 - Geen inhoudelijke codewijzigingen — alleen documentatie gesynchroniseerd met de werkelijke staat van de branch
+
+---
+
+## Stap 34 — 2026-05-14
+
+**Wat:** `escalate_to_human` MCP-tool geïmplementeerd (issue #14) — optie B: MCP-server roept FastAPI aan via HTTP, FastAPI schrijft naar PostgreSQL.
+
+**Gedaan:**
+- `backend/alembic/versions/0003_add_notification_status_to_escalations.py` — migratie: `notification_status VARCHAR(20) DEFAULT 'pending'` toegevoegd aan `escalations` tabel (hook voor issue #25)
+- `backend/models/escalation.py` — `notification_status` veld toegevoegd
+- `backend/schemas/escalation.py` — `EscalationCreate` en `EscalationStatusUpdate` toegevoegd; `notification_status` in `EscalationResponse`
+- `backend/routers/escalations.py` — nieuw: `POST /escalations`, `GET /escalations`, `GET /escalations/{id}`, `PATCH /escalations/{id}/status`; `# Issue #25` comment markeert waar notificatieverzending ingeplugd wordt
+- `backend/main.py` — `escalations` router geregistreerd
+- `docker-compose.yml` — `BACKEND_URL: http://backend:8000` toegevoegd aan mcp-server environment
+- `mcp-server/tools/escalation.py` — stub vervangen: valideert urgency → POST naar backend via httpx → logt naar stdout → geeft escalation ID terug
+- `mcp-server/main.py` — return type `None` → `str`
+- `mcp-server/tests/test_escalation.py` — 4 tests herschreven met respx mock: happy path, alle urgency-levels, ongeldige urgency, backend HTTP-fout
+
+**Testresultaat:** 4/4 PASS
+
+**Beslissingen:**
+- Optie B (MCP → FastAPI HTTP) gekozen boven directe PostgreSQL-connectie vanuit MCP: FastAPI blijft eigenaar van alle DB-schrijfacties, consistent met architectuurregel
+- `notification_status="pending"` als startwaarde: issue #25 pikt dit op en werkt bij naar `sent`/`failed` na daadwerkelijke verzending — geen notification-code nu geschreven
+- Validatie van urgency in de MCP-tool zelf (vóór HTTP-call) zodat foute input nooit de backend bereikt
