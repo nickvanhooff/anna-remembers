@@ -684,3 +684,45 @@ Anna haalt correct twee feiten op uit een eerdere sessie (`session_id` verschilt
 - Samenvatting staat bóven het RAG-blok in de prompt — stabiele context-voor-sessie vs. query-specifieke hits
 
 **Commit:** `46f6697` — feat(memory): periodic medical summary — update patients.medical_summary every N messages
+
+---
+
+## Stap 32 — 2026-05-13
+
+**Wat:** Issue #32 geïmplementeerd — medische samenvatting omgezet van Markdown naar compact JSON. Token usage gemeten voor en na via Langfuse.
+
+**Uitgevoerd:**
+- `_build_summary_prompt()` herschreven: vraagt nu compact JSON met korte keys (`sym`, `med`, `wgt`, `bhv`, `ovr`) in plaats van vrije Markdown-tekst
+- JSON-validatie toegevoegd in `_async_summary_update`: markdown fences gestript → `json.loads()` → minified opgeslagen; fallback op ruwe tekst bij parse-fout
+- `asyncio.run()` bug gefixed: `_trigger_summary_update` was een sync wrapper die `asyncio.run()` aanriep vanuit een al-draaiende event loop → omgezet naar `async def`
+- `MedicalSummaryJSON` interface toegevoegd aan `frontend/types/index.ts`
+- `DossierCard` component gebouwd in `chat-screen.tsx`: parse JSON → gestructureerde weergave met gelabelde secties; fallback voor legacy Markdown-summaries
+
+**Meting:**
+
+| Formaat | Input | Output | Totaal | Latency |
+|---|---|---|---|---|
+| Markdown (voor) | 1.276 | 219 | 1.495 | 0,69s |
+| JSON run 1 | 1.579 | 139 | 1.718 | 0,36s |
+| JSON run 2 | 1.591 | 84 | 1.675 | 0,30s |
+
+**Beslissingen:**
+- Output tokens dalen −62%, maar input stijgt door groeiende gesprekscontext — netto verschil minimaal en niet hard te isoleren
+- Acceptatiecriterium "meetbare daling in token usage" is niet onomstotelijk aangetoond; de contextgroei is een confounding factor
+- Voordeel zit in gestructureerde data (frontend kan JSON renderen), latency (−57%) en schaalbaarheid over tijd
+- Gedocumenteerd in evidence_06 met eerlijke conclusie
+
+**Evidence:** `portfolio/evidence/evidence_06_token_usage_markdown_vs_json.md`
+
+---
+
+## Stap 33 — 2026-05-14
+
+**Wat:** README.md en CLAUDE.md bijgewerkt naar de huidige bouwstaat (feature/patient-summary).
+
+**Gedaan:**
+- `README.md` — stack tabel uitgebreid met Langfuse en cloud LLM-providers; env vars sectie herschreven met alle huidige variabelen (`LLM_PROVIDER`, `GROQ_*`, `ANTHROPIC_*`, `OPENROUTER_*`, `LANGFUSE_*`, `SUMMARY_INTERVAL`); Ollama pull-instructie bijgewerkt van `gemma4:e4b` → `gemma4:e2b`; Chat screen status van "Mock" naar "Live"
+- `CLAUDE.md` — stack tabel bijgewerkt (LLM als Ollama/Groq/Anthropic/OpenRouter + Langfuse); bouwstaat volledig herschreven naar 2026-05-14: alle gesloten issues toegevoegd (#3, #14, #19, #28, #29, #32), chat-pipeline gedocumenteerd (RAG, history filters, Langfuse tracing, BackgroundTask samenvatting), open issues bijgesteld (#13 trends + #4 frontend volledig + gesimuleerde patiënten)
+
+**Beslissingen:**
+- Geen inhoudelijke codewijzigingen — alleen documentatie gesynchroniseerd met de werkelijke staat van de branch

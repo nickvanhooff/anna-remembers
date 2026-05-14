@@ -64,6 +64,7 @@ class CombinedContextProof(BaseModel):
     history_messages_sent_to_llm: int
     system_prompt_includes_patient_row: bool = True
     system_prompt_includes_rag_block: bool
+    system_prompt_includes_summary_block: bool
     system_prompt_char_length: int
 
 

@@ -2,6 +2,14 @@ export type PatientStatus = "success" | "warning" | "urgent" | "info"
 export type EscalationUrgency = "urgent" | "warning" | "info"
 export type EscalationStatus = "open" | "in_progress" | "closed"
 
+export interface MedicalSummaryJSON {
+  sym: string[]
+  med: string | null
+  wgt: string | null
+  bhv: string | null
+  ovr: string[]
+}
+
 export interface Patient {
   id: string
   first: string

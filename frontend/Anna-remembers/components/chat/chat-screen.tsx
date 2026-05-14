@@ -16,7 +16,7 @@ import { StatusBadge } from "@/components/dashboard/status-badge"
 import { fmtTime } from "@/lib/utils"
 import { getPatients, getPatient, getChatSessions, getChatMessages, sendMessage, closeSession } from "@/lib/api"
 import type { ChatSession } from "@/lib/api"
-import type { Patient, Message } from "@/types"
+import type { Patient, Message, MedicalSummaryJSON } from "@/types"
 
 export function ChatScreen() {
   const [patients, setPatients]         = useState<Patient[]>([])
@@ -432,9 +432,7 @@ export function ChatScreen() {
             </SheetTitle>
           </SheetHeader>
           {patient?.medicalSummary ? (
-            <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-foreground">
-              {patient.medicalSummary}
-            </div>
+            <DossierCard raw={patient.medicalSummary} />
           ) : (
             <div className="flex flex-col gap-2 text-muted-foreground text-[13px]">
               <p>Nog geen samenvatting beschikbaar.</p>
@@ -452,6 +450,47 @@ export function ChatScreen() {
         .dot-t:nth-child(2){animation-delay:.15s}
         .dot-t:nth-child(3){animation-delay:.30s}
       `}</style>
+    </div>
+  )
+}
+
+function DossierCard({ raw }: { raw: string }) {
+  let data: MedicalSummaryJSON | null = null
+  try { data = JSON.parse(raw) } catch { /* legacy Markdown — toon als tekst */ }
+
+  if (!data) {
+    return <div className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-foreground">{raw}</div>
+  }
+
+  const sections: { label: string; value: string | string[] | null }[] = [
+    { label: "Symptomen",       value: data.sym?.length ? data.sym : null },
+    { label: "Medicatietrouw",  value: data.med },
+    { label: "Gewichtsverloop", value: data.wgt },
+    { label: "Gedragspatronen", value: data.bhv },
+    { label: "Overig",          value: data.ovr?.length ? data.ovr : null },
+  ]
+
+  return (
+    <div className="flex flex-col gap-4">
+      {sections.map(({ label, value }) =>
+        value ? (
+          <div key={label}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">{label}</p>
+            {Array.isArray(value) ? (
+              <ul className="flex flex-col gap-0.5">
+                {value.map((v, i) => (
+                  <li key={i} className="flex items-start gap-1.5 text-[13px]">
+                    <span className="mt-1.5 size-1.5 rounded-full bg-primary/60 shrink-0" />
+                    {v}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[13px]">{value}</p>
+            )}
+          </div>
+        ) : null
+      )}
     </div>
   )
 }

@@ -73,6 +73,7 @@ def _build_context_proof(
     history_rows: list[Message],
     system_prompt: str,
     chroma_document_id: str | None,
+    summary_block_present: bool,
 ) -> ChatContextProof:
     """Assemble portfolio-friendly provenance for Postgres vs RAG in one turn."""
     history_entries = [
@@ -111,6 +112,7 @@ def _build_context_proof(
         combined=CombinedContextProof(
             history_messages_sent_to_llm=len(history_rows),
             system_prompt_includes_rag_block=memory_block_present,
+            system_prompt_includes_summary_block=summary_block_present,
             system_prompt_char_length=len(system_prompt),
         ),
     )
@@ -121,16 +123,21 @@ def _build_summary_prompt(patient_name: str, current_summary: str | None, messag
     lines = "\n".join(
         f"[{m['role'].upper()}] {m['content']}" for m in messages
     )
-    current = current_summary or "Nog geen samenvatting beschikbaar."
+    current = current_summary or '{"sym":[],"med":null,"wgt":null,"bhv":null,"ovr":[]}'
     return (
-        f"Je bent een medisch assistent die een beknopt patiëntendossier bijhoudt.\n"
-        f"Patiënt: {patient_name}\n\n"
-        f"Huidige samenvatting:\n{current}\n\n"
-        f"Recente gespreksberichten:\n{lines}\n\n"
-        f"Schrijf een bijgewerkte, gestructureerde samenvatting van medisch relevante feiten. "
-        f"Categorieën: terugkerende symptomen, medicatietrouw, gewichtsverloop, gedragspatronen, overig. "
-        f"Noteer uitsluitend feiten die de patiënt zelf heeft gemeld — geen aannames. "
-        f"Maximaal 200 woorden. Schrijf in het Nederlands."
+        f"You are updating a medical dossier for patient {patient_name}.\n\n"
+        f"Current dossier (JSON):\n{current}\n\n"
+        f"Conversation ([USER] = patient, [ASSISTANT] = AI):\n{lines}\n\n"
+        f"Return the updated dossier as a single JSON object. "
+        f"Output ONLY the JSON — no explanation, no preamble, no markdown.\n"
+        f"Schema: "
+        f'{{"sym":[],"med":null,"wgt":null,"bhv":null,"ovr":[]}}\n'
+        f"Rules:\n"
+        f"- Only use facts from [USER] lines. [ASSISTANT] lines are not facts.\n"
+        f"- Only include MEDICALLY RELEVANT facts (symptoms, weight, medication, health behaviour).\n"
+        f"- Ignore questions, jokes, addresses, phone numbers, and non-medical statements.\n"
+        f"- Preserve existing facts. Add new ones. Remove only if the patient contradicts them.\n"
+        f"- No duplicates. Max 6 words per entry. Dutch."
     )
 
 
@@ -179,9 +186,20 @@ async def _async_summary_update(patient_id: uuid.UUID) -> None:
                 metadata={"patient_name": name, "messages_used": len(messages_for_prompt)},
             ):
                 llm = get_llm_provider()
-                new_summary = await llm.chat(
+                raw = await llm.chat(
                     messages=[{"role": "user", "content": prompt}],
                 )
+                import json as _json
+                import re as _re
+                # Extraheer het JSON-object ongeacht preamble of markdown fences
+                match = _re.search(r'\{.*\}', raw, _re.DOTALL)
+                try:
+                    cleaned = match.group(0) if match else raw
+                    parsed = _json.loads(cleaned)
+                    new_summary = _json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
+                except Exception:
+                    # Fallback: sla ruwe tekst op zodat data niet verloren gaat
+                    new_summary = raw
                 root.update(output=new_summary)
 
         patient.medical_summary = new_summary
@@ -427,38 +445,6 @@ async def chat(
         else asyncio.sleep(0)
     )
 
-    # RAG-context ophalen + geheugen opslaan — parallel, non-fatal als Ollama bezet is
-    rag_result, store_result = await asyncio.gather(
-        mcp.recall_context(
-            query=body.content,
-            patient_id=str(patient_id),
-            limit=_RAG_LIMIT,
-        ),
-        store_coro,
-        return_exceptions=True,
-    )
-    memories: list[dict] = rag_result if isinstance(rag_result, list) else []
-    chroma_doc_id: str | None = store_result if isinstance(store_result, str) else None
-
-    # Laatste 10 berichten van de huidige sessie als conversation history
-    recent = (
-        db.query(Message)
-        .filter(Message.session_id == session.id)
-        .order_by(Message.created_at.desc())
-        .limit(_HISTORY_LIMIT)
-        .all()
-    )
-    recent.reverse()
-    # Verwijder Anna's weigeringsantwoorden uit de history — die werken als negatief in-context voorbeeld
-    # en leren het model om te blijven weigeren, ook als het feit wél in de RAG staat.
-    history = [
-        {"role": m.role, "content": m.content}
-        for m in recent
-        if not (m.role == "assistant" and _is_refusal(m.content))
-    ]
-
-    # Bouw system prompt en roep LLM aan — gewikkeld in een Langfuse root trace
-    system_prompt = _build_system_prompt(patient, memories)
     langfuse = get_langfuse()
     with langfuse.start_as_current_observation(
         as_type="span",
@@ -469,12 +455,52 @@ async def chat(
             user_id=str(patient_id),
             session_id=str(session.id),
             trace_name="chat-turn",
-            metadata={
+            metadata={"patient_name": f"{patient.first_name} {patient.last_name}"},
+        ):
+            # RAG-context ophalen + geheugen opslaan als traceerbare child span
+            with langfuse.start_as_current_observation(
+                as_type="span",
+                name="rag-retrieval",
+                input=body.content,
+            ) as rag_span:
+                rag_result, store_result = await asyncio.gather(
+                    mcp.recall_context(
+                        query=body.content,
+                        patient_id=str(patient_id),
+                        limit=_RAG_LIMIT,
+                    ),
+                    store_coro,
+                    return_exceptions=True,
+                )
+                memories: list[dict] = rag_result if isinstance(rag_result, list) else []
+                chroma_doc_id: str | None = store_result if isinstance(store_result, str) else None
+                rag_span.update(
+                    output=[m.get("content", "") for m in memories],
+                    metadata={"hit_count": len(memories), "limit": _RAG_LIMIT},
+                )
+
+            # Laatste N berichten van de huidige sessie als conversation history
+            recent = (
+                db.query(Message)
+                .filter(Message.session_id == session.id)
+                .order_by(Message.created_at.desc())
+                .limit(_HISTORY_LIMIT)
+                .all()
+            )
+            recent.reverse()
+            # Verwijder Anna's weigeringsantwoorden — die werken als negatief in-context voorbeeld.
+            history = [
+                {"role": m.role, "content": m.content}
+                for m in recent
+                if not (m.role == "assistant" and _is_refusal(m.content))
+            ]
+
+            system_prompt = _build_system_prompt(patient, memories)
+            root_span.update(metadata={
                 "patient_name": f"{patient.first_name} {patient.last_name}",
                 "rag_hits": len(memories),
                 "history_messages": len(history),
-            },
-        ):
+            })
             llm = get_llm_provider()
             response_text = await llm.chat(messages=history, system=system_prompt)
             root_span.update(output=response_text)
@@ -521,5 +547,6 @@ async def chat(
         history_rows=recent,
         system_prompt=system_prompt,
         chroma_document_id=chroma_doc_id or None,
+        summary_block_present=bool(patient.medical_summary),
     )
     return base.model_copy(update={"context_proof": proof})

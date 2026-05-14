@@ -54,7 +54,8 @@
       "PowerShell(nlm *)",
       "mcp__notebooklm-mcp__source_add",
       "mcp__notebooklm-mcp__notebook_query",
-      "WebFetch(domain:langfuse.com)"
+      "WebFetch(domain:langfuse.com)",
+      "Bash(defuddle parse *)"
     ]
   }
 }
