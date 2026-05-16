@@ -2,7 +2,9 @@
 
 import asyncio
 import json
+import logging
 import os
+import re
 import uuid
 from datetime import datetime, timedelta
 from typing import Annotated
@@ -35,6 +37,7 @@ from services.llm import get_llm_provider
 from services.mcp_client import MCPClient, get_mcp_client
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
 
 _HISTORY_LIMIT = 6
 _RAG_LIMIT = 5
@@ -46,15 +49,6 @@ _SUMMARY_CONTEXT_MESSAGES = 40
 
 _QUESTION_STARTERS = {"waar", "wat", "wie", "hoe", "wanneer", "waarom", "welke", "hoeveel", "kan", "kunt", "weet", "bent", "heeft", "hebben", "is", "zijn"}
 _REFUSAL_PATTERNS = ["geen toegang", "geen toegang tot", "heb ik geen", "weet ik niet", "weet niet waar", "kan ik niet weten", "heb geen toegang", "als een ai", "als taalmodel"]
-
-import re as _re
-
-# Anna voegt [ESCALATE:urgency:reden] toe aan haar antwoord als escalatie nodig is.
-_ESCALATION_SIGNAL_RE = _re.compile(
-    r'\[ESCALATE:(high|medium|low):([^\]]{1,300})\]',
-    _re.IGNORECASE,
-)
-
 
 def _is_question(text: str) -> bool:
     """Detecteer of een bericht een vraag is en geen feit om op te slaan."""
@@ -73,20 +67,190 @@ def _is_refusal(content: str) -> bool:
     return any(p in lower for p in _REFUSAL_PATTERNS)
 
 
-def _parse_escalation_signal(response_text: str) -> tuple[str, str, str]:
-    """Extraheer het [ESCALATE:urgency:reden] signaal uit Anna's antwoord.
+# ─── Escalatiedetectie — gelaagde architectuur ────────────────────────────────
+#
+# Laag 0: hardcoded keywords — deterministisch, synchroon, vóór LLM-aanroep.
+#         Nul false negatives op kritieke termen: als het woord erin zit, escaleert het.
+# Laag 1: qwen2.5:0.5b classificatie — asynchroon als BackgroundTask ná de response.
+#         Pikt nuancetekst op die Laag 0 mist. Draait lokaal in Ollama (geen cloudkosten).
 
-    Returns: (clean_response, urgency, reason)
-    clean_response is de tekst zonder het signaal — wordt opgeslagen en teruggestuurd.
-    urgency en reason zijn leeg als er geen signaal aanwezig is.
+_ESCALATION_HIGH: frozenset[str] = frozenset([
+    "bewusteloos", "bewustzijnsverlies", "pijn op de borst", "borstkasdruk",
+    "coma", "flauw", "ik ga dood", "hartaanval", "zelfmoord", "suïcide",
+    "zelfdoding", "hartstilstand", "ademnood", "kan niet ademhalen",
+    "gevaar", "stikken",
+])
+
+_ESCALATION_MEDIUM: frozenset[str] = frozenset([
+    "ernstige pijn", "hevige pijn", "heel erg benauwd", "erg benauwd",
+    "voel me heel slecht",
+    "ik verbrand", "voel me verbrand", "brandwond", "verbranding",
+    "ontlasting is rood", "bloed bij ontlasting",
+])
+
+
+def _layer0_check(text: str) -> tuple[str, str]:
+    """Laag 0 — keyword-match. Retourneert (urgency, reason) of ('', '') als geen match."""
+    lower = text.lower()
+    for kw in _ESCALATION_HIGH:
+        if kw in lower:
+            return "high", f"Kritiek sleutelwoord gedetecteerd: '{kw}'"
+    for kw in _ESCALATION_MEDIUM:
+        if kw in lower:
+            return "medium", f"Waarschuwingssleutelwoord gedetecteerd: '{kw}'"
+    return "", ""
+
+
+# Semaphore per patiënt — max één gelijktijdige classificatie-aanroep per patiënt (burst-beveiliging)
+_patient_semaphores: dict[uuid.UUID, asyncio.Semaphore] = {}
+
+
+def _get_semaphore(patient_id: uuid.UUID) -> asyncio.Semaphore:
+    if patient_id not in _patient_semaphores:
+        _patient_semaphores[patient_id] = asyncio.Semaphore(1)
+    return _patient_semaphores[patient_id]
+
+
+_ESCALATION_COOLDOWN_MINUTES = int(os.getenv("ESCALATION_COOLDOWN_MINUTES", "0"))
+_OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
+_ESCALATION_MODEL = os.getenv("ESCALATION_MODEL", "qwen2.5:0.5b")
+
+_ESCALATION_CLASSIFY_SYSTEM = (
+    "You are a medical triage assistant for heart failure patients. "
+    "Patient messages may be in Dutch. Decide if escalation to a healthcare provider is needed. "
+    "Escalate for: chest pain, loss of consciousness, breathing problems, self-harm, "
+    "burning sensation or burns, severe pain, blood in stool, statements about dying, emergencies. "
+    "Do NOT escalate for greetings only (hallo, olla, hi). "
+    "Reply ONLY with a JSON object, no markdown, no explanation. "
+    'Schema: {"escalate": true/false, "urgency": "high"|"medium", "reason": "max 80 chars"}\n'
+    'Example: "ik verbrand" -> {"escalate": true, "urgency": "medium", "reason": "burning sensation reported"}\n'
+    'Example: "olla" -> {"escalate": false, "urgency": "medium", "reason": "greeting only"}'
+)
+
+
+def _parse_escalation_json(raw: str) -> dict | None:
+    """Parse JSON from Ollama classify output; tolerate fences or extra text."""
+    text = raw.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text).strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end > start:
+            try:
+                return json.loads(text[start : end + 1])
+            except json.JSONDecodeError:
+                return None
+    return None
+
+
+async def _layer1_classify(
+    patient_id: uuid.UUID,
+    patient_message: str,
+    session_id: uuid.UUID,
+) -> None:
+    """Laag 1 — lokale Ollama-classificatie als BackgroundTask.
+
+    Draait asynchroon ná de chat-response. Semaphore serialiseert per patiënt.
+    Cooldown voorkomt dubbele escalaties binnen ESCALATION_COOLDOWN_MINUTES.
     """
-    match = _ESCALATION_SIGNAL_RE.search(response_text)
-    if not match:
-        return response_text, "", ""
-    urgency = match.group(1).lower()
-    reason = match.group(2).strip()
-    clean = _ESCALATION_SIGNAL_RE.sub("", response_text).strip()
-    return clean, urgency, reason
+    semaphore = _get_semaphore(patient_id)
+    async with semaphore:
+        if _ESCALATION_COOLDOWN_MINUTES > 0:
+            db = SessionLocal()
+            try:
+                from models.escalation import Escalation as EscalationModel
+
+                cutoff = datetime.utcnow() - timedelta(minutes=_ESCALATION_COOLDOWN_MINUTES)
+                recent_esc = (
+                    db.query(EscalationModel)
+                    .filter(
+                        EscalationModel.patient_id == patient_id,
+                        EscalationModel.created_at >= cutoff,
+                    )
+                    .first()
+                )
+                if recent_esc:
+                    logger.info(
+                        "Layer 1 skipped: cooldown active for patient %s",
+                        patient_id,
+                    )
+                    return
+            finally:
+                db.close()
+
+        langfuse = get_langfuse()
+        try:
+            user_prompt = f"Patient message: {patient_message}"
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                with propagate_attributes(
+                    user_id=str(patient_id),
+                    session_id=str(session_id),
+                    trace_name="escalation-layer1",
+                ):
+                    with langfuse.start_as_current_observation(
+                        as_type="generation",
+                        name="escalation-layer1-classify",
+                        model=_ESCALATION_MODEL,
+                        input=user_prompt,
+                    ) as gen_span:
+                        response = await client.post(
+                            f"{_OLLAMA_BASE_URL}/api/chat",
+                            json={
+                                "model": _ESCALATION_MODEL,
+                                "messages": [
+                                    {
+                                        "role": "system",
+                                        "content": _ESCALATION_CLASSIFY_SYSTEM,
+                                    },
+                                    {"role": "user", "content": user_prompt},
+                                ],
+                                "stream": False,
+                                "format": "json",
+                                "options": {"num_predict": 128},
+                            },
+                        )
+                        response.raise_for_status()
+                        raw = response.json()["message"]["content"]
+                        gen_span.update(output=raw)
+
+            result = _parse_escalation_json(raw)
+            if not result:
+                logger.warning(
+                    "Layer 1: could not parse JSON from %s: %r",
+                    _ESCALATION_MODEL,
+                    raw[:200],
+                )
+                return
+            if result.get("escalate"):
+                urgency = str(result.get("urgency", "medium"))
+                if urgency not in ("low", "medium", "high"):
+                    urgency = "medium"
+                reason = str(result.get("reason", "Classification: escalation required"))
+                mcp_url = os.getenv("MCP_URL", "http://mcp-server:8001")
+                mcp = MCPClient(base_url=mcp_url)
+                await mcp.escalate_to_human(
+                    patient_id=str(patient_id),
+                    reason=f"[Layer 1 — {_ESCALATION_MODEL}] {reason}",
+                    urgency=urgency,
+                )
+                logger.warning(
+                    "Layer 1 escalation: patient=%s urgency=%s reason=%s",
+                    patient_id,
+                    urgency,
+                    reason,
+                )
+            else:
+                logger.info(
+                    "Layer 1: no escalation for patient %s (model=%s)",
+                    patient_id,
+                    _ESCALATION_MODEL,
+                )
+        except Exception as exc:
+            logger.exception("Layer 1 classification failed: %s", exc)
 
 
 def _build_context_proof(
@@ -285,12 +449,7 @@ def _build_system_prompt(
         f"- Je kunt geen telefoongesprekken voeren. Leg dat zo nodig kort en neutraal uit.\n"
         f"- Als de patiënt een telefoonnummer deelt: noteer het kort. Gebruik het niet voor "
         f"dramatische belplannen.\n"
-        f"- Reageer proportioneel op het huidige bericht, niet op het patroon van eerdere berichten.\n"
-        f"- Als de situatie een zorgverlener vereist (acuut gevaar, bewustzijnsverlies, zelfbeschadiging, "
-        f"ernstige acute symptomen), voeg dan EXACT aan het EINDE van je antwoord toe:\n"
-        f"  [ESCALATE:high:korte reden] of [ESCALATE:medium:korte reden]\n"
-        f"  Gebruik high bij direct levensgevaar, medium bij zorgelijke maar niet acute situaties. "
-        f"Voeg dit signaal ALLEEN toe als escalatie echt nodig is.\n\n"
+        f"- Reageer proportioneel op het huidige bericht, niet op het patroon van eerdere berichten.\n\n"
         f"Patiëntgegevens:\n"
         f"- Naam: {name}\n"
         f"- Medicatieschema: {medication}\n"
@@ -391,7 +550,6 @@ def close_session(
     if not session:
         raise HTTPException(status_code=404, detail="Geen open sessie gevonden")
 
-    from datetime import datetime
     session.ended_at = datetime.utcnow()
     db.commit()
     db.refresh(session)
@@ -526,24 +684,34 @@ async def chat(
                 if not (m.role == "assistant" and _is_refusal(m.content))
             ]
 
+            # Laag 0 — keyword-check vóór LLM-aanroep (deterministisch, geen AI)
+            with langfuse.start_as_current_observation(
+                as_type="span",
+                name="escalation-layer0",
+                input=body.content,
+            ) as l0_span:
+                layer0_urgency, layer0_reason = _layer0_check(body.content)
+                l0_span.update(
+                    output={"triggered": bool(layer0_urgency), "urgency": layer0_urgency or "none"},
+                    metadata={"reason": layer0_reason or "geen match"},
+                )
+
             system_prompt = _build_system_prompt(patient, memories)
             root_span.update(metadata={
                 "patient_name": f"{patient.first_name} {patient.last_name}",
                 "rag_hits": len(memories),
                 "history_messages": len(history),
+                "layer0_triggered": bool(layer0_urgency),
             })
             llm = get_llm_provider()
             raw_response = await llm.chat(messages=history, system=system_prompt)
             root_span.update(output=raw_response)
 
-    # Strip escalatiesignaal uit Anna's antwoord vóór opslaan
-    response_text, escalation_urgency, escalation_reason = _parse_escalation_signal(raw_response)
-
-    # Sla Anna's antwoord op (zonder het signaal)
+    # Sla Anna's antwoord op
     assistant_message = Message(
         session_id=session.id,
         role="assistant",
-        content=response_text,
+        content=raw_response,
     )
     db.add(assistant_message)
     db.commit()
@@ -561,18 +729,20 @@ async def chat(
     if summary_triggered:
         background_tasks.add_task(_trigger_summary_update, patient_id)
 
-    # Escaleer als Anna een [ESCALATE:...] signaal heeft meegegeven.
-    should_escalate = bool(escalation_urgency)
+    # Laag 0: directe escalatie als keyword gedetecteerd
+    should_escalate = bool(layer0_urgency)
     if should_escalate:
         try:
             await mcp.escalate_to_human(
                 patient_id=str(patient_id),
-                reason=escalation_reason,
-                urgency=escalation_urgency,
+                reason=layer0_reason,
+                urgency=layer0_urgency,
             )
         except Exception:
-            # Escalatiefout mag de chat-response niet blokkeren.
             pass
+    else:
+        # Laag 1: lokale classificatie als BackgroundTask (geen extra cloudkosten)
+        background_tasks.add_task(_layer1_classify, patient_id, body.content, session.id)
 
     base = MessageResponse.model_validate(assistant_message)
     base = base.model_copy(update={

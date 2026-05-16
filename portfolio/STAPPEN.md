@@ -795,6 +795,43 @@ Anna krijgt in de system prompt de instructie om `[ESCALATE:high:reden]` of `[ES
 
 ---
 
+## Stap 38 — 2026-05-16
+
+**Wat:** Decision log DL4 — gelaagde escalatiedetectie (keywords + lokaal classificatiemodel).
+
+**Gedaan:**
+- `portfolio/decision-logs/DL4_escalatie_detectie.md` — kernvraag, succescriteria, keuze Laag 0 + Laag 1, DOT-onderzoek, links naar commits
+
+**Beslissingen:**
+- Prompt-signaal (stap 37) vervangen door gelaagde aanpak: betrouwbaarder dan `[ESCALATE:…]` in Anna's antwoord
+- Laag 1 asynchroon zodat chat-latency nul extra wachttijd heeft
+
+**Commit:** (zie stap 39)
+
+---
+
+## Stap 39 — 2026-05-16
+
+**Wat:** Gelaagde escalatiedetectie geïmplementeerd in `backend/routers/chat.py`.
+
+**Gedaan:**
+- Laag 0: `_ESCALATION_HIGH` / `_ESCALATION_MEDIUM`, `_layer0_check()` synchroon vóór LLM; Langfuse span `escalation-layer0`
+- Laag 1: `_layer1_classify()` als `BackgroundTask` met `qwen2.5:0.5b` (default), Engelse classify-prompt, `_parse_escalation_json()`, timeout 90s, logging i.p.v. stille `except`
+- Vervangen: `[ESCALATE:…]` regex en prompt-signaal uit system prompt
+- Keywords uitgebreid o.a. `ik verbrand`, `ontlasting is rood` (Laag 0)
+- `docker-compose.yml` — `ESCALATION_MODEL`, `ESCALATION_COOLDOWN_MINUTES`, `MCP_URL` op backend
+- `.env.example` — documentatie pull-commando qwen
+- `backend/tests/test_escalation_layers.py` — unit tests Laag 0 + JSON-parse
+
+**Beslissingen:**
+- `ESCALATION_MODEL=qwen2.5:0.5b` i.p.v. gemma4:e2b — past in VRAM naast bge-m3; gemma4 laadt vision-encoder (~7 GiB)
+- Cooldown default 5 min; `ESCALATION_COOLDOWN_MINUTES=0` voor testen zonder wachten
+- Semaphore serialiseert per patiënt (geen `locked()` skip meer — berichten wachten in rij)
+
+**Commit:** (nog niet gecommit)
+
+---
+
 ## Stap 35 — 2026-05-14
 
 **Wat:** Escalatiescherm gekoppeld aan FastAPI — mock data vervangen door echte API.
