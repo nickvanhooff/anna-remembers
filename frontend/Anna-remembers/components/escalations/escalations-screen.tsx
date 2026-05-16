@@ -16,6 +16,10 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 
 import { StatusBadge } from "@/components/dashboard/status-badge"
+import {
+  EscalationReasonCompact,
+  EscalationReasonDetail,
+} from "@/components/escalations/escalation-reason-display"
 import { fmtDate } from "@/lib/utils"
 import { getEscalations, updateEscalationStatus } from "@/lib/api"
 import type { Escalation, EscalationStatus } from "@/types"
@@ -124,8 +128,8 @@ export function EscalationsScreen() {
                   <TableRow key={e.id} className="cursor-pointer" onClick={() => setSelected(e)}>
                     <TableCell><StatusBadge status={e.urgency} label={URGENCY_LABEL[e.urgency]} /></TableCell>
                     <TableCell>
-                      <div className="font-medium text-[13.5px] mb-0.5">{e.name}</div>
-                      <div className="text-[12.5px] text-muted-foreground leading-snug line-clamp-2">{e.reason}</div>
+                      <div className="font-medium text-[13.5px] mb-1">{e.name}</div>
+                      <EscalationReasonCompact reason={e.reason} />
                     </TableCell>
                     <TableCell className="text-[12.5px] text-muted-foreground">
                       {fmtDate(e.opened.slice(0, 10))}
@@ -190,15 +194,15 @@ function EscalationDetail({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Anna vermoedt callout */}
+        {/* Escalatie callout */}
         <div
           className="flex gap-3 rounded-xl p-3.5"
           style={{ backgroundColor: "var(--warning-soft-bg)" }}
         >
           <AlertTriangle className="size-4 shrink-0 mt-0.5" style={{ color: "var(--warning-soft-fg)" }} />
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-1">Anna vermoedt</div>
-            <div className="text-[14px] leading-relaxed">{item.reason}</div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-2">Escalatie</div>
+            <EscalationReasonDetail reason={item.reason} />
           </div>
         </div>
 

@@ -120,12 +120,31 @@ _ESCALATION_CLASSIFY_SYSTEM = (
     "Patient messages may be in Dutch. Decide if escalation to a healthcare provider is needed. "
     "Escalate for: chest pain, loss of consciousness, breathing problems, self-harm, "
     "burning sensation or burns, severe pain, blood in stool, statements about dying, emergencies. "
-    "Do NOT escalate for greetings only (hallo, olla, hi). "
+    "Do NOT escalate for greetings only (hallo, olla, hi) or stable check-ins with no symptoms. "
     "Reply ONLY with a JSON object, no markdown, no explanation. "
-    'Schema: {"escalate": true/false, "urgency": "high"|"medium", "reason": "max 80 chars"}\n'
-    'Example: "ik verbrand" -> {"escalate": true, "urgency": "medium", "reason": "burning sensation reported"}\n'
-    'Example: "olla" -> {"escalate": false, "urgency": "medium", "reason": "greeting only"}'
+    'The "reason" field MUST be in Dutch (Nederlands), max 80 characters.\n'
+    'Schema: {"escalate": true/false, "urgency": "high"|"medium", "reason": "..."}\n'
+    'Example: "ik verbrand" -> {"escalate": true, "urgency": "medium", "reason": "brandend gevoel gemeld"}\n'
+    'Example: "olla" -> {"escalate": false, "urgency": "medium", "reason": "alleen begroeting"}'
 )
+
+_ESCALATION_REASON_MSG_MAX = 300
+
+
+def _format_escalation_reason(
+    *,
+    layer_label: str,
+    patient_message: str,
+    detail: str = "",
+) -> str:
+    """Bouw een leesbare escalatiereden met het originele patiëntbericht."""
+    msg = " ".join((patient_message or "").split())
+    if len(msg) > _ESCALATION_REASON_MSG_MAX:
+        msg = msg[: _ESCALATION_REASON_MSG_MAX - 1] + "…"
+    detail = " ".join((detail or "").split())
+    if detail:
+        return f"{layer_label} · Patiëntbericht: «{msg}» · {detail}"
+    return f"{layer_label} · Patiëntbericht: «{msg}»"
 
 
 def _parse_escalation_json(raw: str) -> dict | None:
@@ -229,12 +248,18 @@ async def _layer1_classify(
                 urgency = str(result.get("urgency", "medium"))
                 if urgency not in ("low", "medium", "high"):
                     urgency = "medium"
-                reason = str(result.get("reason", "Classification: escalation required"))
+                model_reason = str(
+                    result.get("reason", "escalatie aanbevolen door classificatie")
+                )
                 mcp_url = os.getenv("MCP_URL", "http://mcp-server:8001")
                 mcp = MCPClient(base_url=mcp_url)
                 await mcp.escalate_to_human(
                     patient_id=str(patient_id),
-                    reason=f"[Layer 1 — {_ESCALATION_MODEL}] {reason}",
+                    reason=_format_escalation_reason(
+                        layer_label=f"Laag 1 ({_ESCALATION_MODEL})",
+                        patient_message=patient_message,
+                        detail=model_reason,
+                    ),
                     urgency=urgency,
                 )
                 logger.warning(
@@ -735,7 +760,11 @@ async def chat(
         try:
             await mcp.escalate_to_human(
                 patient_id=str(patient_id),
-                reason=layer0_reason,
+                reason=_format_escalation_reason(
+                    layer_label="Laag 0 (keywords)",
+                    patient_message=body.content,
+                    detail=layer0_reason,
+                ),
                 urgency=layer0_urgency,
             )
         except Exception:

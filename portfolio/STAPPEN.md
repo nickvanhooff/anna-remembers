@@ -832,6 +832,38 @@ Anna krijgt in de system prompt de instructie om `[ESCALATE:high:reden]` of `[ES
 
 ---
 
+## Stap 40 — 2026-05-16
+
+**Wat:** Escalatiereden in dashboard leesbaar gemaakt — altijd het originele patiëntbericht tonen.
+
+**Gedaan:**
+- `backend/routers/chat.py` — `_format_escalation_reason()`: `Laag N · Patiëntbericht: «…» · <detail>` voor Laag 0 en Laag 1
+- Classify-prompt: `reason` veld verplicht Nederlands
+- Test `test_format_escalation_reason_includes_patient_message`
+
+**Beslissingen:**
+- Geen DB-schema-wijziging — alles in bestaand `reason` Text-veld; frontend toont `e.reason` ongewijzigd
+
+**Commit:** (nog niet gecommit)
+
+---
+
+## Stap 41 — 2026-05-16
+
+**Wat:** Escalatiescherm toont patiëntbericht en laag gestructureerd (niet alleen ruwe `reason`-string).
+
+**Gedaan:**
+- `frontend/Anna-remembers/lib/parse-escalation-reason.ts` — parse `Laag N · Patiëntbericht: «…» · detail` + legacy `[Layer 1 — …]`
+- `frontend/Anna-remembers/components/escalations/escalation-reason-display.tsx` — `EscalationReasonCompact` (tabel) en `EscalationReasonDetail` (dialog)
+- `frontend/Anna-remembers/components/escalations/escalations-screen.tsx` — componenten ingebouwd
+
+**Beslissingen:**
+- Parser in frontend i.p.v. extra API-velden — `reason` blijft één kolom, geen migratie
+
+**Commit:** (nog niet gecommit)
+
+---
+
 ## Stap 35 — 2026-05-14
 
 **Wat:** Escalatiescherm gekoppeld aan FastAPI — mock data vervangen door echte API.
