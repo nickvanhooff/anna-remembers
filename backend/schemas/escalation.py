@@ -18,6 +18,7 @@ class EscalationStatusUpdate(BaseModel):
 class EscalationResponse(BaseModel):
     id: uuid.UUID
     patient_id: uuid.UUID
+    patient_name: str
     session_id: uuid.UUID | None
     reason: str
     urgency: str

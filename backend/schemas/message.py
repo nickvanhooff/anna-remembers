@@ -107,6 +107,10 @@ class MessageResponse(BaseModel):
         default=False,
         description="True when this response triggered a background medical summary update.",
     )
+    escalation_triggered: bool = Field(
+        default=False,
+        description="True when this turn triggered an escalation to a caregiver.",
+    )
     context_proof: ChatContextProof | None = Field(
         default=None,
         description="Present when POST /chat/{id}?debug=true — audit trail for Postgres vs RAG.",

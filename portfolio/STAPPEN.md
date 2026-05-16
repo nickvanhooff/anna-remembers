@@ -750,3 +750,69 @@ Anna haalt correct twee feiten op uit een eerdere sessie (`session_id` verschilt
 - Optie B (MCP → FastAPI HTTP) gekozen boven directe PostgreSQL-connectie vanuit MCP: FastAPI blijft eigenaar van alle DB-schrijfacties, consistent met architectuurregel
 - `notification_status="pending"` als startwaarde: issue #25 pikt dit op en werkt bij naar `sent`/`failed` na daadwerkelijke verzending — geen notification-code nu geschreven
 - Validatie van urgency in de MCP-tool zelf (vóór HTTP-call) zodat foute input nooit de backend bereikt
+
+---
+
+## Stap 36 — 2026-05-16
+
+**Wat:** Escalatiedetectie geïmplementeerd in de chat-pipeline — `escalate_to_human` wordt nu écht aangeroepen bij urgente patiëntberichten.
+
+**Aanleiding:**
+In een testgesprek meldde een patiënt "er is nood ik ga dood" en "de ontlasting is rood" — Anna reageerde bezorgd maar er werd geen escalatie aangemaakt. De oorzaak was tweeledig: (1) `mcp_client.escalate_to_human()` was een stub (`pass`), (2) `chat.py` riep de tool aan op elk bericht met lege reason.
+
+**Gedaan:**
+- `backend/services/mcp_client.py` — `escalate_to_human` omgezet van stub naar echte MCP-tool aanroep via `client.call_tool("escalate_to_human", ...)`
+- `backend/routers/chat.py` — `_ESCALATION_HIGH` en `_ESCALATION_MEDIUM` keyword-sets toegevoegd; `_detect_escalation(patient_message)` detecteert urgentie op basis van patiëntbericht; stub vervangen door conditionele aanroep met `try/except` zodat een escalatiefout de chat niet blokkeert
+- `backend/schemas/message.py` — `escalation_triggered: bool` veld toegevoegd aan `MessageResponse`
+- `frontend/lib/api.ts` — `escalationTriggered` doorgegeven vanuit `sendMessage` response
+- `frontend/components/chat/chat-screen.tsx` — `toast.warning` getoond als `escalationTriggered === true`
+
+**Beslissingen:**
+- Keyword-detectie op patiëntbericht (niet op Anna's response): betrouwbaarder, geen LLM nodig, voorspelbaar gedrag
+- Hartfalenpatiënten: liever te vroeg escaleren dan te laat — `_ESCALATION_HIGH` bevat ook twijfelgevallen zoals "bloed" en "nood"
+- `try/except` rond de escalatieaanroep: escalatiefout mag de chatresponse nooit blokkeren
+
+---
+
+## Stap 37 — 2026-05-16
+
+**Wat:** Escalatiedetectie omgezet van keyword-matching naar LLM-beslissing via prompt-signaal (optie B — token-besparend).
+
+**Aanleiding:**
+Keyword-matching miste gevallen zoals "20 shotjes tot ik in coma lig" en "de ontlasting is rood" (woordvolgorde verschilt van keyword). Bovendien begrijpt de LLM al de volledige context van het gesprek — een aparte classificatiecall is overbodig.
+
+**Aanpak:**
+Anna krijgt in de system prompt de instructie om `[ESCALATE:high:reden]` of `[ESCALATE:medium:reden]` toe te voegen aan het einde van haar antwoord als escalatie nodig is. De backend parseert dit signaal, strips het uit de response vóór opslaan, en roept `escalate_to_human` aan.
+
+**Gedaan:**
+- `backend/routers/chat.py` — keyword-sets verwijderd; `_ESCALATION_SIGNAL_RE` regex toegevoegd; `_detect_escalation()` vervangen door `_parse_escalation_signal(response_text)`; system prompt uitgebreid met escalatie-instructie; `raw_response` → strip signaal → `response_text` opslaan
+- Geen extra LLM-call, geen extra tokens buiten de ~30 tokens voor de prompt-instructie
+
+**Beslissingen:**
+- Optie B (prompt-signaal) boven optie A (aparte classificatiecall): geen extra kosten per bericht, Anna heeft al volledige context
+- Signaal aan het EINDE van de response zodat het makkelijk te strippen is en Anna's antwoord leesbaar blijft
+- Case-insensitive regex: LLM schrijft soms `[ESCALATE:HIGH:...]` in hoofdletters
+
+---
+
+## Stap 35 — 2026-05-14
+
+**Wat:** Escalatiescherm gekoppeld aan FastAPI — mock data vervangen door echte API.
+
+**Aanleiding:**
+Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie van de backend escalatie-endpoints (stap 34) moesten de veld-mismatches tussen backend en frontend opgelost worden.
+
+**Mismatches opgelost:**
+- Backend `urgency: low/medium/high` → frontend `info/warning/urgent` via mapping in `api.ts`
+- Backend `status: open/acknowledged/resolved` → frontend `open/in_progress/closed` via mapping
+- Backend geeft `patient_id` (UUID) → `patient_name` via `joinedload` in de backend query toegevoegd
+- Kanaal (`channel`) afgeleid uit urgency (high→Slack, low/medium→E-mail) — geen DB-kolom nodig
+- `assignee` en `closed` zijn niet in backend (scope issue #25/later) — defaulten naar `null`
+
+**Gedaan:**
+- `backend/schemas/escalation.py` — `patient_name: str` toegevoegd aan `EscalationResponse`
+- `backend/routers/escalations.py` — `joinedload(Escalation.patient)` in alle queries; `_to_response()` helper bouwt response inclusief `patient_name`
+- `frontend/lib/api.ts` — `EscalationAPI` interface, `toEscalation()` mapping, echte `getEscalations()` en nieuwe `updateEscalationStatus()` functie
+- `frontend/components/escalations/escalations-screen.tsx` — `useEffect` laadt via API, loading skeletons, `setStatus` roept `updateEscalationStatus()` aan (async), detail dialog heeft `saving` state
+
+**TypeScript check:** geen fouten (`npx tsc --noEmit`)

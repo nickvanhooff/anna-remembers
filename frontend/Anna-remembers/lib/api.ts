@@ -1,4 +1,4 @@
-import type { Patient, Session, Escalation, TrendPoint, PatientStatus } from "@/types"
+import type { Patient, Session, Escalation, EscalationUrgency, EscalationStatus, TrendPoint, PatientStatus } from "@/types"
 import { TRENDS, ESCALATIONS } from "./mock-data"
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
@@ -135,17 +135,77 @@ export async function deletePatient(id: string): Promise<void> {
   await del(`/patients/${id}`)
 }
 
-// ─── Overige endpoints (nog mock) ────────────────────────────────
+// ─── Escalations ─────────────────────────────────────────────────
+
+interface EscalationAPI {
+  id: string
+  patient_id: string
+  patient_name: string
+  session_id: string | null
+  reason: string
+  urgency: "low" | "medium" | "high"
+  status: "open" | "acknowledged" | "resolved"
+  notification_status: string
+  created_at: string
+}
+
+const URGENCY_MAP: Record<EscalationAPI["urgency"], EscalationUrgency> = {
+  high:   "urgent",
+  medium: "warning",
+  low:    "info",
+}
+
+const STATUS_MAP: Record<EscalationAPI["status"], EscalationStatus> = {
+  open:         "open",
+  acknowledged: "in_progress",
+  resolved:     "closed",
+}
+
+const STATUS_MAP_REVERSE: Record<EscalationStatus, EscalationAPI["status"]> = {
+  open:        "open",
+  in_progress: "acknowledged",
+  closed:      "resolved",
+}
+
+const CHANNEL_MAP: Record<EscalationAPI["urgency"], string> = {
+  high:   "Slack",
+  medium: "E-mail",
+  low:    "E-mail",
+}
+
+function toEscalation(e: EscalationAPI): Escalation {
+  return {
+    id:       e.id,
+    patient:  e.patient_id,
+    name:     e.patient_name,
+    urgency:  URGENCY_MAP[e.urgency],
+    status:   STATUS_MAP[e.status],
+    reason:   e.reason,
+    channel:  CHANNEL_MAP[e.urgency],
+    assignee: null,
+    opened:   e.created_at,
+    closed:   null,
+  }
+}
+
+export async function getEscalations(): Promise<Escalation[]> {
+  const data = await get<EscalationAPI[]>("/escalations/")
+  return data.map(toEscalation)
+}
+
+export async function updateEscalationStatus(id: string, status: EscalationStatus): Promise<Escalation> {
+  const data = await patch<EscalationAPI>(`/escalations/${id}/status`, {
+    status: STATUS_MAP_REVERSE[status],
+  })
+  return toEscalation(data)
+}
+
+// ─── Trends (nog mock) ────────────────────────────────────────────
 
 export async function getTrends(patientId: string): Promise<TrendPoint[]> {
   // TODO: return get<TrendPoint[]>(`/patients/${patientId}/trends`)
   void patientId
   return Promise.resolve(TRENDS)
-}
-
-export async function getEscalations(): Promise<Escalation[]> {
-  // TODO: return get<Escalation[]>("/escalations")
-  return Promise.resolve(ESCALATIONS)
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────
@@ -165,6 +225,7 @@ interface MessageResponseAPI {
   content: string
   created_at: string
   summary_update_triggered?: boolean
+  escalation_triggered?: boolean
 }
 
 const CHAT_TIMEOUT_MS = 600_000
@@ -209,7 +270,7 @@ export async function getChatMessages(
 export async function sendMessage(
   patientId: string,
   content: string,
-): Promise<{ reply: string; sessionId: string; summaryUpdateTriggered: boolean }> {
+): Promise<{ reply: string; sessionId: string; summaryUpdateTriggered: boolean; escalationTriggered: boolean }> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
 
@@ -222,7 +283,12 @@ export async function sendMessage(
     })
     if (!res.ok) throw new Error(`API ${res.status}`)
     const data = await res.json() as MessageResponseAPI
-    return { reply: data.content, sessionId: data.session_id, summaryUpdateTriggered: data.summary_update_triggered ?? false }
+    return {
+      reply: data.content,
+      sessionId: data.session_id,
+      summaryUpdateTriggered: data.summary_update_triggered ?? false,
+      escalationTriggered: data.escalation_triggered ?? false,
+    }
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       throw new Error("timeout")

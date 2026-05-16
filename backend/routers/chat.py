@@ -4,8 +4,10 @@ import asyncio
 import json
 import os
 import uuid
+from datetime import datetime, timedelta
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -45,6 +47,14 @@ _SUMMARY_CONTEXT_MESSAGES = 40
 _QUESTION_STARTERS = {"waar", "wat", "wie", "hoe", "wanneer", "waarom", "welke", "hoeveel", "kan", "kunt", "weet", "bent", "heeft", "hebben", "is", "zijn"}
 _REFUSAL_PATTERNS = ["geen toegang", "geen toegang tot", "heb ik geen", "weet ik niet", "weet niet waar", "kan ik niet weten", "heb geen toegang", "als een ai", "als taalmodel"]
 
+import re as _re
+
+# Anna voegt [ESCALATE:urgency:reden] toe aan haar antwoord als escalatie nodig is.
+_ESCALATION_SIGNAL_RE = _re.compile(
+    r'\[ESCALATE:(high|medium|low):([^\]]{1,300})\]',
+    _re.IGNORECASE,
+)
+
 
 def _is_question(text: str) -> bool:
     """Detecteer of een bericht een vraag is en geen feit om op te slaan."""
@@ -61,6 +71,22 @@ def _is_refusal(content: str) -> bool:
     """Detecteer Anna's weigeringsantwoorden — die mogen niet als in-context voorbeeld meegestuurd worden."""
     lower = content.lower()
     return any(p in lower for p in _REFUSAL_PATTERNS)
+
+
+def _parse_escalation_signal(response_text: str) -> tuple[str, str, str]:
+    """Extraheer het [ESCALATE:urgency:reden] signaal uit Anna's antwoord.
+
+    Returns: (clean_response, urgency, reason)
+    clean_response is de tekst zonder het signaal — wordt opgeslagen en teruggestuurd.
+    urgency en reason zijn leeg als er geen signaal aanwezig is.
+    """
+    match = _ESCALATION_SIGNAL_RE.search(response_text)
+    if not match:
+        return response_text, "", ""
+    urgency = match.group(1).lower()
+    reason = match.group(2).strip()
+    clean = _ESCALATION_SIGNAL_RE.sub("", response_text).strip()
+    return clean, urgency, reason
 
 
 def _build_context_proof(
@@ -259,7 +285,12 @@ def _build_system_prompt(
         f"- Je kunt geen telefoongesprekken voeren. Leg dat zo nodig kort en neutraal uit.\n"
         f"- Als de patiënt een telefoonnummer deelt: noteer het kort. Gebruik het niet voor "
         f"dramatische belplannen.\n"
-        f"- Reageer proportioneel op het huidige bericht, niet op het patroon van eerdere berichten.\n\n"
+        f"- Reageer proportioneel op het huidige bericht, niet op het patroon van eerdere berichten.\n"
+        f"- Als de situatie een zorgverlener vereist (acuut gevaar, bewustzijnsverlies, zelfbeschadiging, "
+        f"ernstige acute symptomen), voeg dan EXACT aan het EINDE van je antwoord toe:\n"
+        f"  [ESCALATE:high:korte reden] of [ESCALATE:medium:korte reden]\n"
+        f"  Gebruik high bij direct levensgevaar, medium bij zorgelijke maar niet acute situaties. "
+        f"Voeg dit signaal ALLEEN toe als escalatie echt nodig is.\n\n"
         f"Patiëntgegevens:\n"
         f"- Naam: {name}\n"
         f"- Medicatieschema: {medication}\n"
@@ -502,10 +533,13 @@ async def chat(
                 "history_messages": len(history),
             })
             llm = get_llm_provider()
-            response_text = await llm.chat(messages=history, system=system_prompt)
-            root_span.update(output=response_text)
+            raw_response = await llm.chat(messages=history, system=system_prompt)
+            root_span.update(output=raw_response)
 
-    # Sla Anna's antwoord op
+    # Strip escalatiesignaal uit Anna's antwoord vóór opslaan
+    response_text, escalation_urgency, escalation_reason = _parse_escalation_signal(raw_response)
+
+    # Sla Anna's antwoord op (zonder het signaal)
     assistant_message = Message(
         session_id=session.id,
         role="assistant",
@@ -527,15 +561,24 @@ async def chat(
     if summary_triggered:
         background_tasks.add_task(_trigger_summary_update, patient_id)
 
-    # Escalatie stub — implementatie volgt in een volgend issue
-    await mcp.escalate_to_human(
-        patient_id=str(patient_id),
-        reason="",
-        urgency="low",
-    )
+    # Escaleer als Anna een [ESCALATE:...] signaal heeft meegegeven.
+    should_escalate = bool(escalation_urgency)
+    if should_escalate:
+        try:
+            await mcp.escalate_to_human(
+                patient_id=str(patient_id),
+                reason=escalation_reason,
+                urgency=escalation_urgency,
+            )
+        except Exception:
+            # Escalatiefout mag de chat-response niet blokkeren.
+            pass
 
     base = MessageResponse.model_validate(assistant_message)
-    base = base.model_copy(update={"summary_update_triggered": summary_triggered})
+    base = base.model_copy(update={
+        "summary_update_triggered": summary_triggered,
+        "escalation_triggered": should_escalate,
+    })
     if not debug:
         return base
     proof = _build_context_proof(

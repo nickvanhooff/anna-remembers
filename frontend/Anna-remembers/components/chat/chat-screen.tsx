@@ -106,8 +106,15 @@ export function ChatScreen() {
     setTyping(true)
 
     try {
-      const { reply, sessionId, summaryUpdateTriggered } = await sendMessage(patient.id, text)
+      const { reply, sessionId, summaryUpdateTriggered, escalationTriggered } = await sendMessage(patient.id, text)
       const annaMsg: Message = { role: "them", who: "Anna", t: fmtTime(), body: reply }
+
+      if (escalationTriggered) {
+        toast.warning("Escalatie aangemaakt", {
+          description: "Anna heeft een urgente situatie gemeld aan de zorgverlener.",
+          duration: 8000,
+        })
+      }
 
       if (summaryUpdateTriggered) {
         toast("Patiëntsamenvatting wordt bijgewerkt", {
