@@ -64,6 +64,7 @@ class CombinedContextProof(BaseModel):
     history_messages_sent_to_llm: int
     system_prompt_includes_patient_row: bool = True
     system_prompt_includes_rag_block: bool
+    system_prompt_includes_summary_block: bool
     system_prompt_char_length: int
 
 
@@ -102,6 +103,14 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     created_at: datetime
+    summary_update_triggered: bool = Field(
+        default=False,
+        description="True when this response triggered a background medical summary update.",
+    )
+    escalation_triggered: bool = Field(
+        default=False,
+        description="True when this turn triggered an escalation to a caregiver.",
+    )
     context_proof: ChatContextProof | None = Field(
         default=None,
         description="Present when POST /chat/{id}?debug=true — audit trail for Postgres vs RAG.",

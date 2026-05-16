@@ -32,6 +32,7 @@ class PatientResponse(BaseModel):
     birth_date: date | None
     medication_schedule: dict
     notes: str | None
+    medical_summary: str | None
     status: PatientStatus
     created_at: datetime
 

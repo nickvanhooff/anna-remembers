@@ -21,13 +21,14 @@ over meerdere weken, en escaleert naar een zorgverlener wanneer dat nodig is.
 | MCP Server | fastmcp (Python, apart proces) | 8001 |
 | Relationele DB | PostgreSQL 16 | 5432 |
 | Vector DB | ChromaDB (RAG geheugen) | 8002 |
-| LLM | Nog te bepalen — afhankelijk van school API keys | cloud |
-| Notificaties | Email / Slack (escalatie) | cloud |
+| LLM | Ollama (gemma4:e2b) of cloud: Groq / Anthropic / OpenRouter | 11434 / cloud |
+| Embeddings | bge-m3 via Ollama | 11434 |
+| Observability | Langfuse (tracing LLM + RAG) | cloud |
+| Notificaties | Email / Slack (escalatie, stub) | cloud |
 | Omgeving | Docker Compose (alle lokale services) | — |
 
-De LLM-provider is nog niet vastgesteld. Houd de LLM-aanroepen in
-`backend/services/llm.py` daarom provider-agnostisch — gebruik een abstracte
-klasse zodat wisselen alleen die ene file raakt.
+LLM-aanroepen in `backend/services/llm.py` zijn provider-agnostisch via een abstracte klasse.
+Wisselen van provider = alleen `.env` aanpassen (`LLM_PROVIDER` + bijbehorende API key).
 
 ---
 
@@ -248,34 +249,44 @@ Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat v
 
 ---
 
-## Huidige bouwstaat (bijgewerkt 2026-05-08)
+## Huidige bouwstaat (bijgewerkt 2026-05-14)
 
 ### Klaar (issue gesloten)
 - **Issue #1** — Docker Compose setup: postgres, chromadb, ollama (GPU), backend, mcp-server
 - **Issue #2** — FastAPI scaffold: models, schemas, routers, LLM service, Alembic migratie
+- **Issue #3** — MCP-server memory tools: `store_memory` + `recall_context` (ChromaDB, bge-m3)
 - **Issue #6** (CI) — GitHub Actions CI workflow (build-check op push + PR)
 - **Issue #7** (CD) — GitHub Actions CD workflow (push naar Docker Hub op main)
 - **Issue #9** — CI/CD pipeline gedocumenteerd als GitHub issue
+- **Issue #14** — `escalate_to_human` stub geïmplementeerd + geregistreerd als MCP-tool
+- **Issue #19** — Chat-scherm gekoppeld aan FastAPI (echte API, sessierail, history)
+- **Issue #28** — Periodieke medische samenvatting: `patients.medical_summary` elke N berichten bijgewerkt via BackgroundTask
+- **Issue #29** — Medische samenvatting geïnjecteerd in system prompt als apart blok boven RAG-dossier
+- **Issue #32** — Samenvatting omgezet van Markdown naar compact JSON (`sym/med/wgt/bhv/ovr`); `DossierCard` in frontend
 
-### MCP-server (issue #3) — gedeeltelijk klaar
+### MCP-server — deels klaar
 - ✅ `mcp-server/services/embedding.py` — `EmbeddingProvider` ABC + `OllamaEmbeddingProvider` (bge-m3)
-- ✅ `mcp-server/tools/memory.py` — `store_memory` + `recall_context` (ChromaDB, 7 tests groen)
-- ✅ `mcp-server/main.py` — tools geregistreerd als `@mcp.tool()`
-- ✅ `docker-compose.yml` — `ollama-init` service + env vars
+- ✅ `mcp-server/tools/memory.py` — `store_memory` + `recall_context` (ChromaDB)
+- ✅ `mcp-server/tools/escalation.py` — `escalate_to_human` stub
+- ✅ `mcp-server/main.py` — alle tools geregistreerd
 - ❌ `tools/trends.py` — `get_symptom_trends` nog niet gebouwd
-- ❌ `tools/escalation.py` — `escalate_to_human` nog niet gebouwd
+
+### Chat-pipeline (actief, feature/patient-summary branch)
+- `backend/routers/chat.py` — volledig bedraad: RAG (ChromaDB), Postgres history, `_is_question()` filter, `_is_refusal()` filter, Langfuse tracing (root span + RAG child span + LLM generation), medische samenvatting als BackgroundTask
+- `backend/services/llm.py` — provider-agnostisch: `OllamaProvider`, `GroqProvider`, `AnthropicProvider`, `OpenRouterProvider`
+- Observability: elke LLM-aanroep en RAG-retrieval wordt getraceerd in Langfuse
+- Debug-endpoint: `?debug=true` geeft `context_proof` terug (Postgres history, RAG hits, summary block aanwezig)
 
 ### Open
-- **Issue #3** (vervolg) — `get_symptom_trends` en `escalate_to_human` implementeren
-- **Issue #4** — Frontend Next.js 15 dashboard (4 schermen)
-- **Issue #5** — Decision log architectuurkeuzes Anna Remembers (DL2 embedding model klaar)
-- Backend chat-router wiren met echte MCP-context (na issue #3 volledig)
+- **Issue #13** — `get_symptom_trends` (PostgreSQL week-aggregatie) — nog niet gebouwd
+- **Issue #4** — Frontend dashboard volledig wiren (trends + escalaties live)
+- Gesimuleerde patiënten (10 sessies elk) draaien
+- Decision logs DL3+ afronden voor portfolio
 
-### Volgorde aanbevolen
-1. Issue #3 afmaken: `get_symptom_trends` (PostgreSQL) + `escalate_to_human` (email/Slack stub)
-2. Backend `routers/chat.py` wiren met echte MCP-client calls
-3. Frontend dashboard (issue #4)
-4. Gesimuleerde patiënten (10 sessies elk) draaien
+### LLM-providers
+- **Groq** (aanbevolen voor demo): `LLM_PROVIDER=groq`, gratis tier, llama-3.3-70b-versatile, ~1-3s
+- **Ollama lokaal**: `LLM_PROVIDER=ollama`, gemma4:e2b past in 6 GiB VRAM, ~5-20s
+- **Anthropic / OpenRouter**: beschikbaar, API key vereist
 
 ---
 

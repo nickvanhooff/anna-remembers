@@ -37,7 +37,8 @@ MCP Server (fastmcp) — memory, trends, escalation tools
 | MCP Server | fastmcp (separate process) | 8001 |
 | Vector DB | ChromaDB | 8002 |
 | Relational DB | PostgreSQL 16 | 5432 |
-| LLM + Embeddings | Ollama — gemma4:e4b + bge-m3 | 11434 |
+| LLM + Embeddings | Ollama (gemma4:e2b + bge-m3) or cloud provider (Groq / Anthropic / OpenRouter) | 11434 / cloud |
+| Observability | Langfuse (tracing per LLM generation + RAG span) | cloud |
 | Infrastructure | Docker Compose | — |
 
 ---
@@ -51,16 +52,35 @@ MCP Server (fastmcp) — memory, trends, escalation tools
 
 ### Environment variables
 
-Create `.env` in the project root:
+Create `.env` in the project root (use `.env.example` as starting point):
 
 ```env
 POSTGRES_DB=anna_remembers
 POSTGRES_USER=anna
 POSTGRES_PASSWORD=secret
 
-LLM_PROVIDER=ollama
-OLLAMA_MODEL=gemma4:e4b
+# LLM provider: ollama | groq | anthropic | openrouter
+LLM_PROVIDER=groq
+GROQ_API_KEY=your_key_here
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# For local Ollama (GPU recommended — gemma4:e2b fits in 6 GiB VRAM)
+OLLAMA_MODEL=gemma4:e2b
 EMBEDDING_MODEL=bge-m3
+
+# Optional: Anthropic or OpenRouter
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-haiku-4-5-20251001
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=
+
+# Observability (optional)
+LANGFUSE_PUBLIC_KEY=
+LANGFUSE_SECRET_KEY=
+LANGFUSE_HOST=https://cloud.langfuse.com
+
+# Summary generation interval (messages per patient before regenerating)
+SUMMARY_INTERVAL=3
 ```
 
 ### Start all services
@@ -69,11 +89,13 @@ EMBEDDING_MODEL=bge-m3
 docker compose up --build
 ```
 
-On first run, `ollama-init` pulls the `bge-m3` embedding model automatically. The LLM model (`gemma4:e4b`) must be pulled once manually:
+On first run, `ollama-init` pulls the `bge-m3` embedding model automatically. If using Ollama as the LLM provider, pull the model once manually:
 
 ```bash
-docker exec -it anna_remembers-ollama-1 ollama pull gemma4:e4b
+docker exec -it anna_remembers-ollama-1 ollama pull gemma4:e2b
 ```
+
+For cloud providers (Groq, Anthropic, OpenRouter), set `LLM_PROVIDER` and the matching API key in `.env` — no local model needed.
 
 ### Services
 
@@ -151,7 +173,7 @@ anna_remembers/
 | Screen | Route | Status |
 |---|---|---|
 | Patient management | `/patients` | Live (FastAPI) |
-| Chat with Anna | `/chat` | Mock |
+| Chat with Anna | `/chat` | Live (FastAPI + RAG + medical summary) |
 | Symptom trends | `/trends` | Mock |
 | Escalation management | `/escalations` | Mock |
 

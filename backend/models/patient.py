@@ -24,6 +24,7 @@ class Patient(Base):
         server_default="{}",
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    medical_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="info")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

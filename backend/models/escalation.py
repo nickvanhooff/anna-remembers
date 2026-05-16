@@ -27,6 +27,11 @@ class Escalation(Base):
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default="open"
     )
+    # notification_status: pending → sent | failed | skipped
+    # Issue #25 implementeert de daadwerkelijke verzending en werkt dit bij.
+    notification_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="pending"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

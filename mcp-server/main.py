@@ -36,8 +36,8 @@ async def escalate_to_human(
     patient_id: str,
     reason: str,
     urgency: str,
-) -> None:
-    """Escaleer naar een zorgverlener. urgency: low | medium | high."""
+) -> str:
+    """Escaleer naar een zorgverlener. urgency: low | medium | high. Geeft escalation ID terug."""
     return await _escalate_to_human(patient_id, reason, urgency)
 
 

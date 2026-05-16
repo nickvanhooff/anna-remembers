@@ -98,12 +98,18 @@ class MCPClient:
         patient_id: str,
         reason: str,
         urgency: str,
-    ) -> None:
-        """Stub — escalatie volgt in een volgend issue.
+    ) -> str:
+        """Roep de escalate_to_human MCP-tool aan.
 
         urgency: "low" | "medium" | "high"
+        Retourneert het escalation-ID (UUID string).
         """
-        pass
+        async with Client(self._url) as client:
+            result = await client.call_tool(
+                "escalate_to_human",
+                {"patient_id": patient_id, "reason": reason, "urgency": urgency},
+            )
+        return _unwrap_tool_result(result)
 
 
 def get_mcp_client() -> MCPClient:

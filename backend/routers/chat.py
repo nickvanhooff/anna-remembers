@@ -2,10 +2,13 @@
 
 import asyncio
 import json
+import os
 import uuid
+from datetime import datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import httpx
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -25,7 +28,9 @@ from schemas.message import (
     SessionListItem,
     StoreMemoryProof,
 )
-from services.database import get_db
+from langfuse import get_client as get_langfuse, propagate_attributes
+
+from services.database import SessionLocal, get_db
 from services.llm import get_llm_provider
 from services.mcp_client import MCPClient, get_mcp_client
 
@@ -34,9 +39,21 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 _HISTORY_LIMIT = 6
 _RAG_LIMIT = 5
 _HISTORY_PREVIEW_CHARS = 200
+# Elke N berichten (over alle sessies) wordt de medische samenvatting opnieuw gegenereerd.
+_SUMMARY_INTERVAL = int(os.getenv("SUMMARY_INTERVAL", "3"))
+# Hoeveel berichten meesturen als context voor de samenvatting
+_SUMMARY_CONTEXT_MESSAGES = 40
 
 _QUESTION_STARTERS = {"waar", "wat", "wie", "hoe", "wanneer", "waarom", "welke", "hoeveel", "kan", "kunt", "weet", "bent", "heeft", "hebben", "is", "zijn"}
 _REFUSAL_PATTERNS = ["geen toegang", "geen toegang tot", "heb ik geen", "weet ik niet", "weet niet waar", "kan ik niet weten", "heb geen toegang", "als een ai", "als taalmodel"]
+
+import re as _re
+
+# Anna voegt [ESCALATE:urgency:reden] toe aan haar antwoord als escalatie nodig is.
+_ESCALATION_SIGNAL_RE = _re.compile(
+    r'\[ESCALATE:(high|medium|low):([^\]]{1,300})\]',
+    _re.IGNORECASE,
+)
 
 
 def _is_question(text: str) -> bool:
@@ -56,6 +73,22 @@ def _is_refusal(content: str) -> bool:
     return any(p in lower for p in _REFUSAL_PATTERNS)
 
 
+def _parse_escalation_signal(response_text: str) -> tuple[str, str, str]:
+    """Extraheer het [ESCALATE:urgency:reden] signaal uit Anna's antwoord.
+
+    Returns: (clean_response, urgency, reason)
+    clean_response is de tekst zonder het signaal — wordt opgeslagen en teruggestuurd.
+    urgency en reason zijn leeg als er geen signaal aanwezig is.
+    """
+    match = _ESCALATION_SIGNAL_RE.search(response_text)
+    if not match:
+        return response_text, "", ""
+    urgency = match.group(1).lower()
+    reason = match.group(2).strip()
+    clean = _ESCALATION_SIGNAL_RE.sub("", response_text).strip()
+    return clean, urgency, reason
+
+
 def _build_context_proof(
     *,
     patient_id: uuid.UUID,
@@ -66,6 +99,7 @@ def _build_context_proof(
     history_rows: list[Message],
     system_prompt: str,
     chroma_document_id: str | None,
+    summary_block_present: bool,
 ) -> ChatContextProof:
     """Assemble portfolio-friendly provenance for Postgres vs RAG in one turn."""
     history_entries = [
@@ -104,9 +138,100 @@ def _build_context_proof(
         combined=CombinedContextProof(
             history_messages_sent_to_llm=len(history_rows),
             system_prompt_includes_rag_block=memory_block_present,
+            system_prompt_includes_summary_block=summary_block_present,
             system_prompt_char_length=len(system_prompt),
         ),
     )
+
+
+def _build_summary_prompt(patient_name: str, current_summary: str | None, messages: list[dict]) -> str:
+    """Bouw de prompt die de medische samenvatting genereert of bijwerkt."""
+    lines = "\n".join(
+        f"[{m['role'].upper()}] {m['content']}" for m in messages
+    )
+    current = current_summary or '{"sym":[],"med":null,"wgt":null,"bhv":null,"ovr":[]}'
+    return (
+        f"You are updating a medical dossier for patient {patient_name}.\n\n"
+        f"Current dossier (JSON):\n{current}\n\n"
+        f"Conversation ([USER] = patient, [ASSISTANT] = AI):\n{lines}\n\n"
+        f"Return the updated dossier as a single JSON object. "
+        f"Output ONLY the JSON — no explanation, no preamble, no markdown.\n"
+        f"Schema: "
+        f'{{"sym":[],"med":null,"wgt":null,"bhv":null,"ovr":[]}}\n'
+        f"Rules:\n"
+        f"- Only use facts from [USER] lines. [ASSISTANT] lines are not facts.\n"
+        f"- Only include MEDICALLY RELEVANT facts (symptoms, weight, medication, health behaviour).\n"
+        f"- Ignore questions, jokes, addresses, phone numbers, and non-medical statements.\n"
+        f"- Preserve existing facts. Add new ones. Remove only if the patient contradicts them.\n"
+        f"- No duplicates. Max 6 words per entry. Dutch."
+    )
+
+
+async def _trigger_summary_update(patient_id: uuid.UUID) -> None:
+    """Achtergrondtaak — genereert een nieuwe medische samenvatting en slaat die op.
+
+    Draait via FastAPI BackgroundTasks zodat de HTTP-response niet geblokkeerd wordt.
+    Gebruikt een eigen DB-sessie (de request-sessie is al gesloten op dit punt).
+    """
+    await _async_summary_update(patient_id)
+
+
+async def _async_summary_update(patient_id: uuid.UUID) -> None:
+    """Async kern van de samenvattingsupdate — apart zodat we asyncio.run() kunnen gebruiken."""
+    db = SessionLocal()
+    try:
+        patient = db.get(Patient, patient_id)
+        if not patient:
+            return
+
+        # Haal de laatste N berichten op over alle sessies van deze patiënt
+        recent_messages = (
+            db.query(Message)
+            .join(Message.session)
+            .filter(Message.session.has(patient_id=patient_id))
+            .order_by(Message.created_at.desc())
+            .limit(_SUMMARY_CONTEXT_MESSAGES)
+            .all()
+        )
+        recent_messages.reverse()
+
+        if not recent_messages:
+            return
+
+        messages_for_prompt = [
+            {"role": m.role, "content": m.content} for m in recent_messages
+        ]
+        name = f"{patient.first_name} {patient.last_name}"
+        prompt = _build_summary_prompt(name, patient.medical_summary, messages_for_prompt)
+
+        langfuse = get_langfuse()
+        with langfuse.start_as_current_observation(as_type="span", name="summary-update") as root:
+            with propagate_attributes(
+                user_id=str(patient_id),
+                trace_name="summary-update",
+                metadata={"patient_name": name, "messages_used": len(messages_for_prompt)},
+            ):
+                llm = get_llm_provider()
+                raw = await llm.chat(
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                import json as _json
+                import re as _re
+                # Extraheer het JSON-object ongeacht preamble of markdown fences
+                match = _re.search(r'\{.*\}', raw, _re.DOTALL)
+                try:
+                    cleaned = match.group(0) if match else raw
+                    parsed = _json.loads(cleaned)
+                    new_summary = _json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
+                except Exception:
+                    # Fallback: sla ruwe tekst op zodat data niet verloren gaat
+                    new_summary = raw
+                root.update(output=new_summary)
+
+        patient.medical_summary = new_summary
+        db.commit()
+    finally:
+        db.close()
 
 
 def _build_system_prompt(
@@ -136,6 +261,15 @@ def _build_system_prompt(
             f"Dit is geautoriseerde medische informatie die je altijd beschikbaar hebt."
         )
 
+    summary_block = ""
+    if patient.medical_summary:
+        summary_block = (
+            f"\n\nMEDISCHE SAMENVATTING (automatisch bijgehouden over alle gesprekken):\n"
+            f"{patient.medical_summary}\n"
+            f"Gebruik deze samenvatting als achtergrondinformatie. Refereer er subtiel aan "
+            f"wanneer de patiënt over eerder besproken onderwerpen begint."
+        )
+
     return (
         f"Je bent Anna, een empathische AI-gezondheidsassistent voor hartfalenpatiënten. "
         f"Je spreekt met {name}.\n\n"
@@ -151,11 +285,17 @@ def _build_system_prompt(
         f"- Je kunt geen telefoongesprekken voeren. Leg dat zo nodig kort en neutraal uit.\n"
         f"- Als de patiënt een telefoonnummer deelt: noteer het kort. Gebruik het niet voor "
         f"dramatische belplannen.\n"
-        f"- Reageer proportioneel op het huidige bericht, niet op het patroon van eerdere berichten.\n\n"
+        f"- Reageer proportioneel op het huidige bericht, niet op het patroon van eerdere berichten.\n"
+        f"- Als de situatie een zorgverlener vereist (acuut gevaar, bewustzijnsverlies, zelfbeschadiging, "
+        f"ernstige acute symptomen), voeg dan EXACT aan het EINDE van je antwoord toe:\n"
+        f"  [ESCALATE:high:korte reden] of [ESCALATE:medium:korte reden]\n"
+        f"  Gebruik high bij direct levensgevaar, medium bij zorgelijke maar niet acute situaties. "
+        f"Voeg dit signaal ALLEEN toe als escalatie echt nodig is.\n\n"
         f"Patiëntgegevens:\n"
         f"- Naam: {name}\n"
         f"- Medicatieschema: {medication}\n"
         f"- Notities zorgverlener: {notes}"
+        f"{summary_block}"
         f"{memory_block}"
     )
 
@@ -280,6 +420,7 @@ def close_session(
 async def chat(
     patient_id: uuid.UUID,
     body: ChatRequest,
+    background_tasks: BackgroundTasks,
     db: Annotated[Session, Depends(get_db)],
     mcp: Annotated[MCPClient, Depends(get_mcp_client)],
     debug: Annotated[
@@ -335,42 +476,70 @@ async def chat(
         else asyncio.sleep(0)
     )
 
-    # RAG-context ophalen + geheugen opslaan — parallel, non-fatal als Ollama bezet is
-    rag_result, store_result = await asyncio.gather(
-        mcp.recall_context(
-            query=body.content,
-            patient_id=str(patient_id),
-            limit=_RAG_LIMIT,
-        ),
-        store_coro,
-        return_exceptions=True,
-    )
-    memories: list[dict] = rag_result if isinstance(rag_result, list) else []
-    chroma_doc_id: str | None = store_result if isinstance(store_result, str) else None
+    langfuse = get_langfuse()
+    with langfuse.start_as_current_observation(
+        as_type="span",
+        name="chat-turn",
+        input=body.content,
+    ) as root_span:
+        with propagate_attributes(
+            user_id=str(patient_id),
+            session_id=str(session.id),
+            trace_name="chat-turn",
+            metadata={"patient_name": f"{patient.first_name} {patient.last_name}"},
+        ):
+            # RAG-context ophalen + geheugen opslaan als traceerbare child span
+            with langfuse.start_as_current_observation(
+                as_type="span",
+                name="rag-retrieval",
+                input=body.content,
+            ) as rag_span:
+                rag_result, store_result = await asyncio.gather(
+                    mcp.recall_context(
+                        query=body.content,
+                        patient_id=str(patient_id),
+                        limit=_RAG_LIMIT,
+                    ),
+                    store_coro,
+                    return_exceptions=True,
+                )
+                memories: list[dict] = rag_result if isinstance(rag_result, list) else []
+                chroma_doc_id: str | None = store_result if isinstance(store_result, str) else None
+                rag_span.update(
+                    output=[m.get("content", "") for m in memories],
+                    metadata={"hit_count": len(memories), "limit": _RAG_LIMIT},
+                )
 
-    # Laatste 10 berichten van de huidige sessie als conversation history
-    recent = (
-        db.query(Message)
-        .filter(Message.session_id == session.id)
-        .order_by(Message.created_at.desc())
-        .limit(_HISTORY_LIMIT)
-        .all()
-    )
-    recent.reverse()
-    # Verwijder Anna's weigeringsantwoorden uit de history — die werken als negatief in-context voorbeeld
-    # en leren het model om te blijven weigeren, ook als het feit wél in de RAG staat.
-    history = [
-        {"role": m.role, "content": m.content}
-        for m in recent
-        if not (m.role == "assistant" and _is_refusal(m.content))
-    ]
+            # Laatste N berichten van de huidige sessie als conversation history
+            recent = (
+                db.query(Message)
+                .filter(Message.session_id == session.id)
+                .order_by(Message.created_at.desc())
+                .limit(_HISTORY_LIMIT)
+                .all()
+            )
+            recent.reverse()
+            # Verwijder Anna's weigeringsantwoorden — die werken als negatief in-context voorbeeld.
+            history = [
+                {"role": m.role, "content": m.content}
+                for m in recent
+                if not (m.role == "assistant" and _is_refusal(m.content))
+            ]
 
-    # Bouw system prompt en roep LLM aan
-    system_prompt = _build_system_prompt(patient, memories)
-    llm = get_llm_provider()
-    response_text = await llm.chat(messages=history, system=system_prompt)
+            system_prompt = _build_system_prompt(patient, memories)
+            root_span.update(metadata={
+                "patient_name": f"{patient.first_name} {patient.last_name}",
+                "rag_hits": len(memories),
+                "history_messages": len(history),
+            })
+            llm = get_llm_provider()
+            raw_response = await llm.chat(messages=history, system=system_prompt)
+            root_span.update(output=raw_response)
 
-    # Sla Anna's antwoord op
+    # Strip escalatiesignaal uit Anna's antwoord vóór opslaan
+    response_text, escalation_urgency, escalation_reason = _parse_escalation_signal(raw_response)
+
+    # Sla Anna's antwoord op (zonder het signaal)
     assistant_message = Message(
         session_id=session.id,
         role="assistant",
@@ -380,14 +549,36 @@ async def chat(
     db.commit()
     db.refresh(assistant_message)
 
-    # Escalatie stub — implementatie volgt in een volgend issue
-    await mcp.escalate_to_human(
-        patient_id=str(patient_id),
-        reason="",
-        urgency="low",
-    )
+    # Elke _SUMMARY_INTERVAL berichten de medische samenvatting opnieuw genereren.
+    # Tel alle berichten van deze patiënt over alle sessies.
+    total_messages: int = (
+        db.query(func.count(Message.id))
+        .join(Message.session)
+        .filter(Message.session.has(patient_id=patient_id))
+        .scalar()
+    ) or 0
+    summary_triggered = total_messages % _SUMMARY_INTERVAL == 0
+    if summary_triggered:
+        background_tasks.add_task(_trigger_summary_update, patient_id)
+
+    # Escaleer als Anna een [ESCALATE:...] signaal heeft meegegeven.
+    should_escalate = bool(escalation_urgency)
+    if should_escalate:
+        try:
+            await mcp.escalate_to_human(
+                patient_id=str(patient_id),
+                reason=escalation_reason,
+                urgency=escalation_urgency,
+            )
+        except Exception:
+            # Escalatiefout mag de chat-response niet blokkeren.
+            pass
 
     base = MessageResponse.model_validate(assistant_message)
+    base = base.model_copy(update={
+        "summary_update_triggered": summary_triggered,
+        "escalation_triggered": should_escalate,
+    })
     if not debug:
         return base
     proof = _build_context_proof(
@@ -399,5 +590,6 @@ async def chat(
         history_rows=recent,
         system_prompt=system_prompt,
         chroma_document_id=chroma_doc_id or None,
+        summary_block_present=bool(patient.medical_summary),
     )
     return base.model_copy(update={"context_proof": proof})

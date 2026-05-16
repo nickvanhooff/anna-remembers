@@ -2,6 +2,7 @@ import os
 from abc import ABC, abstractmethod
 
 import httpx
+from langfuse import get_client
 
 
 class LLMProvider(ABC):
@@ -51,8 +52,23 @@ class AnthropicProvider(LLMProvider):
         if system:
             kwargs["system"] = system
 
-        response = await client.messages.create(**kwargs)
-        return response.content[0].text
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="llm-generation",
+            model=self.model,
+            input=messages,
+        ) as gen:
+            response = await client.messages.create(**kwargs)
+            result = response.content[0].text
+            gen.update(
+                output=result,
+                usage_details={
+                    "input": response.usage.input_tokens,
+                    "output": response.usage.output_tokens,
+                },
+            )
+        return result
 
 
 class OpenRouterProvider(LLMProvider):
@@ -72,17 +88,34 @@ class OpenRouterProvider(LLMProvider):
             all_messages.append({"role": "system", "content": system})
         all_messages.extend(messages)
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="llm-generation",
+            model=self.model,
+            input=all_messages,
+        ) as gen:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"model": self.model, "messages": all_messages},
+                )
+                response.raise_for_status()
+                data = response.json()
+            result = data["choices"][0]["message"]["content"]
+            usage = data.get("usage", {})
+            gen.update(
+                output=result,
+                usage_details={
+                    "input": usage.get("prompt_tokens", 0),
+                    "output": usage.get("completion_tokens", 0),
                 },
-                json={"model": self.model, "messages": all_messages},
             )
-            response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"]
+        return result
 
 
 class GroqProvider(LLMProvider):
@@ -102,17 +135,34 @@ class GroqProvider(LLMProvider):
             all_messages.append({"role": "system", "content": system})
         all_messages.extend(messages)
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="llm-generation",
+            model=self.model,
+            input=all_messages,
+        ) as gen:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"model": self.model, "messages": all_messages},
+                )
+                response.raise_for_status()
+                data = response.json()
+            result = data["choices"][0]["message"]["content"]
+            usage = data.get("usage", {})
+            gen.update(
+                output=result,
+                usage_details={
+                    "input": usage.get("prompt_tokens", 0),
+                    "output": usage.get("completion_tokens", 0),
                 },
-                json={"model": self.model, "messages": all_messages},
             )
-            response.raise_for_status()
-            return response.json()["choices"][0]["message"]["content"]
+        return result
 
 
 class OllamaProvider(LLMProvider):
@@ -131,11 +181,27 @@ class OllamaProvider(LLMProvider):
         if system:
             payload["system"] = system
 
-        # Timeout van 600s — gemma4:e4b draait deels op CPU, inferentie kan 2-5 min duren
-        async with httpx.AsyncClient(timeout=600.0) as client:
-            response = await client.post(f"{self.base_url}/api/chat", json=payload)
-            response.raise_for_status()
-            return response.json()["message"]["content"]
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="llm-generation",
+            model=self.model,
+            input=messages,
+        ) as gen:
+            # Timeout van 600s — gemma4:e4b draait deels op CPU, inferentie kan 2-5 min duren
+            async with httpx.AsyncClient(timeout=600.0) as client:
+                response = await client.post(f"{self.base_url}/api/chat", json=payload)
+                response.raise_for_status()
+                data = response.json()
+            result = data["message"]["content"]
+            gen.update(
+                output=result,
+                usage_details={
+                    "input": data.get("prompt_eval_count", 0),
+                    "output": data.get("eval_count", 0),
+                },
+            )
+        return result
 
 
 def get_llm_provider() -> LLMProvider:

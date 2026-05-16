@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { AlertTriangle, ChevronRight, Check, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 
@@ -11,12 +11,13 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Skeleton } from "@/components/ui/skeleton"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 
 import { StatusBadge } from "@/components/dashboard/status-badge"
 import { fmtDate } from "@/lib/utils"
-import { ESCALATIONS as SEED } from "@/lib/mock-data"
+import { getEscalations, updateEscalationStatus } from "@/lib/api"
 import type { Escalation, EscalationStatus } from "@/types"
 
 const URGENCY_PRIO: Record<string, number> = { urgent: 0, warning: 1, info: 2 }
@@ -26,9 +27,17 @@ const STATUS_LABEL:  Record<string, string>  = { open: "Open", in_progress: "In 
 type FilterKey = "all" | EscalationStatus
 
 export function EscalationsScreen() {
-  const [items, setItems] = useState<Escalation[]>(SEED)
+  const [items, setItems] = useState<Escalation[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterKey>("open")
   const [selected, setSelected] = useState<Escalation | null>(null)
+
+  useEffect(() => {
+    getEscalations()
+      .then(setItems)
+      .catch(() => toast.error("Escalaties konden niet worden geladen."))
+      .finally(() => setLoading(false))
+  }, [])
 
   const counts = useMemo(() => ({
     all:         items.length,
@@ -42,18 +51,15 @@ export function EscalationsScreen() {
     return [...arr].sort((a, b) => URGENCY_PRIO[a.urgency] - URGENCY_PRIO[b.urgency])
   }, [items, filter])
 
-  function setStatus(id: string, status: EscalationStatus) {
-    setItems(prev => prev.map(i => {
-      if (i.id !== id) return i
-      return {
-        ...i,
-        status,
-        closed: status === "closed" ? new Date().toISOString() : i.closed,
-        assignee: status === "in_progress" && !i.assignee ? "J. de Wit" : i.assignee,
-      }
-    }))
-    setSelected(null)
-    toast.success(`Escalatie ${id} → ${STATUS_LABEL[status]}.`)
+  async function setStatus(id: string, status: EscalationStatus) {
+    try {
+      const updated = await updateEscalationStatus(id, status)
+      setItems(prev => prev.map(i => i.id === id ? updated : i))
+      setSelected(null)
+      toast.success(`Escalatie → ${STATUS_LABEL[status]}.`)
+    } catch {
+      toast.error("Status kon niet worden bijgewerkt.")
+    }
   }
 
   return (
@@ -91,7 +97,11 @@ export function EscalationsScreen() {
             </Tabs>
           </div>
 
-          {visible.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col gap-2 p-4">
+              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
+            </div>
+          ) : visible.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground text-[13.5px]">
               <ShieldCheck className="size-8 opacity-40" />
               <p>Geen escalaties in deze categorie.</p>
@@ -101,25 +111,20 @@ export function EscalationsScreen() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-28 text-xs">ID</TableHead>
                   <TableHead className="w-28 text-xs">Urgentie</TableHead>
                   <TableHead className="text-xs">Patiënt &amp; reden</TableHead>
                   <TableHead className="w-36 text-xs">Geopend</TableHead>
                   <TableHead className="w-32 text-xs">Status</TableHead>
-                  <TableHead className="w-32 text-xs">Toegewezen</TableHead>
+                  <TableHead className="w-24 text-xs">Kanaal</TableHead>
                   <TableHead className="w-12 text-xs" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visible.map(e => (
                   <TableRow key={e.id} className="cursor-pointer" onClick={() => setSelected(e)}>
-                    <TableCell className="font-mono text-[12px] text-muted-foreground">{e.id}</TableCell>
                     <TableCell><StatusBadge status={e.urgency} label={URGENCY_LABEL[e.urgency]} /></TableCell>
                     <TableCell>
-                      <div className="font-medium text-[13.5px] mb-0.5">
-                        {e.name}{" "}
-                        <span className="text-muted-foreground font-normal">· {e.patient}</span>
-                      </div>
+                      <div className="font-medium text-[13.5px] mb-0.5">{e.name}</div>
                       <div className="text-[12.5px] text-muted-foreground leading-snug line-clamp-2">{e.reason}</div>
                     </TableCell>
                     <TableCell className="text-[12.5px] text-muted-foreground">
@@ -133,9 +138,7 @@ export function EscalationsScreen() {
                         label={STATUS_LABEL[e.status]}
                       />
                     </TableCell>
-                    <TableCell className="text-[12.5px] text-muted-foreground">
-                      {e.assignee ?? <span className="italic opacity-60">niet toegewezen</span>}
-                    </TableCell>
+                    <TableCell className="text-[12.5px] text-muted-foreground">{e.channel}</TableCell>
                     <TableCell>
                       <ChevronRight className="size-3.5 text-muted-foreground" />
                     </TableCell>
@@ -167,13 +170,21 @@ function EscalationDetail({
 }: {
   item: Escalation
   onClose: () => void
-  onSetStatus: (id: string, status: EscalationStatus) => void
+  onSetStatus: (id: string, status: EscalationStatus) => Promise<void>
 }) {
+  const [saving, setSaving] = useState(false)
+
+  async function handle(status: EscalationStatus) {
+    setSaving(true)
+    await onSetStatus(item.id, status)
+    setSaving(false)
+  }
+
   return (
     <Dialog open onOpenChange={v => { if (!v) onClose() }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{item.name} · {item.id}</DialogTitle>
+          <DialogTitle>{item.name}</DialogTitle>
           <DialogDescription>
             {URGENCY_LABEL[item.urgency]} · {STATUS_LABEL[item.status]} · geopend {fmtDate(item.opened.slice(0, 10))}
           </DialogDescription>
@@ -193,10 +204,8 @@ function EscalationDetail({
 
         {/* Detail grid */}
         <div className="grid grid-cols-2 gap-3.5">
-          <DetailField label="Kanaal"        value={item.channel} />
-          <DetailField label="Toegewezen aan" value={item.assignee ?? "Niet toegewezen"} />
-          <DetailField label="Geopend"        value={`${item.opened.slice(0, 10)} · ${item.opened.slice(11, 16)}`} />
-          <DetailField label="Afgesloten"     value={item.closed ? `${item.closed.slice(0, 10)} · ${item.closed.slice(11, 16)}` : "—"} />
+          <DetailField label="Kanaal"   value={item.channel} />
+          <DetailField label="Geopend"  value={`${item.opened.slice(0, 10)} · ${item.opened.slice(11, 16)}`} />
         </div>
 
         {/* Clinical note */}
@@ -206,15 +215,15 @@ function EscalationDetail({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Sluiten</Button>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>Sluiten</Button>
           {item.status !== "closed" && (
             <>
               {item.status === "open" && (
-                <Button variant="outline" onClick={() => onSetStatus(item.id, "in_progress")}>
-                  Toewijzen aan mij
+                <Button variant="outline" onClick={() => handle("in_progress")} disabled={saving}>
+                  In behandeling
                 </Button>
               )}
-              <Button onClick={() => onSetStatus(item.id, "closed")}>
+              <Button onClick={() => handle("closed")} disabled={saving}>
                 <Check data-icon="inline-start" />
                 Afsluiten
               </Button>

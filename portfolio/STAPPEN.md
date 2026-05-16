@@ -662,3 +662,157 @@ Anna haalt correct twee feiten op uit een eerdere sessie (`session_id` verschilt
 - Groq gekozen boven Anthropic/OpenRouter voor eerste test: gratis tier, geen betaalkaart nodig, llama-3.3-70b is capabel genoeg voor RLHF override te omzeilen
 - Provider-agnostische abstractie behouden — wisselen van provider vereist alleen `.env` aanpassen, geen codewijziging
 - API keys nooit als default-waarde in code — altijd lege string, ValueError als de key ontbreekt
+
+---
+
+## Stap 30 — 2026-05-13
+
+**Wat:** Periodieke medische samenvatting per patiënt geïmplementeerd (issue #28).
+
+**Gedaan:**
+- Alembic migratie `0002_add_medical_summary.py`: `ALTER TABLE patients ADD COLUMN medical_summary TEXT`
+- `Patient` model uitgebreid met `medical_summary: Mapped[str | None]`
+- `_build_summary_prompt()` toegevoegd in `chat.py` — stuurt laatste 40 berichten + huidige samenvatting naar LLM met instructie alleen patiënt-gemelde feiten op te nemen
+- `_trigger_summary_update()` + `_async_summary_update()` toegevoegd — draait als FastAPI `BackgroundTask` zodat de HTTP-response niet geblokkeerd wordt; gebruikt eigen `SessionLocal`-sessie
+- Trigger in `chat()` endpoint: na opslaan assistant-bericht worden alle berichten van de patiënt geteld; als `total % SUMMARY_INTERVAL == 0` start de achtergrondtaak
+- `SUMMARY_INTERVAL` configureerbaar via env var (default: 10)
+- `_build_system_prompt()` injecteert samenvatting als `MEDISCHE SAMENVATTING`-blok boven het RAG-dossier
+
+**Beslissingen:**
+- BackgroundTasks gekozen boven `asyncio.create_task()`: FastAPI beheert de levenscyclus, geen race condition met request-sessie
+- Eigen `SessionLocal` in de achtergrondtaak — de request-DB-sessie is al gesloten als de taak start
+- Samenvatting staat bóven het RAG-blok in de prompt — stabiele context-voor-sessie vs. query-specifieke hits
+
+**Commit:** `46f6697` — feat(memory): periodic medical summary — update patients.medical_summary every N messages
+
+---
+
+## Stap 32 — 2026-05-13
+
+**Wat:** Issue #32 geïmplementeerd — medische samenvatting omgezet van Markdown naar compact JSON. Token usage gemeten voor en na via Langfuse.
+
+**Uitgevoerd:**
+- `_build_summary_prompt()` herschreven: vraagt nu compact JSON met korte keys (`sym`, `med`, `wgt`, `bhv`, `ovr`) in plaats van vrije Markdown-tekst
+- JSON-validatie toegevoegd in `_async_summary_update`: markdown fences gestript → `json.loads()` → minified opgeslagen; fallback op ruwe tekst bij parse-fout
+- `asyncio.run()` bug gefixed: `_trigger_summary_update` was een sync wrapper die `asyncio.run()` aanriep vanuit een al-draaiende event loop → omgezet naar `async def`
+- `MedicalSummaryJSON` interface toegevoegd aan `frontend/types/index.ts`
+- `DossierCard` component gebouwd in `chat-screen.tsx`: parse JSON → gestructureerde weergave met gelabelde secties; fallback voor legacy Markdown-summaries
+
+**Meting:**
+
+| Formaat | Input | Output | Totaal | Latency |
+|---|---|---|---|---|
+| Markdown (voor) | 1.276 | 219 | 1.495 | 0,69s |
+| JSON run 1 | 1.579 | 139 | 1.718 | 0,36s |
+| JSON run 2 | 1.591 | 84 | 1.675 | 0,30s |
+
+**Beslissingen:**
+- Output tokens dalen −62%, maar input stijgt door groeiende gesprekscontext — netto verschil minimaal en niet hard te isoleren
+- Acceptatiecriterium "meetbare daling in token usage" is niet onomstotelijk aangetoond; de contextgroei is een confounding factor
+- Voordeel zit in gestructureerde data (frontend kan JSON renderen), latency (−57%) en schaalbaarheid over tijd
+- Gedocumenteerd in evidence_06 met eerlijke conclusie
+
+**Evidence:** `portfolio/evidence/evidence_06_token_usage_markdown_vs_json.md`
+
+---
+
+## Stap 33 — 2026-05-14
+
+**Wat:** README.md en CLAUDE.md bijgewerkt naar de huidige bouwstaat (feature/patient-summary).
+
+**Gedaan:**
+- `README.md` — stack tabel uitgebreid met Langfuse en cloud LLM-providers; env vars sectie herschreven met alle huidige variabelen (`LLM_PROVIDER`, `GROQ_*`, `ANTHROPIC_*`, `OPENROUTER_*`, `LANGFUSE_*`, `SUMMARY_INTERVAL`); Ollama pull-instructie bijgewerkt van `gemma4:e4b` → `gemma4:e2b`; Chat screen status van "Mock" naar "Live"
+- `CLAUDE.md` — stack tabel bijgewerkt (LLM als Ollama/Groq/Anthropic/OpenRouter + Langfuse); bouwstaat volledig herschreven naar 2026-05-14: alle gesloten issues toegevoegd (#3, #14, #19, #28, #29, #32), chat-pipeline gedocumenteerd (RAG, history filters, Langfuse tracing, BackgroundTask samenvatting), open issues bijgesteld (#13 trends + #4 frontend volledig + gesimuleerde patiënten)
+
+**Beslissingen:**
+- Geen inhoudelijke codewijzigingen — alleen documentatie gesynchroniseerd met de werkelijke staat van de branch
+
+---
+
+## Stap 34 — 2026-05-14
+
+**Wat:** `escalate_to_human` MCP-tool geïmplementeerd (issue #14) — optie B: MCP-server roept FastAPI aan via HTTP, FastAPI schrijft naar PostgreSQL.
+
+**Gedaan:**
+- `backend/alembic/versions/0003_add_notification_status_to_escalations.py` — migratie: `notification_status VARCHAR(20) DEFAULT 'pending'` toegevoegd aan `escalations` tabel (hook voor issue #25)
+- `backend/models/escalation.py` — `notification_status` veld toegevoegd
+- `backend/schemas/escalation.py` — `EscalationCreate` en `EscalationStatusUpdate` toegevoegd; `notification_status` in `EscalationResponse`
+- `backend/routers/escalations.py` — nieuw: `POST /escalations`, `GET /escalations`, `GET /escalations/{id}`, `PATCH /escalations/{id}/status`; `# Issue #25` comment markeert waar notificatieverzending ingeplugd wordt
+- `backend/main.py` — `escalations` router geregistreerd
+- `docker-compose.yml` — `BACKEND_URL: http://backend:8000` toegevoegd aan mcp-server environment
+- `mcp-server/tools/escalation.py` — stub vervangen: valideert urgency → POST naar backend via httpx → logt naar stdout → geeft escalation ID terug
+- `mcp-server/main.py` — return type `None` → `str`
+- `mcp-server/tests/test_escalation.py` — 4 tests herschreven met respx mock: happy path, alle urgency-levels, ongeldige urgency, backend HTTP-fout
+
+**Testresultaat:** 4/4 PASS
+
+**Beslissingen:**
+- Optie B (MCP → FastAPI HTTP) gekozen boven directe PostgreSQL-connectie vanuit MCP: FastAPI blijft eigenaar van alle DB-schrijfacties, consistent met architectuurregel
+- `notification_status="pending"` als startwaarde: issue #25 pikt dit op en werkt bij naar `sent`/`failed` na daadwerkelijke verzending — geen notification-code nu geschreven
+- Validatie van urgency in de MCP-tool zelf (vóór HTTP-call) zodat foute input nooit de backend bereikt
+
+---
+
+## Stap 36 — 2026-05-16
+
+**Wat:** Escalatiedetectie geïmplementeerd in de chat-pipeline — `escalate_to_human` wordt nu écht aangeroepen bij urgente patiëntberichten.
+
+**Aanleiding:**
+In een testgesprek meldde een patiënt "er is nood ik ga dood" en "de ontlasting is rood" — Anna reageerde bezorgd maar er werd geen escalatie aangemaakt. De oorzaak was tweeledig: (1) `mcp_client.escalate_to_human()` was een stub (`pass`), (2) `chat.py` riep de tool aan op elk bericht met lege reason.
+
+**Gedaan:**
+- `backend/services/mcp_client.py` — `escalate_to_human` omgezet van stub naar echte MCP-tool aanroep via `client.call_tool("escalate_to_human", ...)`
+- `backend/routers/chat.py` — `_ESCALATION_HIGH` en `_ESCALATION_MEDIUM` keyword-sets toegevoegd; `_detect_escalation(patient_message)` detecteert urgentie op basis van patiëntbericht; stub vervangen door conditionele aanroep met `try/except` zodat een escalatiefout de chat niet blokkeert
+- `backend/schemas/message.py` — `escalation_triggered: bool` veld toegevoegd aan `MessageResponse`
+- `frontend/lib/api.ts` — `escalationTriggered` doorgegeven vanuit `sendMessage` response
+- `frontend/components/chat/chat-screen.tsx` — `toast.warning` getoond als `escalationTriggered === true`
+
+**Beslissingen:**
+- Keyword-detectie op patiëntbericht (niet op Anna's response): betrouwbaarder, geen LLM nodig, voorspelbaar gedrag
+- Hartfalenpatiënten: liever te vroeg escaleren dan te laat — `_ESCALATION_HIGH` bevat ook twijfelgevallen zoals "bloed" en "nood"
+- `try/except` rond de escalatieaanroep: escalatiefout mag de chatresponse nooit blokkeren
+
+---
+
+## Stap 37 — 2026-05-16
+
+**Wat:** Escalatiedetectie omgezet van keyword-matching naar LLM-beslissing via prompt-signaal (optie B — token-besparend).
+
+**Aanleiding:**
+Keyword-matching miste gevallen zoals "20 shotjes tot ik in coma lig" en "de ontlasting is rood" (woordvolgorde verschilt van keyword). Bovendien begrijpt de LLM al de volledige context van het gesprek — een aparte classificatiecall is overbodig.
+
+**Aanpak:**
+Anna krijgt in de system prompt de instructie om `[ESCALATE:high:reden]` of `[ESCALATE:medium:reden]` toe te voegen aan het einde van haar antwoord als escalatie nodig is. De backend parseert dit signaal, strips het uit de response vóór opslaan, en roept `escalate_to_human` aan.
+
+**Gedaan:**
+- `backend/routers/chat.py` — keyword-sets verwijderd; `_ESCALATION_SIGNAL_RE` regex toegevoegd; `_detect_escalation()` vervangen door `_parse_escalation_signal(response_text)`; system prompt uitgebreid met escalatie-instructie; `raw_response` → strip signaal → `response_text` opslaan
+- Geen extra LLM-call, geen extra tokens buiten de ~30 tokens voor de prompt-instructie
+
+**Beslissingen:**
+- Optie B (prompt-signaal) boven optie A (aparte classificatiecall): geen extra kosten per bericht, Anna heeft al volledige context
+- Signaal aan het EINDE van de response zodat het makkelijk te strippen is en Anna's antwoord leesbaar blijft
+- Case-insensitive regex: LLM schrijft soms `[ESCALATE:HIGH:...]` in hoofdletters
+
+---
+
+## Stap 35 — 2026-05-14
+
+**Wat:** Escalatiescherm gekoppeld aan FastAPI — mock data vervangen door echte API.
+
+**Aanleiding:**
+Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie van de backend escalatie-endpoints (stap 34) moesten de veld-mismatches tussen backend en frontend opgelost worden.
+
+**Mismatches opgelost:**
+- Backend `urgency: low/medium/high` → frontend `info/warning/urgent` via mapping in `api.ts`
+- Backend `status: open/acknowledged/resolved` → frontend `open/in_progress/closed` via mapping
+- Backend geeft `patient_id` (UUID) → `patient_name` via `joinedload` in de backend query toegevoegd
+- Kanaal (`channel`) afgeleid uit urgency (high→Slack, low/medium→E-mail) — geen DB-kolom nodig
+- `assignee` en `closed` zijn niet in backend (scope issue #25/later) — defaulten naar `null`
+
+**Gedaan:**
+- `backend/schemas/escalation.py` — `patient_name: str` toegevoegd aan `EscalationResponse`
+- `backend/routers/escalations.py` — `joinedload(Escalation.patient)` in alle queries; `_to_response()` helper bouwt response inclusief `patient_name`
+- `frontend/lib/api.ts` — `EscalationAPI` interface, `toEscalation()` mapping, echte `getEscalations()` en nieuwe `updateEscalationStatus()` functie
+- `frontend/components/escalations/escalations-screen.tsx` — `useEffect` laadt via API, loading skeletons, `setStatus` roept `updateEscalationStatus()` aan (async), detail dialog heeft `saving` state
+
+**TypeScript check:** geen fouten (`npx tsc --noEmit`)
