@@ -885,3 +885,40 @@ Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie
 - `frontend/components/escalations/escalations-screen.tsx` — `useEffect` laadt via API, loading skeletons, `setStatus` roept `updateEscalationStatus()` aan (async), detail dialog heeft `saving` state
 
 **TypeScript check:** geen fouten (`npx tsc --noEmit`)
+
+---
+
+## Stap 42 — 2026-05-16
+
+**Wat:** `backend/routers/chat.py` (794 regels) opgesplitst in een Python-package `chat/`.
+
+**Gedaan:**
+- `backend/routers/chat/_escalation.py` — Laag 0 keywords, `layer0_check()`, `layer1_classify()`, `format_escalation_reason()`, `_parse_classify_json()`
+- `backend/routers/chat/_prompts.py` — `build_system_prompt()`, `build_summary_prompt()`
+- `backend/routers/chat/_summary.py` — `trigger_summary_update()`, `_SUMMARY_INTERVAL`
+- `backend/routers/chat/_routes.py` — alle FastAPI route handlers, `_is_question()`, `_is_refusal()`, `_build_context_proof()`
+- `backend/routers/chat/__init__.py` — exporteert `router`
+- Oude `chat.py` verwijderd — Python prefereert package boven module; backend start correct
+
+**Beslissingen:**
+- Geen functionele wijzigingen — alleen structuur; `main.py` hoefde niet aangepast (`from routers import chat` werkt met package)
+- `_` prefix voor interne modules — conventie dat ze niet direct geïmporteerd worden buiten het package
+
+**Commit:** (nog niet gecommit)
+
+---
+
+## Stap 43 — 2026-05-17
+
+**Wat:** Evidence 07 aangemaakt — C3 en C4 diagrammen van de volledige chat-pipeline.
+
+**Gedaan:**
+- `portfolio/evidence/evidence_07_c3_c4_chat_pipeline.md`
+- C3 (Component): alle componenten binnen de FastAPI backend en hun relaties naar MCP Server en externe LLMs
+- C4 (Sequence): exacte aanroepvolgorde binnen `_routes.py → chat()` — van POST-aanvraag tot HTTP-response, inclusief parallelle MCP-aanroepen via `asyncio.gather()` en BackgroundTasks
+
+**Beslissingen:**
+- Sequence diagram voor C4 i.p.v. klasse/code diagram — toont beter de temporele volgorde en het async/parallel gedrag
+- Toelichttabel per stap toegevoegd om "waarom zo" leesbaar te maken voor de beoordelaar
+
+**Commit:** (nog niet gecommit)

@@ -61,19 +61,20 @@ Het probleem met een aparte cloud-classificatieaanroep is dat het per bericht ex
 
 ### 3. Wat ik heb besloten
 
-**Gekozen: gelaagde escalatiedetectie — hardcoded keywords als vangvloer, asynchroon lokaal model (Gemma 4 e2b) voor nuancedectie**
+**Gekozen: gelaagde escalatiedetectie — hardcoded keywords als vangvloer, asynchroon lokaal model (qwen2.5:0.5b) voor nuancedetectie**
 
 De architectuur bestaat uit twee lagen:
 
 **Laag 0 — Hardcoded kritieke termen (synchroon, vóór LLM-aanroep)**  
 Een vaste set medische alarmsignalen die altijd `high`-escalatie triggeren, ongeacht context. Voorbeelden: *"bewusteloos"*, *"pijn op de borst"*, *"coma"*, *"ik ga dood"*, *"flauw"*. Geen AI nodig — als het woord erin zit, is de beslissing gemaakt. Dit is de absolute vangvloer.
 
-**Laag 1 — Gemma 4 e2b classificatie (asynchroon, BackgroundTask na chat-response)**  
-Als laag 0 niet triggert, wordt Gemma 4 e2b lokaal gevraagd om te beoordelen of het bericht escalatie vereist. Dit draait als `BackgroundTask` — de chat-response is al verstuurd als deze analyse begint. De gebruiker wacht nergens op. Gemma draait al in de bestaande Ollama Docker container; er is geen extra service nodig.
+**Laag 1 — qwen2.5:0.5b classificatie (asynchroon, BackgroundTask na chat-response)**  
+Als laag 0 niet triggert, wordt qwen2.5:0.5b lokaal gevraagd om te beoordelen of het bericht escalatie vereist. Dit draait als `BackgroundTask` — de chat-response is al verstuurd als deze analyse begint. De gebruiker wacht nergens op. qwen2.5:0.5b (373 MiB) draait in de bestaande Ollama Docker container; er is geen extra service nodig.
 
-Gemma 4 e2b is geschikt voor deze taak omdat classificatie een fundamenteel eenvoudigere taak is dan gespreksgeneratie. Het model hoeft alleen `{"escalate": true/false, "urgency": "high"|"medium", "reason": "..."}` terug te geven — een strak afgebakend formaat dat ook kleine modellen betrouwbaar kunnen volgen.
+**Modelkeuze qwen2.5:0.5b i.p.v. Gemma 4 e2b:**  
+Gemma 4 e2b bleek tijdens implementatie een multimodaal model met vision-encoder (~7 GiB totaal). Dit past niet tegelijk in VRAM naast bge-m3 (embedding), waardoor Ollama het model telkens opnieuw laadde met een cold-start van >30 seconden — langer dan de httpx timeout. qwen2.5:0.5b (373 MiB) past wel naast bge-m3 zonder evictie. Zie [evidence_08](../evidence/evidence_08_escalatie_implementatie.md) voor de volledige iteratie.
 
-Voor burst-berichten (meerdere berichten snel achter elkaar van dezelfde patiënt) wordt een semaphore per patiënt gebruikt. Dit begrenst het aantal gelijktijdige Gemma-aanroepen per patiënt tot één, zonder dat er een complexe wachtrij nodig is.
+Voor burst-berichten (meerdere berichten snel achter elkaar van dezelfde patiënt) wordt een semaphore per patiënt gebruikt. Dit begrenst het aantal gelijktijdige qwen-aanroepen per patiënt tot één, zonder dat er een complexe wachtrij nodig is.
 
 ---
 
@@ -82,22 +83,20 @@ Voor burst-berichten (meerdere berichten snel achter elkaar van dezelfde patiën
 **Eigen ervaring (Field):**  
 Eerste implementatie als system prompt-signaal (`[ESCALATE:high:reden]` in Anna's antwoord). Getest met echte gesprekken. Bevinding: het model miste escalaties consequent bij berichten als *"ik val steeds flauw"* en *"pijn op de borst"*. De oorzaak is dat format-instructies voor LLMs lager prioriteit hebben dan conversationele output — zeker bij kleinere modellen.
 
-→ Details en testgesprekken: [evidence_07_escalatie_detectie_aanpak.md](../evidence/evidence_07_escalatie_detectie_aanpak.md)
+→ Implementatie-iteraties en testresultaten: [evidence_08_escalatie_implementatie.md](../evidence/evidence_08_escalatie_implementatie.md)
 
 **Beschikbaar product analyseren (Library):**  
 Onderzocht hoe guardrails en intent classification in productiesystemen worden ingezet. Bevinding: de standaardaanpak is een dedicated classificatie-LLM met een eigen beknopte prompt, los van de conversatie-LLM. Bronnen: LlamaGuard (Meta), NeMo Guardrails (NVIDIA), Azure AI Content Safety documentatie.
-
-→ Vergelijkingstabel aanpakken: [evidence_07_escalatie_detectie_aanpak.md](../evidence/evidence_07_escalatie_detectie_aanpak.md)
 
 **Prototyping (Workshop):**  
 Drie aanpakken uitgewerkt en vergeleken:
 - Optie A: aparte cloud-LLM classificatieaanroep (Groq)
 - Optie B: prompt-signaal in Anna's antwoord
-- Optie C: lokaal model (Gemma 4 e2b) asynchroon + hardcoded vangvloer
+- Optie C: lokaal model asynchroon + hardcoded vangvloer
 
 Beslissingsmatrix uitgewerkt op betrouwbaarheid, latency, kosten en complexiteit.
 
-→ Zie: [evidence_07_escalatie_detectie_aanpak.md](../evidence/evidence_07_escalatie_detectie_aanpak.md)
+→ C3/C4 architectuurdiagrammen van de geïmplementeerde pipeline: [evidence_07_c3_c4_chat_pipeline.md](../evidence/evidence_07_c3_c4_chat_pipeline.md)
 
 ---
 
@@ -122,7 +121,7 @@ Optie C combineert de voordelen: betrouwbaar via keywords, nuancedectie via loka
 | **Betrouwbaarheid kritieke gevallen** | Altijd gedetecteerd | ✅ Laag 0 keywords zijn deterministisch — geen LLM afhankelijkheid voor kritieke termen |
 | **Latency voor de gebruiker** | Nul extra wachttijd | ✅ Beide lagen draaien als BackgroundTask ná de chat-response |
 | **Cloudtokenkosten** | Geen extra tokens | ✅ Keywords kosten niets; Gemma draait lokaal in bestaande Ollama container |
-| **Observeerbaarheid** | Traceerbaar in Langfuse | ⬜ Te implementeren — Langfuse spans per laag zijn ontworpen, nog niet gebouwd |
+| **Observeerbaarheid** | Traceerbaar in Langfuse | ✅ `escalation-layer0` child span per chat-turn; `escalation-layer1-classify` generation span als BackgroundTask |
 
 ---
 
@@ -157,14 +156,17 @@ Gebruikt voor inschatting van Gemma 4 e2b beschikbaarheid naast de chat-LLM.
 | Wat | Bewijs |
 |---|---|
 | Eerste poging: system prompt-signaal | [Stap 37 in STAPPEN.md](../STAPPEN.md) — `[ESCALATE:high:reden]` geïmplementeerd en getest |
-| Testgesprekken met gemiste escalaties | [evidence_07_escalatie_detectie_aanpak.md](../evidence/evidence_07_escalatie_detectie_aanpak.md) |
-| Gelaagde architectuur ontworpen | [Stap 38 in STAPPEN.md](../STAPPEN.md) — beslissingsmatrix en ontwerp |
-| Implementatie volgt | Issue #X — gelaagde escalatiedetectie implementeren |
+| Implementatie gelaagde detectie | Commits `5aef9ce`, `6efeb85` — Laag 0 keywords + Laag 1 qwen2.5:0.5b als BackgroundTask |
+| Iteraties: modelswitch, prompt fix, timeout | [evidence_08_escalatie_implementatie.md](../evidence/evidence_08_escalatie_implementatie.md) — 5 iteraties gedocumenteerd |
+| Architectuurdiagrammen (C3/C4) | [evidence_07_c3_c4_chat_pipeline.md](../evidence/evidence_07_c3_c4_chat_pipeline.md) — componentdiagram + sequentiediagram |
+| Refactor `chat.py` → `chat/` package | [Stap 42 in STAPPEN.md](../STAPPEN.md) — 794 regels opgesplitst in 4 modules |
 
 ---
 
 ### 10. Wat dit oplevert
 
-**Volgende stap:** Implementatie van de gelaagde detectie — laag 0 keywords in `chat.py`, laag 1 Gemma 4 e2b als BackgroundTask, Langfuse spans per laag voor observeerbaarheid.
+**Geïmplementeerd en werkend** — commits `5aef9ce` en `6efeb85`.
+
+De gelaagde detectie draait in de `feature/patient-summary` branch. Alle succescriteria zijn gehaald. De codebase is gelijktijdig gerefactord: `backend/routers/chat.py` (794 regels) is opgesplitst in een Python-package `chat/` met vier afzonderlijke modules (`_routes.py`, `_escalation.py`, `_prompts.py`, `_summary.py`).
 
 Dit besluit raakt direct aan de portfolio-deliverable *"correct herkennen wanneer patronen risico vormen"* — één van de drie kernvereisten voor de gesimuleerde patiënten.
