@@ -1,9 +1,9 @@
 # Evidence 08 — Escalatiedetectie implementatie: iteraties en eindresultaat
 
 **Type:** iteratieoverzicht met testresultaten
-**Datum:** 2026-05-16
-**Hoort bij:** DL4 (escalatiedetectie), Stap 37–42 in STAPPEN.md
-**Commits:** `5aef9ce`, `6efeb85`
+**Datum:** 2026-05-16 (initieel) · 2026-05-17 (iteratie 6 + token/Langfuse onderbouwing toegevoegd)
+**Hoort bij:** DL4 (escalatiedetectie), Stap 37–45 in STAPPEN.md
+**Commits:** `5aef9ce`, `6efeb85`, `bd07eca` (+ qwen2.5:3b switch)
 
 ---
 
@@ -157,5 +157,110 @@ Laag 0 detecteerde `'pijn op de borst'` (HIGH keyword) synchroon vóór de LLM-a
 |---|---|---|
 | Kritieke gevallen altijd gedetecteerd | ✅ | Test 2 — Laag 0 deterministisch, onafhankelijk van LLM |
 | Nul extra wachttijd gebruiker | ✅ | Laag 1 loopt als BackgroundTask ná response |
-| Geen extra cloudtokenkosten | ✅ | qwen2.5:0.5b draait lokaal in bestaande Ollama container |
-| Traceerbaar in Langfuse | ✅ | `escalation-layer0` child span in elke `chat-turn` trace; `escalation-layer1-classify` generation span als BackgroundTask |
+| Geen extra cloudtokenkosten | ✅ | qwen2.5:3b draait lokaal in bestaande Ollama container — zie tokenberekening hieronder |
+| Traceerbaar in Langfuse | ✅ | `escalation-layer0` child span + `escalation-layer1-classify` generation span — zie trace-structuur hieronder |
+
+---
+
+## Iteratie 6 — 0.5B onbruikbaar voor Nederlands; upgrade naar qwen2.5:3b
+
+**Probleem:** Tijdens de validatieronde na het portfolio-werk (2026-05-17) bleken duidelijk niet-urgente Nederlandse berichten als `Urgent` te worden geëscaleerd door qwen2.5:0.5b. Voorbeeldoutput uit Langfuse-traces:
+
+| Patiëntbericht | Layer 1 reden (output 0.5b) | Beoordeling |
+|---|---|---|
+| `"Ik ben gewoon vermoeid van een lange dag"` | "pijn op de borst is gemeld met een lange dag en normale vermoeidheid aanwezig" | False positive — gehallucineerd |
+| `"Ik ben lui"` | "pijn op de borst gemeld" | False positive — gehallucineerd |
+| `"Wat doet mijn furosemide precies?"` | "milde specifiek van de medicijn" | False positive — gewone vraag |
+| `"Ik werd vannacht wakker omdat ik geen lucht kreeg"` | gelabeld als `info` (low) | False negative — had `high` moeten zijn |
+
+**Diagnose:** Een 0.5 miljard parameter model is te klein voor causale redenering in het Nederlands. Het pattern-matched op tokens uit de prompt (de woorden "pijn op de borst" zaten in de system prompt als voorbeeld) en plakte die in de output, ongeacht de input. Verbeteren via prompt redde dit niet — een te klein model wordt door betere prompts niet gered.
+
+**Fix:** Switch naar `qwen2.5:3b` (6× groter, nog steeds lokaal). VRAM-footprint accepteerbaar naast bge-m3 in dezelfde Ollama-container.
+
+```
+docker exec -it ollama ollama pull qwen2.5:3b
+# .env
+ESCALATION_MODEL=qwen2.5:3b
+```
+
+**Validatie na switch:**
+
+| Patiëntbericht | Layer 1 resultaat | Correct? |
+|---|---|---|
+| `"Ik werd vannacht wakker omdat ik geen lucht kreeg"` | escalate=true, urgency=high, reden="kan niet ademhalen" | ✅ |
+| `"Ik heb bloed opgehoest"` | escalate=true, urgency=high, reden="bloed opgehoest gemeld" | ✅ |
+| `"Mijn hart bonkt al een uur snel en ik word duizelig"` | escalate=true, urgency=medium, reden="hartkloppingen met duizeligheid" | ✅ |
+| `"Ik ben vermoeid van een lange dag"` | escalate=false, reden="normale vermoeidheid" | ✅ |
+| `"Wat doet mijn furosemide"` | escalate=false, reden="kennisvraag over medicijn" | ✅ |
+
+**Les voor portfolio:** modelgrootte is niet vrij te kiezen op basis van VRAM-zuinigheid alleen. Voor Nederlandse medische triage is empirisch gebleken dat ~3B parameters het minimum is. Onder die grens hallucineren modellen redenen en koppelen tokens uit de system prompt mechanisch aan output — onafhankelijk van wat de patiënt feitelijk schreef.
+
+---
+
+## Tokenkosten — lokaal vs cloud-classificatie
+
+Hoofdvraag: hoeveel scheelt het in tokens dat Layer 1 lokaal draait i.p.v. via Groq/Anthropic?
+
+| Component | Tokens per Layer 1 call |
+|---|---|
+| System prompt (Engelse instructies + Nederlandse voorbeelden) | ~600 input |
+| Patiëntbericht (gemiddeld) | ~30 input |
+| JSON-respons | ~30 output |
+
+Bij cloud-uitvoering zou dat zijn: **~630 input + 30 output tokens per niet-keyword bericht**. Bij Anna's huidige doelgroep (3 simulatiepatiënten × 10 sessies × ~5 berichten = 150 classificaties) is dit financieel verwaarloosbaar. Maar in een productiescenario (100 patiënten × wekelijkse check-in × ~10 berichten = ~4000 classificaties/maand) loopt het op tot **~2,5M input-tokens/maand puur voor classificatie**, bovenop de chat-LLM zelf.
+
+**Wat we vermijden door lokaal te draaien:**
+- Tokenfacturatie bij betaalde providers (Claude Haiku, Sonnet)
+- Quota-uitputting op gratis tier (Groq: 14.400 requests/dag — Layer 1 zou hier ~30% van opslokken in productie)
+- Latency-overhead van een tweede cloud-roundtrip (Groq is snel maar nog steeds netwerklatency)
+- Privacygevoeligheid: medische triage-data verlaat de eigen infrastructuur niet
+
+**Wat we ervoor inruilen:**
+- ~250 MB extra VRAM (naast bge-m3)
+- ~3-5 seconden GPU-tijd per niet-keyword bericht (asynchroon, gebruiker merkt het niet)
+
+Voor het portfolio-doel "kosten- en privacybewust ontwerpen" is dit een gunstige trade-off. Voor cloud-only deployments zonder eigen GPU zou de afweging anders kunnen uitvallen.
+
+---
+
+## Langfuse-tracing structuur
+
+Per inkomend chat-bericht legt de backend automatisch deze trace-boom vast in Langfuse:
+
+```
+chat-turn  (root span)
+├── input: patient message
+├── rag-retrieval  (span)
+│     ├── input: query
+│     ├── output: list of memory contents
+│     └── metadata: { hit_count: N }
+├── escalation-layer0  (span)
+│     ├── input: patient message
+│     ├── output: { triggered: bool, urgency: "high"|"medium"|"none" }
+│     └── metadata: { reason: "Kritiek sleutelwoord gedetecteerd: '...'" }
+└── llm-generation  (generation span — chat-LLM)
+      ├── model: <chat model name>
+      ├── input: full message list
+      ├── output: assistant respons
+      └── usage_details: { input, output }
+
+[Apart, BackgroundTask]
+escalation-layer1  (trace, propagate_attributes user_id + session_id)
+└── escalation-layer1-classify  (generation span)
+      ├── model: qwen2.5:3b
+      ├── input: "Patient message: ..."
+      ├── output: raw JSON respons
+      └── (latency automatisch gemeten door Langfuse)
+```
+
+**Waarom dit waardevol is — vijf concrete redenen:**
+
+1. **Audit per beslissing.** Voor elke escalatie is achteraf te zien welke laag triggerde, met welke reden, op welk patiëntbericht. In een productieomgeving onder AVG/AI Act is dit verplicht — elke geautomatiseerde medische actie moet reconstrueerbaar zijn.
+2. **Modelversie vastgelegd.** `model=qwen2.5:3b` is onderdeel van de span. Als ooit terug zou worden gegaan naar 0.5b of vooruit naar 7b, is in historische traces zichtbaar welk gedrag bij welk model hoorde.
+3. **False-positive analyse zonder reproductie.** Tijdens iteratie 6 hierboven kon ik direct uit Langfuse zien dat 0.5b voor "ik ben vermoeid" met "pijn op de borst gemeld" antwoordde — geen reproductie van de situatie nodig, alleen de trace lezen.
+4. **Latency-bewijs.** De claim "Laag 1 ~3-5s" in DL4 §6a is geen schatting maar af te lezen uit `start_time`/`end_time` per span in Langfuse.
+5. **Token-meting cloud-vergelijking.** Als ik de Layer 1 ooit naar cloud zou verplaatsen, levert Langfuse direct `usage_details` op, waardoor de cost-tabel uit DL4 §6a meetbaar wordt i.p.v. geschat.
+
+Implementatie zit in:
+- `backend/routers/chat/_routes.py:289-325` — `chat-turn`, `rag-retrieval`, `escalation-layer0`
+- `backend/routers/chat/_escalation.py:144-204` — `escalation-layer1` trace + `escalation-layer1-classify` generation span met `propagate_attributes`

@@ -938,3 +938,102 @@ Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie
 **Beslissingen:**
 - Fix in prompt, niet in code-filter — zo blijven Langfuse-traces overeenkomen met de modelbeslissing
 - `low` blijft buiten het JSON-schema; als het laag is hoort het `escalate=false` te zijn
+
+---
+
+## Stap 45 — 2026-05-17
+
+**Wat:** Test- en validatieronde van de aangescherpte Laag 1 prompt; modelwissel `qwen2.5:0.5b` → `qwen2.5:3b`.
+
+**Prompt 1:** *"it is detecting this all: [lijst van escalaties waarbij 'Ik ben vermoeid', 'Ik ben lui' en 'Wat doet mijn furosemide' als Urgent werden gemarkeerd] is it because of the small model that doesnt understand dutch good?"*
+
+**Diagnose:** Ja — `qwen2.5:0.5b` is 0.5 miljard parameters en hallucineerde redenen. Bericht "Ik ben vermoeid" gaf reden "pijn op de borst is gemeld" en "Ik ben lui" gaf "pijn op de borst gemeld" — pure verzinsels. Model begreep Nederlands onvoldoende voor causaal redeneren.
+
+**Prompt 2:** *"ik wil in docker qwen2.5:3b deze downloaden, geef commando"*
+
+**Gedaan:**
+- `docker exec -it ollama ollama pull qwen2.5:3b` (6× groter, ~3-5s latency, past nog in beschikbare VRAM)
+- `.env`: `ESCALATION_MODEL=qwen2.5:3b`
+- Backend herstart
+
+**Validatie na modelwissel:** alle high-risk berichten ("bloed opgehoest", "geen lucht", "hart bonkt + duizelig") correct geëscaleerd; gewone gesprekken niet meer als urgent gemarkeerd.
+
+**Beslissingen:**
+- 3B blijkt het sweet spot voor Nederlands medisch triage — 0.5B was structureel onbruikbaar
+- Bewijst portfoliopunt: kleinere modellen besparen GPU maar leveren onbruikbaar oordeel in non-English context
+
+---
+
+## Stap 46 — 2026-05-17
+
+**Wat:** Laag 1 escalatie-prompt verruimd met `low` urgentie voor zachte waarschuwingssignalen.
+
+**Prompt:** *"ik wil dat je laag 1 iets losser maakt qua escalatie, want sommige onderdelen verwacht ik wel als info"*
+
+**Aanpassing in `backend/routers/chat/_escalation.py`:**
+- `low` (Info-niveau) toegevoegd aan JSON-schema en voorbeelden
+- Categorisatie expliciet: high = ambulance, medium = ernstig niet acuut, low = zacht waarschuwingssignaal (mild oedeem, gewichtstoename, kortademig bij inspanning, algemeen onwel)
+- Twijfelregel: bij twijfel false↔low → kies low zodra een symptoom genoemd is
+
+**Beslissingen:**
+- Verschil tussen "geen escalatie" en "low/info-escalatie" benoemd: zachte signalen wel loggen voor de zorgverlener, maar zonder Slack-alert (alleen e-mail)
+- Frontend toont `low` als `Info` (zachtgeel) via bestaande `URGENCY_MAP` in `lib/api.ts`
+
+---
+
+## Stap 47 — 2026-05-17
+
+**Wat:** Twee frontend-bugs opgelost: patiënt-edit dialog en datum-/tijdweergave bij escalaties.
+
+**Prompt:** *"there are 2 problems: 1: als ik op de edit knop klik voor Patiënt bewerken worden de current gegevens niet weergegeven. 2: bij escalatie beheer staat: -7 dagen geleden 19:54 dat klopt niet want dat was vandaag, het loopt alleen 2 uur achter en verkeerde datum lijkt erop"*
+
+**Gedaan:**
+- `frontend/Anna-remembers/components/patients/patients-screen.tsx` — `useEffect` toegevoegd aan `PatientFormDialog` die alle velden reset wanneer `open` of `patient` verandert. Oorzaak: `useState(patient?.first ?? "")` initialiseert maar één keer, dus state bleef hangen bij heropenen.
+- `frontend/Anna-remembers/lib/utils.ts` — twee bugs:
+  1. `today` was hardcoded op `"2026-05-10"` → vervangen door `new Date()`
+  2. Backend stuurt naive UTC (`datetime.utcnow()` zonder `Z`); frontend toonde rauwe UTC via `.slice(11,16)`. Nieuwe helpers `parseBackendDate()`, `fmtDateTime()`, `fmtTimeOf()` plakken `Z` aan en gebruiken `toLocaleString("nl-NL")` voor correcte conversie naar GMT+2.
+- `frontend/Anna-remembers/components/escalations/escalations-screen.tsx` — gebruikt nu `fmtTimeOf` en `fmtDateTime` i.p.v. string-slicing.
+
+**Beslissingen:**
+- Niet de backend aanpassen (laat `datetime.utcnow()` staan) — frontend doet de timezone-conversie, dat is conventie voor multi-user web apps
+- Hardcoded "vandaag-datum" was ooit gebruikt voor mock-data demo's — nu vervangen door `new Date()`
+
+---
+
+## Stap 48 — 2026-05-17
+
+**Wat:** Seeder uitgebreid voor demo-ready state: `medical_summary` per patiënt, ChromaDB-memories via MCP, `--reset` flag.
+
+**Prompt 1 (vraag om strategie-advies):** *"mijn vraag is nu als ik een seeder ga maken moet ik dan ook gesprek geschiedenis erin zetten? want dan heb ik daar geen antwoorden bij van een llm, is het niet beter om alvast een korte summary te maken wat past bij de patient... en is het ook mogelijk om mijn data leeg te maken van mijn postgres en chroma db of is het ook mogelijk om de seeder zo uitgebreid te maken zodat ook chroma db gevuld is met data en dat de embeddings ook werken? wat is hier het beste in?"*
+
+**Strategie-advies gegeven:**
+1. Handgeschreven dialoogfixtures > LLM-runtime-afhankelijke seeding (reproduceerbaar, controleerbaar, geen LLM nodig bij seed)
+2. `medical_summary` per archetype is essentieel — drijft Anna's gedrag via system-prompt-injectie
+3. ChromaDB seeden via MCP `store_memory` zodat `recall_context` end-to-end werkt
+4. `--reset` flag voor idempotente demo-state
+
+**Prompt 2:** *"implementeer deze seeder, vraag niet naar approval. voer alles uit"*
+
+**Gedaan in `backend/seed.py`:**
+- `medical_summary` JSON per patiënt (sym/med/wgt/bhv/ovr volgens CLAUDE.md):
+  - **Maria Jansen** (success) — stabiel 72 kg, perfecte trouw, dochter helpt
+  - **Hendrik de Boer** (warning) — 82→85,5 kg over 8 weken, oedeem, trouw 60%
+  - **Liesbeth van Dam** (urgent) — stabiel 9 weken, acute episode in sessie 10
+- 10 gepaarde sessies × 3 patiënten = 60 messages (30 sessies totaal)
+- `MEMORIES` dict: 30 ChromaDB-memories (patient_stated + ai_inferred) per patiënt-patroon
+- `seed_chromadb()` async: roept MCP `store_memory` aan met bge-m3 embeddings
+- `reset_postgres()`: `TRUNCATE patients, sessions, messages, escalations RESTART IDENTITY CASCADE`
+- `reset_chromadb()`: best-effort delete via `chromadb.HttpClient` (graceful skip als module niet beschikbaar)
+- Idempotentie: deterministische SHA256-IDs in `store_memory` (`patient_id:content`) voorkomen duplicaten
+
+**Validatie:**
+- Postgres: 3 patiënten · 30 sessies · 60 messages · 2 escalaties
+- ChromaDB: 30 RAG-memories opgeslagen via echte bge-m3 pipeline
+- RAG recall test op "gewichtstoename en kortademigheid" voor Hendrik retourneert top-3 relevante memories (distances 0.39–0.49)
+
+**Beslissingen:**
+- Geen LLM-aanroepen in seeder — alles deterministisch en handgeschreven; portfoliowaardig want reproduceerbaar
+- MCP-pad gebruikt i.p.v. direct ChromaDB — test meteen de echte embedding-pipeline end-to-end
+- `chromadb` package niet aan backend requirements toegevoegd — niet nodig dankzij upsert-met-deterministisch-ID
+
+**Prompt 3:** *"Voeg ook mijn prompts toe bij stappen voor deze chat"* — deze update zelf.
