@@ -16,7 +16,11 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 
 import { StatusBadge } from "@/components/dashboard/status-badge"
-import { fmtDate } from "@/lib/utils"
+import {
+  EscalationReasonCompact,
+  EscalationReasonDetail,
+} from "@/components/escalations/escalation-reason-display"
+import { fmtDate, fmtDateTime, fmtTimeOf } from "@/lib/utils"
 import { getEscalations, updateEscalationStatus } from "@/lib/api"
 import type { Escalation, EscalationStatus } from "@/types"
 
@@ -124,13 +128,13 @@ export function EscalationsScreen() {
                   <TableRow key={e.id} className="cursor-pointer" onClick={() => setSelected(e)}>
                     <TableCell><StatusBadge status={e.urgency} label={URGENCY_LABEL[e.urgency]} /></TableCell>
                     <TableCell>
-                      <div className="font-medium text-[13.5px] mb-0.5">{e.name}</div>
-                      <div className="text-[12.5px] text-muted-foreground leading-snug line-clamp-2">{e.reason}</div>
+                      <div className="font-medium text-[13.5px] mb-1">{e.name}</div>
+                      <EscalationReasonCompact reason={e.reason} />
                     </TableCell>
                     <TableCell className="text-[12.5px] text-muted-foreground">
-                      {fmtDate(e.opened.slice(0, 10))}
+                      {fmtDate(e.opened)}
                       <br />
-                      <span className="text-[11px] opacity-70">{e.opened.slice(11, 16)}</span>
+                      <span className="text-[11px] opacity-70">{fmtTimeOf(e.opened)}</span>
                     </TableCell>
                     <TableCell>
                       <StatusBadge
@@ -186,26 +190,26 @@ function EscalationDetail({
         <DialogHeader>
           <DialogTitle>{item.name}</DialogTitle>
           <DialogDescription>
-            {URGENCY_LABEL[item.urgency]} · {STATUS_LABEL[item.status]} · geopend {fmtDate(item.opened.slice(0, 10))}
+            {URGENCY_LABEL[item.urgency]} · {STATUS_LABEL[item.status]} · geopend {fmtDate(item.opened)}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Anna vermoedt callout */}
+        {/* Escalatie callout */}
         <div
           className="flex gap-3 rounded-xl p-3.5"
           style={{ backgroundColor: "var(--warning-soft-bg)" }}
         >
           <AlertTriangle className="size-4 shrink-0 mt-0.5" style={{ color: "var(--warning-soft-fg)" }} />
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-1">Anna vermoedt</div>
-            <div className="text-[14px] leading-relaxed">{item.reason}</div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-2">Escalatie</div>
+            <EscalationReasonDetail reason={item.reason} />
           </div>
         </div>
 
         {/* Detail grid */}
         <div className="grid grid-cols-2 gap-3.5">
           <DetailField label="Kanaal"   value={item.channel} />
-          <DetailField label="Geopend"  value={`${item.opened.slice(0, 10)} · ${item.opened.slice(11, 16)}`} />
+          <DetailField label="Geopend"  value={fmtDateTime(item.opened)} />
         </div>
 
         {/* Clinical note */}

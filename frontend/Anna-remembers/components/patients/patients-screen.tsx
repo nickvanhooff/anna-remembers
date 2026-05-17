@@ -273,6 +273,16 @@ function PatientFormDialog({ open, patient, onClose, onSave }: PatientFormProps)
   const [errs,  setErrs]  = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
 
+  useEffect(() => {
+    if (!open) return
+    setFirst(patient?.first ?? "")
+    setLast(patient?.last ?? "")
+    setDob(patient?.dob ?? "")
+    setMeds(patient?.meds ?? "")
+    setNotes(patient?.notes ?? "")
+    setErrs({})
+  }, [open, patient])
+
   async function submit() {
     const e: Record<string, string> = {}
     if (!first.trim()) e.first = "Voornaam is verplicht."

@@ -795,6 +795,75 @@ Anna krijgt in de system prompt de instructie om `[ESCALATE:high:reden]` of `[ES
 
 ---
 
+## Stap 38 — 2026-05-16
+
+**Wat:** Decision log DL4 — gelaagde escalatiedetectie (keywords + lokaal classificatiemodel).
+
+**Gedaan:**
+- `portfolio/decision-logs/DL4_escalatie_detectie.md` — kernvraag, succescriteria, keuze Laag 0 + Laag 1, DOT-onderzoek, links naar commits
+
+**Beslissingen:**
+- Prompt-signaal (stap 37) vervangen door gelaagde aanpak: betrouwbaarder dan `[ESCALATE:…]` in Anna's antwoord
+- Laag 1 asynchroon zodat chat-latency nul extra wachttijd heeft
+
+**Commit:** (zie stap 39)
+
+---
+
+## Stap 39 — 2026-05-16
+
+**Wat:** Gelaagde escalatiedetectie geïmplementeerd in `backend/routers/chat.py`.
+
+**Gedaan:**
+- Laag 0: `_ESCALATION_HIGH` / `_ESCALATION_MEDIUM`, `_layer0_check()` synchroon vóór LLM; Langfuse span `escalation-layer0`
+- Laag 1: `_layer1_classify()` als `BackgroundTask` met `qwen2.5:0.5b` (default), Engelse classify-prompt, `_parse_escalation_json()`, timeout 90s, logging i.p.v. stille `except`
+- Vervangen: `[ESCALATE:…]` regex en prompt-signaal uit system prompt
+- Keywords uitgebreid o.a. `ik verbrand`, `ontlasting is rood` (Laag 0)
+- `docker-compose.yml` — `ESCALATION_MODEL`, `ESCALATION_COOLDOWN_MINUTES`, `MCP_URL` op backend
+- `.env.example` — documentatie pull-commando qwen
+- `backend/tests/test_escalation_layers.py` — unit tests Laag 0 + JSON-parse
+
+**Beslissingen:**
+- `ESCALATION_MODEL=qwen2.5:0.5b` i.p.v. gemma4:e2b — past in VRAM naast bge-m3; gemma4 laadt vision-encoder (~7 GiB)
+- Cooldown default 5 min; `ESCALATION_COOLDOWN_MINUTES=0` voor testen zonder wachten
+- Semaphore serialiseert per patiënt (geen `locked()` skip meer — berichten wachten in rij)
+
+**Commit:** (nog niet gecommit)
+
+---
+
+## Stap 40 — 2026-05-16
+
+**Wat:** Escalatiereden in dashboard leesbaar gemaakt — altijd het originele patiëntbericht tonen.
+
+**Gedaan:**
+- `backend/routers/chat.py` — `_format_escalation_reason()`: `Laag N · Patiëntbericht: «…» · <detail>` voor Laag 0 en Laag 1
+- Classify-prompt: `reason` veld verplicht Nederlands
+- Test `test_format_escalation_reason_includes_patient_message`
+
+**Beslissingen:**
+- Geen DB-schema-wijziging — alles in bestaand `reason` Text-veld; frontend toont `e.reason` ongewijzigd
+
+**Commit:** (nog niet gecommit)
+
+---
+
+## Stap 41 — 2026-05-16
+
+**Wat:** Escalatiescherm toont patiëntbericht en laag gestructureerd (niet alleen ruwe `reason`-string).
+
+**Gedaan:**
+- `frontend/Anna-remembers/lib/parse-escalation-reason.ts` — parse `Laag N · Patiëntbericht: «…» · detail` + legacy `[Layer 1 — …]`
+- `frontend/Anna-remembers/components/escalations/escalation-reason-display.tsx` — `EscalationReasonCompact` (tabel) en `EscalationReasonDetail` (dialog)
+- `frontend/Anna-remembers/components/escalations/escalations-screen.tsx` — componenten ingebouwd
+
+**Beslissingen:**
+- Parser in frontend i.p.v. extra API-velden — `reason` blijft één kolom, geen migratie
+
+**Commit:** (nog niet gecommit)
+
+---
+
 ## Stap 35 — 2026-05-14
 
 **Wat:** Escalatiescherm gekoppeld aan FastAPI — mock data vervangen door echte API.
@@ -816,3 +885,56 @@ Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie
 - `frontend/components/escalations/escalations-screen.tsx` — `useEffect` laadt via API, loading skeletons, `setStatus` roept `updateEscalationStatus()` aan (async), detail dialog heeft `saving` state
 
 **TypeScript check:** geen fouten (`npx tsc --noEmit`)
+
+---
+
+## Stap 42 — 2026-05-16
+
+**Wat:** `backend/routers/chat.py` (794 regels) opgesplitst in een Python-package `chat/`.
+
+**Gedaan:**
+- `backend/routers/chat/_escalation.py` — Laag 0 keywords, `layer0_check()`, `layer1_classify()`, `format_escalation_reason()`, `_parse_classify_json()`
+- `backend/routers/chat/_prompts.py` — `build_system_prompt()`, `build_summary_prompt()`
+- `backend/routers/chat/_summary.py` — `trigger_summary_update()`, `_SUMMARY_INTERVAL`
+- `backend/routers/chat/_routes.py` — alle FastAPI route handlers, `_is_question()`, `_is_refusal()`, `_build_context_proof()`
+- `backend/routers/chat/__init__.py` — exporteert `router`
+- Oude `chat.py` verwijderd — Python prefereert package boven module; backend start correct
+
+**Beslissingen:**
+- Geen functionele wijzigingen — alleen structuur; `main.py` hoefde niet aangepast (`from routers import chat` werkt met package)
+- `_` prefix voor interne modules — conventie dat ze niet direct geïmporteerd worden buiten het package
+
+---
+
+## Stap 43 — 2026-05-17
+
+**Wat:** Evidence 07 (C3/C4 diagrammen) en evidence 08 (implementatie-iteraties) aangemaakt; DL4 bijgewerkt en alles gecommit.
+
+**Gedaan:**
+- `portfolio/evidence/evidence_07_c3_c4_chat_pipeline.md` — C3 componentdiagram Backend + C4 sequentiediagram van één chat-request
+- `portfolio/evidence/evidence_08_escalatie_implementatie.md` — 5 implementatie-iteraties gedocumenteerd (modelswitch, prompt fix, timeout, cooldown, reden-opmaak) + API-testbewijs
+- `portfolio/decision-logs/DL4_escalatie_detectie.md` — model gecorrigeerd (gemma4:e2b → qwen2.5:0.5b), alle evidence-links gekoppeld, succescriteria gemarkeerd als gehaald, commits toegevoegd
+
+**Beslissingen:**
+- Sequence diagram voor C4 i.p.v. klasse/code diagram — toont beter temporele volgorde en async/parallel gedrag
+- Evidence 08 volgt zelfde iteratieve structuur als evidence 05 (bugrapporten per iteratie, commit per fix)
+
+**Commit:** `bd07eca`
+
+---
+
+## Stap 44 — 2026-05-17
+
+**Wat:** Laag 1 escalatie-prompt aangescherpt — te veel niet-urgente berichten werden als `Urgent` geëscaleerd.
+
+**Probleem:** Berichten als "ik heb veel gewerkt en ben vermoeid", "ik heb last van mijn nek" en "krijg pijn als ik naar links kijk" werden door qwen2.5:0.5b als escalatie gemarkeerd en in de UI getoond als `Urgent`. Daardoor verloor de escalatielijst signaalwaarde — een gewoon gesprek werd als noodgeval gelogd.
+
+**Aanpassing in `backend/routers/chat/_escalation.py`:**
+- `_CLASSIFY_SYSTEM` herschreven met expliciete NIET-escaleren lijst (vermoeidheid, milde pijn, medicatievragen, begroetingen, gewone conversatie)
+- Strikt onderscheid tussen `high` (levensbedreigend) en `medium` (ernstig maar niet acuut)
+- Default-gedrag expliciet: NIET escaleren tenzij duidelijk acuut
+- Extra Nederlandstalige voorbeelden zodat de kleine 0.5B-model conservatiever wordt
+
+**Beslissingen:**
+- Fix in prompt, niet in code-filter — zo blijven Langfuse-traces overeenkomen met de modelbeslissing
+- `low` blijft buiten het JSON-schema; als het laag is hoort het `escalate=false` te zijn
