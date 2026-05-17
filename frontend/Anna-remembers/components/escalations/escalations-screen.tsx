@@ -20,7 +20,7 @@ import {
   EscalationReasonCompact,
   EscalationReasonDetail,
 } from "@/components/escalations/escalation-reason-display"
-import { fmtDate } from "@/lib/utils"
+import { fmtDate, fmtDateTime, fmtTimeOf } from "@/lib/utils"
 import { getEscalations, updateEscalationStatus } from "@/lib/api"
 import type { Escalation, EscalationStatus } from "@/types"
 
@@ -132,9 +132,9 @@ export function EscalationsScreen() {
                       <EscalationReasonCompact reason={e.reason} />
                     </TableCell>
                     <TableCell className="text-[12.5px] text-muted-foreground">
-                      {fmtDate(e.opened.slice(0, 10))}
+                      {fmtDate(e.opened)}
                       <br />
-                      <span className="text-[11px] opacity-70">{e.opened.slice(11, 16)}</span>
+                      <span className="text-[11px] opacity-70">{fmtTimeOf(e.opened)}</span>
                     </TableCell>
                     <TableCell>
                       <StatusBadge
@@ -190,7 +190,7 @@ function EscalationDetail({
         <DialogHeader>
           <DialogTitle>{item.name}</DialogTitle>
           <DialogDescription>
-            {URGENCY_LABEL[item.urgency]} · {STATUS_LABEL[item.status]} · geopend {fmtDate(item.opened.slice(0, 10))}
+            {URGENCY_LABEL[item.urgency]} · {STATUS_LABEL[item.status]} · geopend {fmtDate(item.opened)}
           </DialogDescription>
         </DialogHeader>
 
@@ -209,7 +209,7 @@ function EscalationDetail({
         {/* Detail grid */}
         <div className="grid grid-cols-2 gap-3.5">
           <DetailField label="Kanaal"   value={item.channel} />
-          <DetailField label="Geopend"  value={`${item.opened.slice(0, 10)} · ${item.opened.slice(11, 16)}`} />
+          <DetailField label="Geopend"  value={fmtDateTime(item.opened)} />
         </div>
 
         {/* Clinical note */}
