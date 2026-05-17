@@ -920,3 +920,21 @@ Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie
 - Evidence 08 volgt zelfde iteratieve structuur als evidence 05 (bugrapporten per iteratie, commit per fix)
 
 **Commit:** `bd07eca`
+
+---
+
+## Stap 44 — 2026-05-17
+
+**Wat:** Laag 1 escalatie-prompt aangescherpt — te veel niet-urgente berichten werden als `Urgent` geëscaleerd.
+
+**Probleem:** Berichten als "ik heb veel gewerkt en ben vermoeid", "ik heb last van mijn nek" en "krijg pijn als ik naar links kijk" werden door qwen2.5:0.5b als escalatie gemarkeerd en in de UI getoond als `Urgent`. Daardoor verloor de escalatielijst signaalwaarde — een gewoon gesprek werd als noodgeval gelogd.
+
+**Aanpassing in `backend/routers/chat/_escalation.py`:**
+- `_CLASSIFY_SYSTEM` herschreven met expliciete NIET-escaleren lijst (vermoeidheid, milde pijn, medicatievragen, begroetingen, gewone conversatie)
+- Strikt onderscheid tussen `high` (levensbedreigend) en `medium` (ernstig maar niet acuut)
+- Default-gedrag expliciet: NIET escaleren tenzij duidelijk acuut
+- Extra Nederlandstalige voorbeelden zodat de kleine 0.5B-model conservatiever wordt
+
+**Beslissingen:**
+- Fix in prompt, niet in code-filter — zo blijven Langfuse-traces overeenkomen met de modelbeslissing
+- `low` blijft buiten het JSON-schema; als het laag is hoort het `escalate=false` te zijn

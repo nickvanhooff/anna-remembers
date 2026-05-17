@@ -66,15 +66,50 @@ _ESCALATION_MODEL = os.getenv("ESCALATION_MODEL", "qwen2.5:0.5b")
 
 _CLASSIFY_SYSTEM = (
     "You are a medical triage assistant for heart failure patients. "
-    "Patient messages may be in Dutch. Decide if escalation to a healthcare provider is needed. "
-    "Escalate for: chest pain, loss of consciousness, breathing problems, self-harm, "
-    "burning sensation or burns, severe pain, blood in stool, statements about dying, emergencies. "
-    "Do NOT escalate for greetings only (hallo, olla, hi) or stable check-ins with no symptoms. "
+    "Patient messages may be in Dutch. Decide if a healthcare provider should be informed.\n"
+    "\n"
+    "Three urgency levels:\n"
+    "- high  = ACUTE emergency, ambulance-level: chest pain, loss of consciousness, "
+    "severe breathing problems, hartaanval, hartstilstand, self-harm/suicide, dying statements, "
+    "coughing up blood, blood in stool/vomit.\n"
+    "- medium = SERIOUS but not immediate: burns, severe pain, fast heart + dizziness, "
+    "waking up unable to breathe, persistent severe symptoms.\n"
+    "- low (info) = SOFT WARNING SIGN worth noting for the provider but not urgent: "
+    "mild edema (dikke enkels), unexplained weight gain (kilo's zwaarder), shortness of breath "
+    "after light exertion, feeling generally unwell over time, mild but persistent symptoms, "
+    "early heart failure signs like swelling, fatigue patterns, medication concerns.\n"
+    "\n"
+    "ESCALATE=false (do NOT log) for:\n"
+    "- greetings (hallo, hoi, olla)\n"
+    "- small talk, casual chat, questions about Anna\n"
+    "- normal tiredness from one busy day (vermoeid van lange dag)\n"
+    "- one-off minor complaints (lichte hoofdpijn, nekpijn zonder context)\n"
+    "- general medical knowledge questions (wat doet mijn medicijn)\n"
+    "- stable reports with no symptoms (gewicht stabiel, pillen genomen)\n"
+    "- pure curiosity or casual questions\n"
+    "\n"
+    "Default: when in doubt between false and low, choose low if there is ANY symptom mentioned. "
+    "When in doubt between low and medium, choose low. Reserve high strictly for acute danger.\n"
+    "\n"
     "Reply ONLY with a JSON object, no markdown, no explanation. "
     'The "reason" field MUST be in Dutch (Nederlands), max 80 characters.\n'
-    'Schema: {"escalate": true/false, "urgency": "high"|"medium", "reason": "..."}\n'
-    'Example: "ik verbrand" -> {"escalate": true, "urgency": "medium", "reason": "brandend gevoel gemeld"}\n'
-    'Example: "olla" -> {"escalate": false, "urgency": "medium", "reason": "alleen begroeting"}'
+    'Schema: {"escalate": true/false, "urgency": "high"|"medium"|"low", "reason": "..."}\n'
+    "\n"
+    "Examples:\n"
+    '"ik heb pijn op de borst" -> {"escalate": true, "urgency": "high", "reason": "pijn op de borst gemeld"}\n'
+    '"ik heb bloed opgehoest" -> {"escalate": true, "urgency": "high", "reason": "bloed opgehoest gemeld"}\n'
+    '"mijn hart bonkt en ik ben duizelig" -> {"escalate": true, "urgency": "medium", "reason": "hartkloppingen met duizeligheid"}\n'
+    '"ik verbrand mijn hand" -> {"escalate": true, "urgency": "medium", "reason": "brandwond gemeld"}\n'
+    '"mijn enkels zijn een beetje dikker" -> {"escalate": true, "urgency": "low", "reason": "milde enkeloedeem, vroegsignaal"}\n'
+    '"ik ben 3 kg zwaarder dan gisteren" -> {"escalate": true, "urgency": "low", "reason": "plotselinge gewichtstoename"}\n'
+    '"ik ben benauwd na het traplopen" -> {"escalate": true, "urgency": "low", "reason": "kortademig bij inspanning"}\n'
+    '"ik voel me niet zo goed vandaag" -> {"escalate": true, "urgency": "low", "reason": "algemeen onwel gevoel gemeld"}\n'
+    '"ik heb last van mijn nek" -> {"escalate": true, "urgency": "low", "reason": "milde nekpijn gemeld"}\n'
+    '"olla" -> {"escalate": false, "urgency": "low", "reason": "alleen begroeting"}\n'
+    '"ik ben vermoeid van een lange dag" -> {"escalate": false, "urgency": "low", "reason": "normale vermoeidheid"}\n'
+    '"wat doet mijn furosemide" -> {"escalate": false, "urgency": "low", "reason": "kennisvraag over medicijn"}\n'
+    '"mijn gewicht is stabiel, pillen genomen" -> {"escalate": false, "urgency": "low", "reason": "stabiele check-in"}\n'
+    '"hoe gaat het met je" -> {"escalate": false, "urgency": "low", "reason": "gewone conversatie"}'
 )
 
 _REASON_MSG_MAX = 300
