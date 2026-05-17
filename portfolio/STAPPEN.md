@@ -904,21 +904,19 @@ Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie
 - Geen functionele wijzigingen — alleen structuur; `main.py` hoefde niet aangepast (`from routers import chat` werkt met package)
 - `_` prefix voor interne modules — conventie dat ze niet direct geïmporteerd worden buiten het package
 
-**Commit:** (nog niet gecommit)
-
 ---
 
 ## Stap 43 — 2026-05-17
 
-**Wat:** Evidence 07 aangemaakt — C3 en C4 diagrammen van de volledige chat-pipeline.
+**Wat:** Evidence 07 (C3/C4 diagrammen) en evidence 08 (implementatie-iteraties) aangemaakt; DL4 bijgewerkt en alles gecommit.
 
 **Gedaan:**
-- `portfolio/evidence/evidence_07_c3_c4_chat_pipeline.md`
-- C3 (Component): alle componenten binnen de FastAPI backend en hun relaties naar MCP Server en externe LLMs
-- C4 (Sequence): exacte aanroepvolgorde binnen `_routes.py → chat()` — van POST-aanvraag tot HTTP-response, inclusief parallelle MCP-aanroepen via `asyncio.gather()` en BackgroundTasks
+- `portfolio/evidence/evidence_07_c3_c4_chat_pipeline.md` — C3 componentdiagram Backend + C4 sequentiediagram van één chat-request
+- `portfolio/evidence/evidence_08_escalatie_implementatie.md` — 5 implementatie-iteraties gedocumenteerd (modelswitch, prompt fix, timeout, cooldown, reden-opmaak) + API-testbewijs
+- `portfolio/decision-logs/DL4_escalatie_detectie.md` — model gecorrigeerd (gemma4:e2b → qwen2.5:0.5b), alle evidence-links gekoppeld, succescriteria gemarkeerd als gehaald, commits toegevoegd
 
 **Beslissingen:**
-- Sequence diagram voor C4 i.p.v. klasse/code diagram — toont beter de temporele volgorde en het async/parallel gedrag
-- Toelichttabel per stap toegevoegd om "waarom zo" leesbaar te maken voor de beoordelaar
+- Sequence diagram voor C4 i.p.v. klasse/code diagram — toont beter temporele volgorde en async/parallel gedrag
+- Evidence 08 volgt zelfde iteratieve structuur als evidence 05 (bugrapporten per iteratie, commit per fix)
 
-**Commit:** (nog niet gecommit)
+**Commit:** `bd07eca`
