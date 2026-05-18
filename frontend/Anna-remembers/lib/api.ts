@@ -200,7 +200,7 @@ export async function updateEscalationStatus(id: string, status: EscalationStatu
   return toEscalation(data)
 }
 
-// ─── Trends (nog mock) ────────────────────────────────────────────
+// ─── Trends (still mock) ──────────────────────────────────────────
 
 export async function getTrends(patientId: string): Promise<TrendPoint[]> {
   // TODO: return get<TrendPoint[]>(`/patients/${patientId}/trends`)

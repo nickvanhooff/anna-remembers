@@ -1,10 +1,10 @@
-"""Escalatie-tool — meldt urgente situaties aan een zorgverlener.
+"""Escalation tool — reports urgent situations to a care provider.
 
-Aanpak (optie B): slaat de escalatie op via de FastAPI backend (POST /escalations)
-zodat PostgreSQL-logica op één plek blijft. De MCP-tool is een dunne orchestrator:
-valideren → backend aanroepen → loggen.
+Approach (option B): stores the escalation via the FastAPI backend (POST /escalations)
+so PostgreSQL logic stays in one place. The MCP tool is a thin orchestrator:
+validate → call backend → log.
 
-Notificatie (email/Slack) wordt afgehandeld door de backend in issue #25.
+Notification (email/Slack) is handled by the backend in issue #25.
 """
 
 import logging
@@ -23,10 +23,10 @@ async def escalate_to_human(
     reason: str,
     urgency: str,
 ) -> str:
-    """Escaleer naar een zorgverlener en sla op in PostgreSQL via de backend.
+    """Escalate to a care provider and store in PostgreSQL via the backend.
 
     urgency: "low" | "medium" | "high"
-    Kanaal (issue #25): email (low/medium) | Slack (high)
+    Channel (issue #25): email (low/medium) | Slack (high)
     """
     if urgency not in _VALID_URGENCY:
         raise ValueError(f"urgency moet een van {_VALID_URGENCY} zijn, got: {urgency!r}")
@@ -52,7 +52,7 @@ async def escalate_to_human(
         reason,
     )
 
-    # Issue #25: notificatie (email/Slack) wordt getriggerd vanuit de backend
-    # na het opslaan — notification_status in DB start op "pending".
+    # Issue #25: notification (email/Slack) is triggered from the backend
+    # after storing — notification_status in DB starts as "pending".
 
     return escalation_id

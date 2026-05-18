@@ -1,4 +1,4 @@
-"""Escalaties router — opslaan en beheren van escalaties naar zorgverleners."""
+"""Escalations router — store and manage escalations to care providers."""
 
 import uuid
 
@@ -31,7 +31,7 @@ def _to_response(e: Escalation) -> EscalationResponse:
 
 @router.post("/", response_model=EscalationResponse, status_code=201)
 def create_escalation(body: EscalationCreate, db: Session = Depends(get_db)) -> EscalationResponse:
-    """Sla een escalatie op. Aangeroepen door de MCP-server tool escalate_to_human."""
+    """Store an escalation. Called by the MCP server tool escalate_to_human."""
     if body.urgency not in _VALID_URGENCY:
         raise HTTPException(status_code=422, detail=f"urgency moet een van {_VALID_URGENCY} zijn")
 
@@ -48,15 +48,15 @@ def create_escalation(body: EscalationCreate, db: Session = Depends(get_db)) -> 
     db.refresh(escalation)
     db.refresh(escalation, ["patient"])
 
-    # Issue #25: stuur hier de notificatie (email bij low/medium, Slack bij high)
-    # en update escalation.notification_status naar "sent" of "failed".
+    # Issue #25: send notification here (email for low/medium, Slack for high)
+    # and update escalation.notification_status to "sent" or "failed".
 
     return _to_response(escalation)
 
 
 @router.get("/", response_model=list[EscalationResponse])
 def list_escalations(db: Session = Depends(get_db)) -> list[EscalationResponse]:
-    """Geef alle escalaties terug, nieuwste eerst."""
+    """Return all escalations, newest first."""
     rows = (
         db.query(Escalation)
         .options(joinedload(Escalation.patient))
@@ -68,7 +68,7 @@ def list_escalations(db: Session = Depends(get_db)) -> list[EscalationResponse]:
 
 @router.get("/{escalation_id}", response_model=EscalationResponse)
 def get_escalation(escalation_id: uuid.UUID, db: Session = Depends(get_db)) -> EscalationResponse:
-    """Geef één escalatie op basis van ID."""
+    """Return one escalation by ID."""
     escalation = (
         db.query(Escalation)
         .options(joinedload(Escalation.patient))
@@ -86,7 +86,7 @@ def update_escalation_status(
     body: EscalationStatusUpdate,
     db: Session = Depends(get_db),
 ) -> EscalationResponse:
-    """Werk de status bij (open → acknowledged → resolved)."""
+    """Update status (open → acknowledged → resolved)."""
     if body.status not in _VALID_STATUS:
         raise HTTPException(status_code=422, detail=f"status moet een van {_VALID_STATUS} zijn")
 

@@ -11,7 +11,7 @@ from services.embedding import (
 
 
 def test_embedding_provider_is_abstract():
-    """EmbeddingProvider mag niet direct geïnstantieerd worden."""
+    """EmbeddingProvider cannot be instantiated directly."""
     with pytest.raises(TypeError):
         EmbeddingProvider()
 
@@ -19,7 +19,7 @@ def test_embedding_provider_is_abstract():
 @pytest.mark.asyncio
 @respx.mock
 async def test_ollama_embed_returns_1024_vector():
-    """Happy path: Ollama retourneert 1024 floats."""
+    """Happy path: Ollama returns 1024 floats."""
     respx.post("http://localhost:11434/api/embed").mock(
         return_value=Response(200, json={"embeddings": [[0.1] * 1024]})
     )
@@ -32,7 +32,7 @@ async def test_ollama_embed_returns_1024_vector():
 @pytest.mark.asyncio
 @respx.mock
 async def test_ollama_embed_raises_on_connection_error():
-    """Als Ollama onbereikbaar is, gooit embed() EmbeddingUnavailableError."""
+    """If Ollama is unreachable, embed() raises EmbeddingUnavailableError."""
     import httpx
     respx.post("http://localhost:11434/api/embed").mock(
         side_effect=httpx.ConnectError("connection refused")
@@ -43,7 +43,7 @@ async def test_ollama_embed_raises_on_connection_error():
 
 
 def test_get_embedding_provider_returns_ollama(monkeypatch):
-    """Factory geeft OllamaEmbeddingProvider terug met waarden uit env."""
+    """Factory returns OllamaEmbeddingProvider with values from env."""
     monkeypatch.setenv("EMBEDDING_MODEL", "bge-m3")
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama:11434")
     provider = get_embedding_provider()

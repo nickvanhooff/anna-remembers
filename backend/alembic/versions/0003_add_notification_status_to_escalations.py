@@ -17,7 +17,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # pending → issue #25 pikt dit op en stuurt de notificatie
+    # pending → issue #25 picks this up and sends the notification
     op.add_column(
         "escalations",
         sa.Column(

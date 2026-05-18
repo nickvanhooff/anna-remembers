@@ -1,11 +1,11 @@
-/** Gestructureerde weergave van `escalations.reason` (backend `_format_escalation_reason`). */
+/** Structured view of `escalations.reason` (backend `format_escalation_reason`). */
 
 export interface ParsedEscalationReason {
   raw: string
   layer?: string
   patientMessage?: string
   detail?: string
-  /** Geen `Patiëntbericht: «…»` — oude Layer-1 bracket-tekst of kale keyword-regel */
+  /** No `Patiëntbericht: «…»` — legacy Layer-1 bracket text or bare keyword line */
   isLegacy: boolean
 }
 
@@ -14,7 +14,7 @@ const NEW_FORMAT_RE =
 
 const LEGACY_LAYER1_RE = /^\[Layer\s*(\d+)\s*—\s*([^\]]+)\]\s*([\s\S]*)$/u
 
-/** Parseert reason-string uit PostgreSQL naar laag, patiëntbericht en detail. */
+/** Parses reason string from PostgreSQL into layer, patient message, and detail. */
 export function parseEscalationReason(reason: string): ParsedEscalationReason {
   const raw = reason.trim()
   if (!raw) {
@@ -57,7 +57,7 @@ export function parseEscalationReason(reason: string): ParsedEscalationReason {
   return { raw, isLegacy: true }
 }
 
-/** Korte label voor tabel-badge, bv. "Laag 0" of "Laag 1". */
+/** Short label for table badge, e.g. "Laag 0" or "Laag 1". */
 export function escalationLayerShort(layer?: string): string | null {
   if (!layer) return null
   const m = layer.match(/Laag\s*(\d+)/i)

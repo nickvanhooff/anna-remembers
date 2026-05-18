@@ -12,13 +12,13 @@ router = APIRouter(prefix="/patients", tags=["patients"])
 
 @router.get("/", response_model=list[PatientResponse])
 def list_patients(db: Session = Depends(get_db)) -> list[Patient]:
-    """Geef alle patiënten terug."""
+    """Return all patients."""
     return db.query(Patient).all()
 
 
 @router.post("/", response_model=PatientResponse, status_code=201)
 def create_patient(body: PatientCreate, db: Session = Depends(get_db)) -> Patient:
-    """Maak een nieuwe patiënt aan."""
+    """Create a new patient."""
     patient = Patient(**body.model_dump())
     db.add(patient)
     db.commit()
@@ -28,7 +28,7 @@ def create_patient(body: PatientCreate, db: Session = Depends(get_db)) -> Patien
 
 @router.get("/{patient_id}", response_model=PatientResponse)
 def get_patient(patient_id: uuid.UUID, db: Session = Depends(get_db)) -> Patient:
-    """Geef één patiënt op basis van ID."""
+    """Return one patient by ID."""
     patient = db.get(Patient, patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patiënt niet gevonden")
@@ -39,7 +39,7 @@ def get_patient(patient_id: uuid.UUID, db: Session = Depends(get_db)) -> Patient
 def update_patient(
     patient_id: uuid.UUID, body: PatientUpdate, db: Session = Depends(get_db)
 ) -> Patient:
-    """Pas patiëntgegevens aan (alleen meegegeven velden)."""
+    """Update patient fields (only provided fields)."""
     patient = db.get(Patient, patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patiënt niet gevonden")
@@ -52,7 +52,7 @@ def update_patient(
 
 @router.delete("/{patient_id}", status_code=204)
 def delete_patient(patient_id: uuid.UUID, db: Session = Depends(get_db)) -> None:
-    """Verwijder een patiënt en alle bijbehorende data (cascade)."""
+    """Delete a patient and all related data (cascade)."""
     patient = db.get(Patient, patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patiënt niet gevonden")

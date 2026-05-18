@@ -1,23 +1,23 @@
-"""Seeder — vult Postgres + ChromaDB met 3 demo-patiënten voor een complete demo-state.
+"""Seeder — fills Postgres + ChromaDB with 3 demo patients for a complete demo state.
 
-Scenario's (zie CLAUDE.md):
-  P1 — Stabiel: goede medicatietrouw, geen escalatie
-  P2 — Verslechtering: gewicht + kortademigheid stijgen over weken → escalatie
-  P3 — Acuut: plotselinge verslechtering tijdens routine check-in → urgente escalatie
+Scenarios (see CLAUDE.md):
+  P1 — Stable: good medication adherence, no escalation
+  P2 — Decline: weight + shortness of breath rise over weeks → escalation
+  P3 — Acute: sudden deterioration during routine check-in → urgent escalation
 
-Wat de seeder doet:
-  - Patiënten + medication_schedule + compact medical_summary JSON (sym/med/wgt/bhv/ovr)
-  - 10 gepaarde chat-sessies per patiënt (patient + assistant, handgeschreven)
-  - 2 escalaties (medium voor P2, high voor P3)
-  - ChromaDB-memories per patiënt via MCP store_memory (echte bge-m3 embeddings)
+What the seeder does:
+  - Patients + medication_schedule + compact medical_summary JSON (sym/med/wgt/bhv/ovr)
+  - 10 paired chat sessions per patient (patient + assistant, hand-written)
+  - 2 escalations (medium for P2, high for P3)
+  - ChromaDB memories per patient via MCP store_memory (real bge-m3 embeddings)
 
-Gebruik:
+Usage:
   docker exec -it anna_remembers-backend-1 python seed.py
   docker exec -it anna_remembers-backend-1 python seed.py --reset
 
-Opties:
+Options:
   --reset     TRUNCATE patients/sessions/messages/escalations + delete Chroma collection
-  --no-rag    Skip ChromaDB memories (alleen Postgres)
+  --no-rag    Skip ChromaDB memories (Postgres only)
 """
 import argparse
 import asyncio
@@ -46,8 +46,8 @@ CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
 
 # ─── Patient data ─────────────────────────────────────────────────
 
-# medical_summary volgt het JSON-formaat uit CLAUDE.md: sym/med/wgt/bhv/ovr
-# (symptomen / medicatie / gewicht / gedrag / overig)
+# medical_summary follows JSON format from CLAUDE.md: sym/med/wgt/bhv/ovr
+# (symptoms / medication / weight / behaviour / other)
 
 PATIENTS = [
     {
@@ -97,7 +97,7 @@ PATIENTS = [
     },
 ]
 
-# ─── Sessiegesprekken per patiënt (week 1–10, gepaarde berichten) ─────────────
+# ─── Session conversations per patient (weeks 1–10, paired messages) ─────────
 
 SESSIONS: dict[str, list[list[tuple[str, str]]]] = {
     "Maria Jansen": [
@@ -168,8 +168,8 @@ SESSIONS: dict[str, list[list[tuple[str, str]]]] = {
     ],
 }
 
-# ─── ChromaDB memories per patiënt ────────────────────────────────
-# Wordt via MCP store_memory geïndexeerd met bge-m3 embeddings.
+# ─── ChromaDB memories per patient ────────────────────────────────
+# Indexed via MCP store_memory with bge-m3 embeddings.
 # source = "patient_stated" | "ai_inferred"
 
 MEMORIES: dict[str, list[tuple[str, str]]] = {
@@ -211,7 +211,7 @@ MEMORIES: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
-# ─── Escalaties ───────────────────────────────────────────────────
+# ─── Escalations ──────────────────────────────────────────────────
 
 ESCALATIONS = [
     {
@@ -234,14 +234,14 @@ ESCALATIONS = [
 # ─── Reset helpers ────────────────────────────────────────────────
 
 def reset_postgres(db) -> None:
-    """TRUNCATE alle relevante tabellen. CASCADE haalt sessions/messages/escalations mee."""
+    """TRUNCATE all relevant tables. CASCADE removes sessions/messages/escalations."""
     print("Postgres TRUNCATE patients, sessions, messages, escalations...")
     db.execute(text("TRUNCATE TABLE patients, sessions, messages, escalations RESTART IDENTITY CASCADE"))
     db.commit()
 
 
 def reset_chromadb() -> None:
-    """Verwijder de patient_memories collectie zodat hij vers wordt aangemaakt."""
+    """Delete the patient_memories collection so it is recreated fresh."""
     try:
         import chromadb
         client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
@@ -329,7 +329,7 @@ async def seed_chromadb(
     created_patients: dict[str, Patient],
     created_sessions: dict[str, list[ChatSession]],
 ) -> int:
-    """Roep MCP store_memory aan voor elke memory. Vereist een draaiende MCP-server."""
+    """Call MCP store_memory for each memory. Requires a running MCP server."""
     print(f"Vullen ChromaDB via MCP ({MCP_URL})...")
     mcp = MCPClient(base_url=MCP_URL)
     total = 0

@@ -3,10 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routers import chat, escalations, patients
 
-# Geen logica in dit bestand — alleen app-setup en router-registratie.
+# No logic in this file — app setup and router registration only.
 app = FastAPI(
     title="Anna Remembers API",
-    description="Backend API voor de Anna Remembers gezondheidsassistent",
+    description="Backend API for the Anna Remembers health assistant",
     version="0.1.0",
 )
 
@@ -24,5 +24,5 @@ app.include_router(escalations.router)
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    """Health check — bevestigt dat de backend bereikbaar is."""
+    """Health check — confirms the backend is reachable."""
     return {"status": "ok"}

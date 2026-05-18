@@ -1037,3 +1037,24 @@ Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie
 - `chromadb` package niet aan backend requirements toegevoegd — niet nodig dankzij upsert-met-deterministisch-ID
 
 **Prompt 3:** *"Voeg ook mijn prompts toe bij stappen voor deze chat"* — deze update zelf.
+
+---
+
+## Stap 49 — 2026-05-17
+
+**Wat:** Alle code-documentatie (comments, docstrings, JSDoc) van Nederlands naar Engels — zonder logica of runtime-strings te wijzigen.
+
+**Gedaan:**
+- Backend: `main.py`, models, services, routers (`chat/*`, `patients`, `escalations`), `alembic/env.py`, tests, `seed.py` (alleen `#`-comments)
+- MCP-server: `main.py`, `tools/*`, `services/embedding.py`, tests
+- Frontend: `lib/utils.ts`, `lib/api.ts`, `parse-escalation-reason.ts`, `chat-screen.tsx`, `escalation-reason-display.tsx` (JSDoc/comments)
+
+**Niet vertaald (bewust runtime/UX):**
+- Anna system prompts (`_prompts.py` string literals)
+- HTTP `detail`-fouten, UI-labels/toasts, seed-dialoogdata
+- Escalatie-keyword-lijsten en `format_escalation_reason`-template (`Patiëntbericht: «…»`)
+
+**Beslissingen:**
+- Documentatie in het Engels (projectconventie CLAUDE.md); producttaal Anna en patiënt blijft Nederlands
+
+**Commit:** (nog niet gecommit)

@@ -6,8 +6,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 function parseBackendDate(d: string): Date {
-  // Backend stuurt naive UTC datetimes (datetime.utcnow zonder timezone-suffix).
-  // Voeg "Z" toe zodat de browser het als UTC parseert en correct naar lokale tijd vertaalt.
+  // Backend sends naive UTC datetimes (datetime.utcnow without timezone suffix).
+  // Append "Z" so the browser parses as UTC and converts to local time correctly.
   if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(d)) return new Date(d)
   return new Date(d + "Z")
 }

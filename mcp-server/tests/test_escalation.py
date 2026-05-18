@@ -29,7 +29,7 @@ def _mock_post(respx_mock, status_code=201, urgency="high"):
 @pytest.mark.asyncio
 @respx.mock
 async def test_escalate_stores_via_backend(respx_mock):
-    """escalate_to_human POST'et naar de backend en geeft het escalation-ID terug."""
+    """escalate_to_human POSTs to the backend and returns the escalation ID."""
     _mock_post(respx_mock)
     result = await escalate_to_human(
         patient_id="patient-1",
@@ -43,7 +43,7 @@ async def test_escalate_stores_via_backend(respx_mock):
 @pytest.mark.asyncio
 @respx.mock
 async def test_escalate_accepts_all_urgency_levels(respx_mock):
-    """Alle geldige urgency-waarden worden doorgestuurd naar de backend."""
+    """All valid urgency values are forwarded to the backend."""
     for urgency in ("low", "medium", "high"):
         _mock_post(respx_mock, urgency=urgency)
         result = await escalate_to_human(
@@ -57,7 +57,7 @@ async def test_escalate_accepts_all_urgency_levels(respx_mock):
 
 @pytest.mark.asyncio
 async def test_escalate_rejects_invalid_urgency():
-    """Ongeldige urgency gooit een ValueError vóór de HTTP-call."""
+    """Invalid urgency raises ValueError before the HTTP call."""
     with pytest.raises(ValueError, match="urgency moet"):
         await escalate_to_human(
             patient_id="p1",
@@ -69,7 +69,7 @@ async def test_escalate_rejects_invalid_urgency():
 @pytest.mark.asyncio
 @respx.mock
 async def test_escalate_raises_on_backend_error(respx_mock):
-    """HTTP-fout van de backend bubbelt op als httpx.HTTPStatusError."""
+    """Backend HTTP error bubbles up as httpx.HTTPStatusError."""
     respx_mock.post(f"{_BACKEND}/escalations/").mock(
         return_value=httpx.Response(500, json={"detail": "internal error"})
     )

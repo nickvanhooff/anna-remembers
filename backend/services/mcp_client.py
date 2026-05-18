@@ -1,7 +1,7 @@
-"""MCP-client — verbindt FastAPI met de MCP-server via het SSE-protocol.
+"""MCP client — connects FastAPI to the MCP server over SSE.
 
-FastAPI roept nooit rechtstreeks ChromaDB of de embedder aan.
-Alle AI-geheugenlogica zit in de MCP-server op poort 8001.
+FastAPI never calls ChromaDB or the embedder directly.
+All AI memory logic lives in the MCP server on port 8001.
 """
 import json
 import os
@@ -36,7 +36,7 @@ def _unwrap_tool_result(result):
 
 
 class MCPClient:
-    """Wrapper om fastmcp.Client die de MCP tools als Python-methodes aanbiedt."""
+    """Wrapper around fastmcp.Client exposing MCP tools as Python methods."""
 
     def __init__(self, base_url: str) -> None:
         self._url = f"{base_url}/sse"
@@ -47,7 +47,7 @@ class MCPClient:
         patient_id: str,
         limit: int = 5,
     ) -> list[dict]:
-        """Semantische RAG-search over eerdere uitspraken van een patiënt."""
+        """Semantic RAG search over a patient's prior statements."""
         async with Client(self._url) as client:
             result = await client.call_tool(
                 "recall_context",
@@ -65,10 +65,10 @@ class MCPClient:
         patient_id: str,
         session_id: str,
     ) -> str:
-        """Sla een uitspraak op als vector in ChromaDB via de MCP-server.
+        """Store a statement as a vector in ChromaDB via the MCP server.
 
         source: "patient_stated" | "ai_inferred"
-        Retourneert de doc_id (UUID) van het opgeslagen document.
+        Returns the doc_id (UUID) of the stored document.
         """
         async with Client(self._url) as client:
             result = await client.call_tool(
@@ -90,7 +90,7 @@ class MCPClient:
         patient_id: str,
         weeks: int = 4,
     ) -> dict:
-        """Stub — get_symptom_trends volgt in een volgend issue."""
+        """Stub — get_symptom_trends comes in a future issue."""
         return {}
 
     async def escalate_to_human(
@@ -99,10 +99,10 @@ class MCPClient:
         reason: str,
         urgency: str,
     ) -> str:
-        """Roep de escalate_to_human MCP-tool aan.
+        """Call the escalate_to_human MCP tool.
 
         urgency: "low" | "medium" | "high"
-        Retourneert het escalation-ID (UUID string).
+        Returns the escalation ID (UUID string).
         """
         async with Client(self._url) as client:
             result = await client.call_tool(
@@ -113,6 +113,6 @@ class MCPClient:
 
 
 def get_mcp_client() -> MCPClient:
-    """FastAPI Depends() factory — leest MCP_URL uit de omgeving."""
+    """FastAPI Depends() factory — reads MCP_URL from the environment."""
     base_url = os.getenv("MCP_URL", "http://mcp-server:8001")
     return MCPClient(base_url=base_url)
