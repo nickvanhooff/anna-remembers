@@ -6,7 +6,7 @@ from services.mcp_client import MCPClient
 
 
 def _text_content(text: str):
-    """Simuleert een fastmcp TextContent object."""
+    """Simulates a fastmcp TextContent object."""
     obj = MagicMock()
     obj.text = text
     return obj
@@ -19,7 +19,7 @@ def client():
 
 @pytest.mark.asyncio
 async def test_recall_context_calls_correct_tool(client):
-    """recall_context roept call_tool aan met juiste naam en args."""
+    """recall_context calls call_tool with correct name and args."""
     memories = [
         {"content": "Kortademig na traplopen", "source": "patient_stated",
          "session_id": "s-1", "distance": 0.12}
@@ -48,7 +48,7 @@ async def test_recall_context_calls_correct_tool(client):
 
 @pytest.mark.asyncio
 async def test_store_memory_calls_correct_tool(client):
-    """store_memory roept call_tool aan en geeft de doc_id terug."""
+    """store_memory calls call_tool and returns the doc_id."""
     doc_id = "550e8400-e29b-41d4-a716-446655440000"
     mock_inner = AsyncMock()
     mock_inner.call_tool = AsyncMock(
@@ -80,14 +80,14 @@ async def test_store_memory_calls_correct_tool(client):
 
 @pytest.mark.asyncio
 async def test_get_symptom_trends_is_stub(client):
-    """get_symptom_trends retourneert leeg dict — is nog niet geïmplementeerd."""
+    """get_symptom_trends returns empty dict — not implemented yet."""
     result = await client.get_symptom_trends(patient_id="patient-1", weeks=4)
     assert result == {}
 
 
 @pytest.mark.asyncio
 async def test_escalate_to_human_is_stub(client):
-    """escalate_to_human retourneert None — is een stub."""
+    """escalate_to_human returns None — is a stub."""
     result = await client.escalate_to_human(
         patient_id="patient-1",
         reason="Gewicht +3kg in 2 dagen",

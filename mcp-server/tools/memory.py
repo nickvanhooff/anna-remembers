@@ -10,7 +10,7 @@ _collection = None
 
 
 def get_collection():
-    """Lazy-init van de ChromaDB collectie (singleton per process)."""
+    """Lazy-init of the ChromaDB collection (singleton per process)."""
     global _collection
     if _collection is None:
         client = chromadb.HttpClient(
@@ -31,10 +31,10 @@ async def store_memory(
     session_id: str,
     embed: EmbeddingProvider,
 ) -> str:
-    """Embedt content en slaat het op in ChromaDB."""
+    """Embed content and store it in ChromaDB."""
     vector = await embed.embed(content)
     collection = get_collection()
-    # Deterministisch ID: zelfde inhoud + zelfde patiënt → zelfde document (geen duplicaten)
+    # Deterministic ID: same content + same patient → same document (no duplicates)
     doc_id = hashlib.sha256(f"{patient_id}:{content}".encode()).hexdigest()[:32]
     collection.upsert(
         embeddings=[vector],
@@ -58,7 +58,7 @@ async def recall_context(
     limit: int,
     embed: EmbeddingProvider,
 ) -> list[dict]:
-    """Zoek semantisch gerelateerde herinneringen voor een patiënt."""
+    """Search semantically related memories for a patient."""
     vector = await embed.embed(query)
     collection = get_collection()
     results = collection.query(

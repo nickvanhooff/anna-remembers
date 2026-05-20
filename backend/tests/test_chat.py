@@ -15,7 +15,7 @@ from models.patient import Patient
 from services.database import get_db
 from services.mcp_client import get_mcp_client
 
-# StaticPool zodat alle sessions dezelfde in-memory SQLite connection delen
+# StaticPool so all sessions share the same in-memory SQLite connection
 engine = create_engine(
     "sqlite://",
     connect_args={"check_same_thread": False},
@@ -33,7 +33,7 @@ def override_get_db():
 
 
 def make_mock_mcp(memories=None):
-    """Maak een MCPClient mock met standaard lege responses."""
+    """Create an MCPClient mock with default empty responses."""
     mock = AsyncMock()
     mock.recall_context = AsyncMock(return_value=memories or [])
     mock.store_memory = AsyncMock(return_value=str(uuid.uuid4()))
@@ -43,7 +43,7 @@ def make_mock_mcp(memories=None):
 
 @pytest.fixture
 def client_with_patient():
-    """TestClient met patiënt in de database. Ruimt op na elke test."""
+    """TestClient with a patient in the database. Cleans up after each test."""
     Base.metadata.create_all(bind=engine)
 
     db = TestingSessionLocal()
@@ -71,7 +71,7 @@ def client_with_patient():
 
 
 def test_chat_returns_assistant_message(client_with_patient):
-    """POST /chat/{id} geeft een assistant MessageResponse terug."""
+    """POST /chat/{id} returns an assistant MessageResponse."""
     test_client, patient, _mock_mcp = client_with_patient
 
     with patch("routers.chat.get_llm_provider") as mock_llm_factory:
@@ -93,7 +93,7 @@ def test_chat_returns_assistant_message(client_with_patient):
 
 
 def test_chat_calls_recall_context_before_llm(client_with_patient):
-    """recall_context wordt aangeroepen vóór de LLM-call."""
+    """recall_context is called before the LLM call."""
     test_client, patient, mock_mcp = client_with_patient
 
     call_order = []
@@ -121,7 +121,7 @@ def test_chat_calls_recall_context_before_llm(client_with_patient):
 
 
 def test_chat_calls_store_memory_with_patient_stated(client_with_patient):
-    """store_memory wordt aangeroepen met source=patient_stated voor elk user bericht."""
+    """store_memory is called with source=patient_stated for each user message."""
     test_client, patient, mock_mcp = client_with_patient
 
     with patch("routers.chat.get_llm_provider") as mock_llm_factory:
@@ -142,7 +142,7 @@ def test_chat_calls_store_memory_with_patient_stated(client_with_patient):
 
 
 def test_chat_saves_both_messages_to_db(client_with_patient):
-    """Zowel het user bericht als het assistant antwoord worden opgeslagen in PostgreSQL."""
+    """Both user message and assistant reply are stored in PostgreSQL."""
     test_client, patient, _mock_mcp = client_with_patient
 
     with patch("routers.chat.get_llm_provider") as mock_llm_factory:
@@ -155,7 +155,7 @@ def test_chat_saves_both_messages_to_db(client_with_patient):
             json={"content": "Test bericht"},
         )
 
-    # StaticPool deelt de connection — nieuwe session ziet dezelfde data
+    # StaticPool shares the connection — new session sees the same data
     db = TestingSessionLocal()
     try:
         messages = db.query(Message).all()
@@ -167,7 +167,7 @@ def test_chat_saves_both_messages_to_db(client_with_patient):
 
 
 def test_chat_returns_404_for_unknown_patient(client_with_patient):
-    """POST /chat/{id} met onbekend ID geeft 404."""
+    """POST /chat/{id} with unknown ID returns 404."""
     test_client, _, _ = client_with_patient
     unknown_id = uuid.uuid4()
     response = test_client.post(
@@ -178,7 +178,7 @@ def test_chat_returns_404_for_unknown_patient(client_with_patient):
 
 
 def test_chat_rag_memories_appear_in_system_prompt(client_with_patient):
-    """Memories uit recall_context verschijnen in de system prompt naar de LLM."""
+    """Memories from recall_context appear in the system prompt sent to the LLM."""
     test_client, patient, mock_mcp = client_with_patient
     mock_mcp.recall_context = AsyncMock(
         return_value=[
@@ -214,7 +214,7 @@ def test_chat_rag_memories_appear_in_system_prompt(client_with_patient):
 
 
 def test_chat_debug_includes_context_proof(client_with_patient):
-    """Met ?debug=true bevat de response context_proof (Postgres vs RAG)."""
+    """With ?debug=true the response includes context_proof (Postgres vs RAG)."""
     test_client, patient, mock_mcp = client_with_patient
     doc_id = "chroma-doc-uuid-1"
     mock_mcp.store_memory = AsyncMock(return_value=doc_id)
@@ -260,7 +260,7 @@ def test_chat_debug_includes_context_proof(client_with_patient):
 
 
 def test_chat_without_debug_omits_context_proof_key(client_with_patient):
-    """Zonder debug heeft de JSON geen context_proof veld (exclude_none)."""
+    """Without debug the JSON has no context_proof field (exclude_none)."""
     test_client, patient, _mock_mcp = client_with_patient
 
     with patch("routers.chat.get_llm_provider") as mock_llm_factory:

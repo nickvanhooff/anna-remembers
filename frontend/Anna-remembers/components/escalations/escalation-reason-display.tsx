@@ -23,7 +23,7 @@ function LayerBadge({ layer }: { layer: string }) {
   )
 }
 
-/** Tabelcel: laag-badge + patiëntbericht prominent, beoordeling secundair. */
+/** Table cell: layer badge + patient message prominent, assessment secondary. */
 export function EscalationReasonCompact({ reason }: { reason: string }) {
   const parsed = useMemo(() => parseEscalationReason(reason), [reason])
 
@@ -50,7 +50,7 @@ export function EscalationReasonCompact({ reason }: { reason: string }) {
   )
 }
 
-/** Detaildialog: gestructureerde secties Patiëntbericht / Beoordeling / Laag. */
+/** Detail dialog: structured sections Patiëntbericht / Beoordeling / Laag. */
 export function EscalationReasonDetail({ reason }: { reason: string }) {
   const parsed = useMemo(() => parseEscalationReason(reason), [reason])
 

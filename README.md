@@ -25,6 +25,7 @@ MCP Server (fastmcp) — memory, trends, escalation tools
 - FastAPI is the only MCP client — Next.js never talks to the MCP server
 - RAG lives in the MCP server (`tools/memory.py`), not in FastAPI
 - Every stored memory has a `source` tag: `patient_stated` or `ai_inferred`
+- Escalation detection is layered: Layer 0 (deterministic keywords, synchronous) + Layer 1 (local Ollama classifier, `BackgroundTask`)
 
 ---
 
@@ -68,6 +69,11 @@ GROQ_MODEL=llama-3.3-70b-versatile
 OLLAMA_MODEL=gemma4:e2b
 EMBEDDING_MODEL=bge-m3
 
+# Layer 1 escalation classifier (small local Ollama model)
+# qwen2.5:3b is the validated choice — 0.5b proved too small for Dutch reasoning.
+ESCALATION_MODEL=qwen2.5:3b
+ESCALATION_COOLDOWN_MINUTES=0   # set >0 to suppress duplicate Layer 1 escalations per patient
+
 # Optional: Anthropic or OpenRouter
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-haiku-4-5-20251001
@@ -89,13 +95,14 @@ SUMMARY_INTERVAL=3
 docker compose up --build
 ```
 
-On first run, `ollama-init` pulls the `bge-m3` embedding model automatically. If using Ollama as the LLM provider, pull the model once manually:
+On first run, `ollama-init` pulls the `bge-m3` embedding model automatically. If using Ollama as the LLM provider, pull the chat model and the Layer 1 escalation classifier once manually:
 
 ```bash
 docker exec -it anna_remembers-ollama-1 ollama pull gemma4:e2b
+docker exec -it anna_remembers-ollama-1 ollama pull qwen2.5:3b
 ```
 
-For cloud providers (Groq, Anthropic, OpenRouter), set `LLM_PROVIDER` and the matching API key in `.env` — no local model needed.
+For cloud providers (Groq, Anthropic, OpenRouter), set `LLM_PROVIDER` and the matching API key in `.env` — no local chat model needed. The Layer 1 escalation classifier always runs locally via Ollama (`ESCALATION_MODEL`).
 
 ### Services
 
@@ -116,6 +123,23 @@ docker compose down -v   # removes volumes (all data lost)
 docker compose up --build
 ```
 
+### Seeding demo data
+
+The seeder populates Postgres + ChromaDB with three simulated patients (stable / gradual decline / acute), 10 chat sessions each, two escalations, and 30 RAG memories indexed via real bge-m3 embeddings.
+
+```bash
+# Fresh demo state (truncates patients/sessions/messages/escalations + clears Chroma collection)
+docker exec -it anna_remembers-backend-1 python seed.py --reset
+
+# Append without wiping existing data
+docker exec -it anna_remembers-backend-1 python seed.py
+
+# Skip ChromaDB memories (Postgres only — faster, but RAG won't have history)
+docker exec -it anna_remembers-backend-1 python seed.py --no-rag
+```
+
+The seeder is idempotent: `store_memory` uses deterministic SHA256 IDs (`patient_id:content`), so repeated runs upsert without creating duplicates.
+
 ---
 
 ## Project structure
@@ -135,10 +159,18 @@ anna_remembers/
 │       └── types/          # TypeScript interfaces
 │
 ├── backend/                # FastAPI
-│   ├── routers/            # patients.py, chat.py
+│   ├── routers/
+│   │   ├── patients.py
+│   │   ├── escalations.py
+│   │   └── chat/           # Chat package (refactored from single file)
+│   │       ├── _routes.py      # FastAPI handlers
+│   │       ├── _prompts.py     # System + summary prompt builders
+│   │       ├── _summary.py     # Periodic medical_summary BackgroundTask
+│   │       └── _escalation.py  # Layer 0 keywords + Layer 1 Ollama classifier
 │   ├── models/             # SQLAlchemy ORM models
 │   ├── schemas/            # Pydantic request/response schemas
 │   ├── services/           # llm.py, database.py, mcp_client.py
+│   ├── seed.py             # Demo data seeder (Postgres + ChromaDB)
 │   └── alembic/            # Database migrations
 │
 ├── mcp-server/             # fastmcp (runs as separate process)
@@ -174,8 +206,23 @@ anna_remembers/
 |---|---|---|
 | Patient management | `/patients` | Live (FastAPI) |
 | Chat with Anna | `/chat` | Live (FastAPI + RAG + medical summary) |
-| Symptom trends | `/trends` | Mock |
-| Escalation management | `/escalations` | Mock |
+| Symptom trends | `/trends` | Mock (awaiting `get_symptom_trends` MCP tool) |
+| Escalation management | `/escalations` | Live (Layer 0 + Layer 1 detection)
+
+---
+
+## Escalation detection
+
+A patient message is checked twice for emergencies, in two layers:
+
+| Layer | When | How | Latency |
+|---|---|---|---|
+| **Layer 0** | Synchronous, before LLM | Hardcoded Dutch keyword sets (`pijn op de borst`, `bewusteloos`, `brandwond`, …) split into `high` and `medium` | ~0 ms |
+| **Layer 1** | Async `BackgroundTask` after the response is sent | Local Ollama classifier (`qwen2.5:3b`) returns `{escalate, urgency, reason}` JSON. Per-patient semaphore + optional cooldown prevent duplicates | ~3–5 s |
+
+Layer 0 fires before the chat response so urgent cases trigger immediately. Layer 1 catches nuanced cases that keyword matching misses (e.g. "ik werd vannacht wakker omdat ik geen lucht kreeg"). Both paths call `escalate_to_human` via MCP. Every Layer 1 call is traced in Langfuse with input, output and model metadata.
+
+The classifier model is configurable via `ESCALATION_MODEL`. `qwen2.5:0.5b` was tested first and rejected — too small to reason in Dutch without hallucinating reasons. `qwen2.5:3b` is the current production choice. See `portfolio/decision-logs/DL4_escalatie_detectie.md`.
 
 ---
 

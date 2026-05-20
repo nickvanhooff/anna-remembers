@@ -1,4 +1,4 @@
-"""FastAPI route handlers voor het chat-eindpunt."""
+"""FastAPI route handlers for the chat endpoint."""
 
 import asyncio
 import uuid
@@ -52,7 +52,7 @@ _REFUSAL_PATTERNS = [
 
 
 def _is_question(text: str) -> bool:
-    """Detecteer of een bericht een vraag is en geen feit om op te slaan."""
+    """Detect whether a message is a question and not a fact to store."""
     stripped = text.strip().lower()
     if stripped.endswith("?"):
         return True
@@ -63,7 +63,7 @@ def _is_question(text: str) -> bool:
 
 
 def _is_refusal(content: str) -> bool:
-    """Detecteer Anna's weigeringsantwoorden."""
+    """Detect Anna's refusal responses."""
     lower = content.lower()
     return any(p in lower for p in _REFUSAL_PATTERNS)
 
@@ -132,7 +132,7 @@ def list_sessions(
     patient_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
 ) -> list[dict]:
-    """Geef alle sessies voor een patiënt, inclusief berichtenaantal."""
+    """Return all sessions for a patient, including message count."""
     if not db.get(Patient, patient_id):
         raise HTTPException(status_code=404, detail="Patiënt niet gevonden")
 
@@ -175,7 +175,7 @@ def list_messages(
     session_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
 ) -> list[Message]:
-    """Geef alle berichten voor een sessie, chronologisch."""
+    """Return all messages for a session, chronological."""
     session = db.query(ChatSession).filter(
         ChatSession.id == session_id,
         ChatSession.patient_id == patient_id,
@@ -200,7 +200,7 @@ def close_session(
     patient_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
-    """Sluit de huidige open sessie af."""
+    """Close the current open session."""
     session = (
         db.query(ChatSession)
         .filter(
@@ -251,12 +251,12 @@ async def chat(
         )),
     ] = False,
 ) -> MessageResponse:
-    """Stuur een bericht namens de patiënt en ontvang Anna's response."""
+    """Send a message on behalf of the patient and return Anna's response."""
     patient = db.get(Patient, patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patiënt niet gevonden")
 
-    # Open sessie ophalen of nieuwe aanmaken
+    # Fetch open session or create a new one
     session = (
         db.query(ChatSession)
         .filter(ChatSession.patient_id == patient_id, ChatSession.ended_at.is_(None))
@@ -268,12 +268,12 @@ async def chat(
         db.commit()
         db.refresh(session)
 
-    # User-bericht opslaan
+    # Store user message
     user_message = Message(session_id=session.id, role="user", content=body.content)
     db.add(user_message)
     db.commit()
 
-    # Alleen feitelijke uitspraken opslaan — geen vragen
+    # Store factual statements only — not questions
     store_coro = (
         mcp.store_memory(
             content=body.content,
@@ -317,7 +317,7 @@ async def chat(
                 if not (m.role == "assistant" and _is_refusal(m.content))
             ]
 
-            # Laag 0 — keyword-check vóór LLM-aanroep
+            # Layer 0 — keyword check before LLM call
             with langfuse.start_as_current_observation(as_type="span", name="escalation-layer0", input=body.content) as l0_span:
                 layer0_urgency, layer0_reason = layer0_check(body.content)
                 l0_span.update(
@@ -336,13 +336,13 @@ async def chat(
             raw_response = await llm.chat(messages=history, system=system_prompt)
             root_span.update(output=raw_response)
 
-    # Anna's antwoord opslaan
+    # Store Anna's reply
     assistant_message = Message(session_id=session.id, role="assistant", content=raw_response)
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
 
-    # Samenvatting bijwerken elke N berichten
+    # Update summary every N messages
     total_messages: int = (
         db.query(func.count(Message.id))
         .join(Message.session)
@@ -353,7 +353,7 @@ async def chat(
     if summary_triggered:
         background_tasks.add_task(trigger_summary_update, patient_id)
 
-    # Escalatie: Laag 0 direct, anders Laag 1 als BackgroundTask
+    # Escalation: Layer 0 immediate, else Layer 1 as BackgroundTask
     should_escalate = bool(layer0_urgency)
     if should_escalate:
         try:

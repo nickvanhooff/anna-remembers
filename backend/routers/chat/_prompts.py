@@ -1,4 +1,4 @@
-"""Prompt builders voor Anna's system prompt en medische samenvatting."""
+"""Prompt builders for Anna's system prompt and medical summary."""
 
 import json
 
@@ -6,12 +6,12 @@ from models.patient import Patient
 
 
 def build_system_prompt(patient: Patient, memories: list[dict]) -> str:
-    """Bouw de 3-laags system prompt voor Anna."""
+    """Build Anna's 3-layer system prompt."""
     name = f"{patient.first_name} {patient.last_name}"
     medication = json.dumps(patient.medication_schedule, ensure_ascii=False)
     notes = patient.notes or "Geen aanvullende notities."
 
-    # Alleen patient_stated feiten; noise-drempel op 0.08 (oude vragen liggen rond 0.045).
+    # patient_stated facts only; noise threshold 0.08 (old questions sit around 0.045).
     useful = [
         m for m in memories
         if m.get("source") == "patient_stated"
@@ -62,7 +62,7 @@ def build_system_prompt(patient: Patient, memories: list[dict]) -> str:
 
 
 def build_summary_prompt(patient_name: str, current_summary: str | None, messages: list[dict]) -> str:
-    """Bouw de prompt die de medische samenvatting genereert of bijwerkt."""
+    """Build the prompt that generates or updates the medical summary."""
     lines = "\n".join(f"[{m['role'].upper()}] {m['content']}" for m in messages)
     current = current_summary or '{"sym":[],"med":null,"wgt":null,"bhv":null,"ovr":[]}'
     return (

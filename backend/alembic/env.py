@@ -2,21 +2,21 @@ import os
 import sys
 from logging.config import fileConfig
 
-# Voeg de backend root (/app) toe aan het Python-pad.
-# Zonder dit kan Alembic 'models' niet vinden omdat het vanuit alembic/ draait.
+# Add backend root (/app) to Python path.
+# Without this Alembic cannot find 'models' because it runs from alembic/.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
-# Importeer Base zodat Alembic alle modellen kent bij --autogenerate.
-# Modellen worden geregistreerd via models/__init__.py.
+# Import Base so Alembic knows all models for --autogenerate.
+# Models are registered via models/__init__.py.
 from models import Base
 
 config = context.config
 
-# Lees DATABASE_URL uit de omgeving (ingesteld via docker-compose.yml).
-# Dit overschrijft de waarde in alembic.ini zodat we nooit credentials hardcoden.
+# Read DATABASE_URL from environment (set via docker-compose.yml).
+# Overrides alembic.ini so credentials are never hardcoded.
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
@@ -28,7 +28,7 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """Migraties uitvoeren zonder actieve database-verbinding (voor codegen)."""
+    """Run migrations without an active database connection (for codegen)."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -41,7 +41,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Migraties uitvoeren met actieve database-verbinding (normaal gebruik)."""
+    """Run migrations with an active database connection (normal use)."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

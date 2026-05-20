@@ -21,14 +21,14 @@ class Escalation(Base):
         UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="SET NULL"), nullable=True
     )
     reason: Mapped[str] = mapped_column(Text, nullable=False)
-    # urgency bepaalt het notificatiekanaal: low=email, medium=email+slack, high=slack direct
+    # urgency determines notification channel: low=email, medium=email+slack, high=slack direct
     urgency: Mapped[str] = mapped_column(String(20), nullable=False)
     # status: open → acknowledged → resolved
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default="open"
     )
     # notification_status: pending → sent | failed | skipped
-    # Issue #25 implementeert de daadwerkelijke verzending en werkt dit bij.
+    # Issue #25 implements actual delivery and updates this field.
     notification_status: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default="pending"
     )

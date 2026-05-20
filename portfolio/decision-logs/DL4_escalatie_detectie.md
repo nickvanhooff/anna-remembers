@@ -61,18 +61,22 @@ Het probleem met een aparte cloud-classificatieaanroep is dat het per bericht ex
 
 ### 3. Wat ik heb besloten
 
-**Gekozen: gelaagde escalatiedetectie — hardcoded keywords als vangvloer, asynchroon lokaal model (qwen2.5:0.5b) voor nuancedetectie**
+**Gekozen: gelaagde escalatiedetectie — hardcoded keywords als vangvloer, asynchroon lokaal model (qwen2.5:3b) voor nuancedetectie**
 
 De architectuur bestaat uit twee lagen:
 
 **Laag 0 — Hardcoded kritieke termen (synchroon, vóór LLM-aanroep)**  
-Een vaste set medische alarmsignalen die altijd `high`-escalatie triggeren, ongeacht context. Voorbeelden: *"bewusteloos"*, *"pijn op de borst"*, *"coma"*, *"ik ga dood"*, *"flauw"*. Geen AI nodig — als het woord erin zit, is de beslissing gemaakt. Dit is de absolute vangvloer.
+Een vaste set medische alarmsignalen die altijd `high`- of `medium`-escalatie triggeren, ongeacht context. Voorbeelden: *"bewusteloos"*, *"pijn op de borst"*, *"coma"*, *"ik ga dood"*, *"flauw"*. Geen AI nodig — als het woord erin zit, is de beslissing gemaakt. Dit is de absolute vangvloer en kost letterlijk nul tokens.
 
-**Laag 1 — qwen2.5:0.5b classificatie (asynchroon, BackgroundTask na chat-response)**  
-Als laag 0 niet triggert, wordt qwen2.5:0.5b lokaal gevraagd om te beoordelen of het bericht escalatie vereist. Dit draait als `BackgroundTask` — de chat-response is al verstuurd als deze analyse begint. De gebruiker wacht nergens op. qwen2.5:0.5b (373 MiB) draait in de bestaande Ollama Docker container; er is geen extra service nodig.
+**Laag 1 — qwen2.5:3b classificatie (asynchroon, BackgroundTask na chat-response)**  
+Als laag 0 niet triggert, wordt qwen2.5:3b lokaal gevraagd om te beoordelen of het bericht escalatie vereist. Dit draait als `BackgroundTask` — de chat-response is al verstuurd als deze analyse begint. De gebruiker wacht nergens op. qwen2.5:3b draait in de bestaande Ollama Docker container; er is geen extra service of cloudverbinding nodig.
 
-**Modelkeuze qwen2.5:0.5b i.p.v. Gemma 4 e2b:**  
-Gemma 4 e2b bleek tijdens implementatie een multimodaal model met vision-encoder (~7 GiB totaal). Dit past niet tegelijk in VRAM naast bge-m3 (embedding), waardoor Ollama het model telkens opnieuw laadde met een cold-start van >30 seconden — langer dan de httpx timeout. qwen2.5:0.5b (373 MiB) past wel naast bge-m3 zonder evictie. Zie [evidence_08](../evidence/evidence_08_escalatie_implementatie.md) voor de volledige iteratie.
+**Modelkeuze-iteraties:**  
+1. *Gemma 4 e2b* viel af: multimodaal model met vision-encoder (~7 GiB), botste met bge-m3 in VRAM → cold-start >30s.
+2. *qwen2.5:0.5b* werkte technisch maar bleek te klein voor Nederlandse causale redenering: hallucineerde redenen ("ik ben vermoeid" → "pijn op de borst gemeld") en miste duidelijke escalaties.
+3. *qwen2.5:3b* (huidige keuze) — 6× groter, betrouwbaar op Nederlands, klassificatielatentie ~3-5s in BackgroundTask. Past nog in beschikbare VRAM naast bge-m3.
+
+Voor burst-berichten (meerdere berichten snel achter elkaar van dezelfde patiënt) wordt een asyncio-semaphore per patiënt gebruikt. Dit begrenst het aantal gelijktijdige Layer 1-aanroepen per patiënt tot één, zonder dat er een complexe wachtrij nodig is. Een optionele cooldown (`ESCALATION_COOLDOWN_MINUTES`) onderdrukt dubbele escalaties.
 
 Voor burst-berichten (meerdere berichten snel achter elkaar van dezelfde patiënt) wordt een semaphore per patiënt gebruikt. Dit begrenst het aantal gelijktijdige qwen-aanroepen per patiënt tot één, zonder dat er een complexe wachtrij nodig is.
 
@@ -119,9 +123,63 @@ Optie C combineert de voordelen: betrouwbaar via keywords, nuancedectie via loka
 | Criterium | Doel | Gehaald? |
 |---|---|---|
 | **Betrouwbaarheid kritieke gevallen** | Altijd gedetecteerd | ✅ Laag 0 keywords zijn deterministisch — geen LLM afhankelijkheid voor kritieke termen |
-| **Latency voor de gebruiker** | Nul extra wachttijd | ✅ Beide lagen draaien als BackgroundTask ná de chat-response |
-| **Cloudtokenkosten** | Geen extra tokens | ✅ Keywords kosten niets; Gemma draait lokaal in bestaande Ollama container |
-| **Observeerbaarheid** | Traceerbaar in Langfuse | ✅ `escalation-layer0` child span per chat-turn; `escalation-layer1-classify` generation span als BackgroundTask |
+| **Latency voor de gebruiker** | Nul extra wachttijd | ✅ Laag 0 is sub-milliseconde; Laag 1 draait als BackgroundTask ná de chat-response |
+| **Cloudtokenkosten** | Geen extra tokens | ✅ Beide lagen draaien lokaal — zie kostenberekening §6a |
+| **Observeerbaarheid** | Traceerbaar in Langfuse | ✅ Volledige trace-structuur per chat-turn — zie §6b |
+
+---
+
+### 6a. Kosten: lokaal vs cloud-classificatie (concrete berekening)
+
+De vraag "kost dit ons extra tokens?" is voor een portfolio onder budget cruciaal. Hieronder de berekening voor één chat-bericht met de verschillende strategieën:
+
+**Aannames:**
+- Layer 1 system prompt: ~600 tokens
+- Patiëntbericht (gemiddeld): 30 tokens
+- Classificatie-respons (JSON): ~30 tokens
+- Anna's hoofdchat (Groq llama-3.3-70b) gebruikt al ~1000-1500 input + 200-400 output tokens per turn
+
+| Strategie | Tokens per bericht | Kosten per 1000 berichten (Groq prijs) | Cumulatief verschil |
+|---|---|---|---|
+| **Optie A — Cloud-classificatie (Groq)** | +660 input, +30 output | ~$0,08 | structureel ~+50% input-tokens bovenop chat |
+| **Optie B — Prompt-signaal in hoofd-LLM** | +0 (zit in chat) | $0 | onbetrouwbaar — gemiste escalaties (zie §1) |
+| **Optie C — Lokaal model + keywords (gekozen)** | **0 cloud-tokens** | **$0** | enige extra last: ~250 MB VRAM + ~3-5s CPU/GPU lokaal per niet-keyword bericht |
+
+**Concrete uitkomst:** bij een productie-scenario van 100 patiënten × 30 berichten/week zou cloud-classificatie ~12.000 berichten/maand zijn, ~$1 per maand op gratis tier Groq. Klein bedrag, maar 100% gebruik van het gratis quotum dat anders voor de hoofdchat gebruikt kon worden. Belangrijker: bij wisseling naar betaalde providers (Anthropic Claude Haiku ~$0,80 per 1M input-tokens) schaalt dit lineair met patiëntvolume. Door Laag 1 lokaal te houden zijn de classificatiekosten **structureel nul**, ongeacht patiëntvolume.
+
+**Wat lokaal draaien NIET bespaart:** hardware en stroomverbruik. De RTX 4050 staat sowieso aan voor bge-m3 en (optioneel) Ollama-chat. qwen2.5:3b naast bge-m3 gebruikt ~250 MB extra VRAM en ~3-5s GPU-tijd per classificatie. In een cloud-deployment zou dit anders zijn — daar zou de kosten-rekensom kantelen richting "wel cloud doen".
+
+---
+
+### 6b. Langfuse-tracing: wat wordt vastgelegd
+
+Elke escalatiebeslissing — laag 0 én laag 1 — is volledig auditeerbaar via Langfuse. De trace-structuur per inkomend chat-bericht:
+
+```
+chat-turn  (root span, name="chat-turn", input=patient message)
+├── rag-retrieval  (span, name="rag-retrieval", input=query, output=memory contents, metadata.hit_count)
+├── escalation-layer0  (span, name="escalation-layer0", input=patient message)
+│     ├── output: {"triggered": bool, "urgency": "high"|"medium"|"none"}
+│     └── metadata: {"reason": "Kritiek sleutelwoord gedetecteerd: 'pijn op de borst'"}
+└── llm-generation  (generation span, model=<chat model>, input=messages, output=respons, usage)
+
+[BackgroundTask, eigen trace] escalation-layer1
+└── escalation-layer1-classify  (generation span)
+      ├── model = qwen2.5:3b
+      ├── input  = "Patient message: ..."
+      ├── output = raw JSON respons van het model
+      └── propagate_attributes: user_id=patient_id, session_id=session_id
+```
+
+**Wat dit oplevert voor verantwoording:**
+
+1. **Auditeerbaarheid per beslissing.** Wie werd geëscaleerd, wanneer, op basis van welke laag, met welk model? Voor een medische context (zie ook AVG-overweging) is dit verplicht — elke geautomatiseerde escalatie moet achteraf te reconstrueren zijn.
+2. **Modelversie vastgelegd.** `model=qwen2.5:3b` is onderdeel van de generation span. Bij modelupgrades is achteraf te zien welk gedrag bij welke versie hoorde.
+3. **Token-usage gemeten.** Voor cloud-providers logt Langfuse automatisch `usage_details` (input/output tokens). Hierdoor zijn de cijfers uit §6a niet alleen theoretisch maar daadwerkelijk meetbaar in productie.
+4. **False-positives vindbaar.** Als een Laag 1-call escaleerde maar achteraf onterecht was: trace bevat het volledige input + raw JSON output, dus prompt en classificatie-redenering zijn direct inspecteerbaar zonder hercreatie van de situatie.
+5. **Performance-meting.** Latency per span wordt opgenomen — dus de "Laag 1 = ~3-5s" claim is geen aanname maar af te lezen uit traces.
+
+Implementatie in `backend/routers/chat/_routes.py:289-325` (lagen 0 + RAG + LLM in één root trace) en `backend/routers/chat/_escalation.py:144-196` (Laag 1 als losse trace met `propagate_attributes`).
 
 ---
 

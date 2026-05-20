@@ -1,4 +1,4 @@
-"""Achtergrondtaak voor het bijhouden van de medische samenvatting per patiënt."""
+"""Background task for maintaining the medical summary per patient."""
 
 import json
 import os
@@ -19,9 +19,9 @@ _SUMMARY_INTERVAL = int(os.getenv("SUMMARY_INTERVAL", "3"))
 
 
 async def trigger_summary_update(patient_id: uuid.UUID) -> None:
-    """Achtergrondtaak — genereert een nieuwe medische samenvatting en slaat die op.
+    """Background task — generates a new medical summary and stores it.
 
-    Draait via FastAPI BackgroundTasks. Gebruikt een eigen DB-sessie.
+    Runs via FastAPI BackgroundTasks. Uses its own DB session.
     """
     db = SessionLocal()
     try:

@@ -1,7 +1,7 @@
-"""Escalatiedetectie — gelaagde architectuur.
+"""Escalation detection — layered architecture.
 
-Laag 0: hardcoded keywords — deterministisch, synchroon, vóór LLM-aanroep.
-Laag 1: qwen2.5:0.5b classificatie — asynchroon als BackgroundTask ná de response.
+Layer 0: hardcoded keywords — deterministic, synchronous, before LLM call.
+Layer 1: qwen2.5:0.5b classification — async BackgroundTask after the response.
 """
 
 import asyncio
@@ -38,7 +38,7 @@ _ESCALATION_MEDIUM: frozenset[str] = frozenset([
 
 
 def layer0_check(text: str) -> tuple[str, str]:
-    """Laag 0 — keyword-match. Retourneert (urgency, reason) of ('', '') als geen match."""
+    """Layer 0 — keyword match. Returns (urgency, reason) or ('', '') if no match."""
     lower = text.lower()
     for kw in _ESCALATION_HIGH:
         if kw in lower:
@@ -116,7 +116,7 @@ _REASON_MSG_MAX = 300
 
 
 def format_escalation_reason(*, layer_label: str, patient_message: str, detail: str = "") -> str:
-    """Bouw een leesbare escalatiereden met het originele patiëntbericht."""
+    """Build a readable escalation reason including the original patient message."""
     msg = " ".join((patient_message or "").split())
     if len(msg) > _REASON_MSG_MAX:
         msg = msg[:_REASON_MSG_MAX - 1] + "…"
@@ -150,10 +150,10 @@ async def layer1_classify(
     patient_message: str,
     session_id: uuid.UUID,
 ) -> None:
-    """Laag 1 — lokale Ollama-classificatie als BackgroundTask.
+    """Layer 1 — local Ollama classification as BackgroundTask.
 
-    Draait asynchroon ná de chat-response. Semaphore serialiseert per patiënt.
-    Cooldown voorkomt dubbele escalaties binnen ESCALATION_COOLDOWN_MINUTES.
+    Runs async after the chat response. Semaphore serializes per patient.
+    Cooldown prevents duplicate escalations within ESCALATION_COOLDOWN_MINUTES.
     """
     semaphore = _get_semaphore(patient_id)
     async with semaphore:

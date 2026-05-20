@@ -27,7 +27,7 @@ export function ChatScreen() {
   const [activeId, setActiveId]         = useState<string | null>(null)
   const [loadingSessions, setLoadingSessions] = useState(false)
 
-  // berichten per sessie-id
+  // messages per session id
   const [msgMap, setMsgMap]             = useState<Record<string, Message[]>>({})
   const [loadingMsgs, setLoadingMsgs]   = useState(false)
 
@@ -37,7 +37,7 @@ export function ChatScreen() {
   const [summaryOpen, setSummaryOpen]   = useState(false)
   const streamRef = useRef<HTMLDivElement>(null)
 
-  // Patiënten laden bij mount
+  // Load patients on mount
   useEffect(() => {
     getPatients()
       .then(ps => {
@@ -48,7 +48,7 @@ export function ChatScreen() {
       .finally(() => setLoadingPts(false))
   }, [])
 
-  // Sessies laden bij patiëntwisseling
+  // Load sessions when patient changes
   useEffect(() => {
     if (!patientId) return
     setLoadingSessions(true)
@@ -59,7 +59,7 @@ export function ChatScreen() {
     getChatSessions(patientId)
       .then(ss => {
         setSessions(ss)
-        // open sessie automatisch selecteren
+        // auto-select open session
         const open = ss.find(s => s.isOpen) ?? ss[0] ?? null
         if (open) setActiveId(open.id)
       })
@@ -67,10 +67,10 @@ export function ChatScreen() {
       .finally(() => setLoadingSessions(false))
   }, [patientId])
 
-  // Berichten laden bij sessiewisseling
+  // Load messages when session changes
   useEffect(() => {
     if (!activeId || !patientId) return
-    if (msgMap[activeId]) return   // al geladen
+    if (msgMap[activeId]) return   // already loaded
 
     const patient = patients.find(p => p.id === patientId)
     if (!patient) return
@@ -122,16 +122,16 @@ export function ChatScreen() {
           duration: 5000,
           action: { label: "Bekijk", onClick: () => setSummaryOpen(true) },
         })
-        // Ververs de patiëntdata na 8s — geeft de background task tijd om af te ronden
+        // Refresh patient data after 8s — gives the background task time to finish
         setTimeout(() => {
           getPatient(patient.id)
             .then(updated => setPatients(prev => prev.map(p => p.id === updated.id ? updated : p)))
-            .catch(() => { /* stil falen — niet kritisch */ })
+            .catch(() => { /* fail silently — not critical */ })
         }, 8000)
       }
 
       if (!currentId) {
-        // eerste bericht van een nieuwe sessie — sessie bestaat nu in de backend
+        // first message of a new session — session now exists in the backend
         const newSession: ChatSession = { id: sessionId, date: new Date().toISOString().slice(0, 10), messageCount: 2, isOpen: true }
         setSessions(prev => [newSession, ...prev])
         setActiveId(sessionId)
@@ -209,7 +209,7 @@ export function ChatScreen() {
                 if (!patientId) return
                 try {
                   await closeSession(patientId)
-                  // Sessies herladen — gesloten sessie staat nu in de lijst, activeId wordt null
+                  // Reload sessions — closed session is in the list, activeId becomes null
                   const ss = await getChatSessions(patientId)
                   setSessions(ss)
                   setActiveId(null)

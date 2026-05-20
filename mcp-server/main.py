@@ -17,7 +17,7 @@ async def store_memory(
     patient_id: str,
     session_id: str,
 ) -> str:
-    """Sla een geheugenblok op voor een patiënt."""
+    """Store a memory block for a patient."""
     return await _store_memory(content, source, patient_id, session_id, _embed)
 
 
@@ -27,7 +27,7 @@ async def recall_context(
     patient_id: str,
     limit: int,
 ) -> list[dict]:
-    """Haal semantisch gerelateerde herinneringen op voor een patiënt."""
+    """Retrieve semantically related memories for a patient."""
     return await _recall_context(query, patient_id, limit, _embed)
 
 
@@ -37,7 +37,7 @@ async def escalate_to_human(
     reason: str,
     urgency: str,
 ) -> str:
-    """Escaleer naar een zorgverlener. urgency: low | medium | high. Geeft escalation ID terug."""
+    """Escalate to a care provider. urgency: low | medium | high. Returns escalation ID."""
     return await _escalate_to_human(patient_id, reason, urgency)
 
 

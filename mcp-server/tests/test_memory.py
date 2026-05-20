@@ -6,7 +6,7 @@ from tools.memory import store_memory
 
 
 class FakeEmbedder(EmbeddingProvider):
-    """Nep-embedder die altijd een vaste 1024-dim vector teruggeeft."""
+    """Fake embedder that always returns a fixed 1024-dim vector."""
 
     async def embed(self, text: str) -> list[float]:
         return [0.42] * 1024
@@ -14,7 +14,7 @@ class FakeEmbedder(EmbeddingProvider):
 
 @pytest.mark.asyncio
 async def test_store_memory_adds_to_chromadb():
-    """store_memory embedt de content en roept collection.add() aan."""
+    """store_memory embeds content and calls collection.add()."""
     mock_collection = MagicMock()
 
     with patch("tools.memory.get_collection", return_value=mock_collection):
@@ -37,7 +37,7 @@ async def test_store_memory_adds_to_chromadb():
 
 @pytest.mark.asyncio
 async def test_store_memory_propagates_embedding_error():
-    """Als embedding mislukt, gooit store_memory de fout door — geen silent failure."""
+    """If embedding fails, store_memory propagates the error — no silent failure."""
     from services.embedding import EmbeddingUnavailableError
 
     class FailingEmbedder(EmbeddingProvider):
@@ -56,7 +56,7 @@ async def test_store_memory_propagates_embedding_error():
 
 @pytest.mark.asyncio
 async def test_recall_context_returns_sorted_memories():
-    """recall_context zoekt in ChromaDB en retourneert content + metadata."""
+    """recall_context queries ChromaDB and returns content + metadata."""
     mock_collection = MagicMock()
     mock_collection.query.return_value = {
         "documents": [["Ik voel me kortademig.", "Gewicht gestegen met 2 kg."]],

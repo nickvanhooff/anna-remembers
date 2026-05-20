@@ -2,9 +2,9 @@ from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
-    """Base class voor alle SQLAlchemy modellen.
+    """Base class for all SQLAlchemy models.
 
-    Alembic gebruikt Base.metadata om te detecteren welke tabellen
-    aangemaakt of gewijzigd moeten worden bij een migratie.
+    Alembic uses Base.metadata to detect which tables
+    must be created or changed during a migration.
     """
     pass

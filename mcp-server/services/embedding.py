@@ -5,39 +5,39 @@ import httpx
 
 
 class EmbeddingProvider(ABC):
-    """Abstracte basis voor alle embedding providers.
+    """Abstract base for all embedding providers.
 
-    Nieuwe provider toevoegen = nieuwe subklasse + registreren in get_embedding_provider().
+    Adding a provider = new subclass + register in get_embedding_provider().
     """
 
     @abstractmethod
     async def embed(self, text: str) -> list[float]:
-        """Zet tekst om naar een float-vector.
+        """Convert text to a float vector.
 
         Args:
-            text: de te embedden tekst
+            text: text to embed
         Returns:
-            lijst van floats (dimensies afhankelijk van model)
+            list of floats (dimensions depend on model)
         """
         ...
 
 
 class EmbeddingUnavailableError(Exception):
-    """Gooit embedding.py als de embedding provider onbereikbaar is."""
+    """Raised when the embedding provider is unreachable."""
 
 
 class OllamaEmbeddingProvider(EmbeddingProvider):
-    """Embedding provider via Ollama /api/embed (bge-m3 standaard)."""
+    """Embedding provider via Ollama /api/embed (bge-m3 by default)."""
 
     def __init__(self, model: str, base_url: str) -> None:
         self.model = model
         self.base_url = base_url.rstrip("/")
 
     async def embed(self, text: str) -> list[float]:
-        """Vraag een vector op bij Ollama.
+        """Request a vector from Ollama.
 
         Raises:
-            EmbeddingUnavailableError: als Ollama niet bereikbaar is
+            EmbeddingUnavailableError: if Ollama is unreachable
         """
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
@@ -54,9 +54,9 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
 
 
 def get_embedding_provider() -> EmbeddingProvider:
-    """Factory — leest gewenste provider uit omgeving.
+    """Factory — reads desired provider from environment.
 
-    EMBEDDING_MODEL en OLLAMA_BASE_URL worden uit env gelezen.
+    EMBEDDING_MODEL and OLLAMA_BASE_URL are read from env.
     """
     return OllamaEmbeddingProvider(
         model=os.getenv("EMBEDDING_MODEL", "bge-m3"),

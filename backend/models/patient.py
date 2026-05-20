@@ -17,7 +17,7 @@ class Patient(Base):
     first_name: Mapped[str] = mapped_column(String(255), nullable=False)
     last_name: Mapped[str] = mapped_column(String(255), nullable=False)
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    # JSONB voor flexibel medicatieschema — structuur kan per patiënt verschillen
+    # JSONB for flexible medication schedule — structure may vary per patient
     medication_schedule: Mapped[dict] = mapped_column(
         JSON().with_variant(JSONB, "postgresql"),
         nullable=False,

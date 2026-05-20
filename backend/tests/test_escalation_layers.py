@@ -1,4 +1,4 @@
-"""Tests voor gelaagde escalatiedetectie (Laag 0 keywords + JSON-parse Laag 1)."""
+"""Tests for layered escalation detection (Layer 0 keywords + Layer 1 JSON parse)."""
 
 from routers.chat import (
     _format_escalation_reason,

@@ -6,10 +6,10 @@ from langfuse import get_client
 
 
 class LLMProvider(ABC):
-    """Abstracte basis voor alle LLM-providers.
+    """Abstract base for all LLM providers.
 
-    Nieuwe provider toevoegen = nieuwe subklasse maken en registreren
-    in get_llm_provider(). De rest van de codebase raakt hierdoor niet.
+    Adding a provider = new subclass and register in get_llm_provider().
+    The rest of the codebase stays unchanged.
     """
 
     @abstractmethod
@@ -18,19 +18,19 @@ class LLMProvider(ABC):
         messages: list[dict[str, str]],
         system: str | None = None,
     ) -> str:
-        """Stuur een reeks berichten naar de LLM en geef de response terug.
+        """Send a message list to the LLM and return the response.
 
         Args:
-            messages: lijst van {"role": "user"|"assistant", "content": "..."}
-            system:   optionele system prompt
+            messages: list of {"role": "user"|"assistant", "content": "..."}
+            system:   optional system prompt
         Returns:
-            De tekstuele response van het model
+            The model's text response
         """
         ...
 
 
 class AnthropicProvider(LLMProvider):
-    """LLM-provider via de Anthropic API (Claude Haiku standaard)."""
+    """LLM provider via Anthropic API (Claude Haiku by default)."""
 
     def __init__(self, model: str, api_key: str) -> None:
         self.model = model
@@ -72,7 +72,7 @@ class AnthropicProvider(LLMProvider):
 
 
 class OpenRouterProvider(LLMProvider):
-    """LLM-provider via OpenRouter (OpenAI-compatibele API, toegang tot veel modellen)."""
+    """LLM provider via OpenRouter (OpenAI-compatible API, many models)."""
 
     def __init__(self, model: str, api_key: str) -> None:
         self.model = model
@@ -119,7 +119,7 @@ class OpenRouterProvider(LLMProvider):
 
 
 class GroqProvider(LLMProvider):
-    """LLM-provider via Groq (OpenAI-compatibele API, zeer snelle LPU-inferentie)."""
+    """LLM provider via Groq (OpenAI-compatible API, very fast LPU inference)."""
 
     def __init__(self, model: str, api_key: str) -> None:
         self.model = model
@@ -166,7 +166,7 @@ class GroqProvider(LLMProvider):
 
 
 class OllamaProvider(LLMProvider):
-    """LLM-provider die lokaal draait via Ollama (http API)."""
+    """LLM provider running locally via Ollama (HTTP API)."""
 
     def __init__(self, model: str, base_url: str) -> None:
         self.model = model
@@ -188,7 +188,7 @@ class OllamaProvider(LLMProvider):
             model=self.model,
             input=messages,
         ) as gen:
-            # Timeout van 600s — gemma4:e4b draait deels op CPU, inferentie kan 2-5 min duren
+            # 600s timeout — gemma4:e4b runs partly on CPU, inference can take 2-5 min
             async with httpx.AsyncClient(timeout=600.0) as client:
                 response = await client.post(f"{self.base_url}/api/chat", json=payload)
                 response.raise_for_status()
@@ -205,12 +205,12 @@ class OllamaProvider(LLMProvider):
 
 
 def get_llm_provider() -> LLMProvider:
-    """Factory — leest de gewenste provider uit de omgeving.
+    """Factory — reads the desired provider from the environment.
 
-    LLM_PROVIDER=ollama       →  OllamaProvider (standaard)
+    LLM_PROVIDER=ollama       →  OllamaProvider (default)
     LLM_PROVIDER=anthropic    →  AnthropicProvider (Claude Haiku)
-    LLM_PROVIDER=openrouter   →  OpenRouterProvider (OpenAI-compatibel, veel modellen)
-    LLM_PROVIDER=groq         →  GroqProvider (snelle LPU-inferentie, gratis tier)
+    LLM_PROVIDER=openrouter   →  OpenRouterProvider (OpenAI-compatible, many models)
+    LLM_PROVIDER=groq         →  GroqProvider (fast LPU inference, free tier)
     """
     provider = os.getenv("LLM_PROVIDER", "ollama")
 
