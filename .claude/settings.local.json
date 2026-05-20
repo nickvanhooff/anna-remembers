@@ -58,7 +58,21 @@
       "Bash(defuddle parse *)",
       "PowerShell(Get-ChildItem C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\backend\\\\routers -Recurse | ForEach-Object { $_.FullName })",
       "Bash(docker exec *)",
-      "Bash(docker compose *)"
+      "Bash(docker compose *)",
+      "Bash(curl -s https://huggingface.co/api/models/rhasspy/piper-voices)",
+      "Bash(curl -I https://huggingface.co/rhasspy/piper-voices/resolve/main/en_US/lessac/medium/en_US-lessac-medium.onnx)",
+      "Bash(curl -s \"https://huggingface.co/rhasspy/piper-voices/tree/main\")",
+      "Bash(docker run *)",
+      "Bash(curl -s \"https://api.github.com/repos/rhasspy/piper/releases?per_page=1\")",
+      "Bash(curl -s \"https://github.com/rhasspy/piper/releases\")",
+      "Bash(curl -v http://localhost:5005/)",
+      "Bash(curl -s -X POST \"http://localhost:5005/?text=Hello%20world\" -H \"Content-Type: application/json\" -o /tmp/test.wav)",
+      "Bash(curl -X POST \"http://localhost:5005/?text=Hello%20world\")",
+      "PowerShell(docker exec anna-piper-http-bridge *)",
+      "Bash(docker container inspect *)",
+      "Bash(docker volume *)",
+      "Bash(curl -X POST \"http://localhost:5005/?text=Hello%20there\" -w \"\\\\nStatus: %{http_code}\\\\n\" --max-time 30)",
+      "Bash(curl -X POST \"http://localhost:5005/?text=Welcome%20to%20Anna%20Remembers\" -w \"\\\\nStatus: %{http_code}\\\\n\" --max-time 30)"
     ]
   }
 }
