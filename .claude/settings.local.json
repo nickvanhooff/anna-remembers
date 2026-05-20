@@ -76,7 +76,15 @@
       "Bash(npm run *)",
       "Bash(curl -s http://localhost:3001)",
       "Bash(npm list *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(pkill -f \"node.*dev\")",
+      "Bash(curl -s http://localhost:3001/patients)",
+      "Bash(curl -X POST \"http://localhost:5005/?text=Voice%20mode%20is%20working\" --max-time 30 -w \"\\\\n%{http_code}\")",
+      "Bash(npx patch-package *)",
+      "Bash(curl -X POST \"http://localhost:8000/tts\" -H \"Content-Type: application/json\" -d '{\"text\":\"hello there\"}' -w \"\\\\nStatus: %{http_code}, Size: %{size_download} bytes\\\\n\" -o /tmp/tts_test.wav --max-time 30)",
+      "Bash(curl -X POST \"http://localhost:5005/?text=Hello%20test\" -w \"\\\\nStatus: %{http_code}, Size: %{size_download}\\\\n\" -o /tmp/from_host.wav --max-time 30 -s)",
+      "Bash(curl -X POST \"http://localhost:5005/?text=Hello%20there%20it%20works\" -o /tmp/test.wav -w \"Status: %{http_code}, Size: %{size_download}\\\\n\" -s --max-time 30)",
+      "Bash(curl -X POST \"http://localhost:8000/tts\" -H \"Content-Type: application/json\" -d '{\"text\":\"This should work now\"}' -o /tmp/backend_tts.wav -w \"Status: %{http_code}, Size: %{size_download}\\\\n\" -s --max-time 30)"
     ]
   }
 }

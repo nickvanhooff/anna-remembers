@@ -1,9 +1,31 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import Avatar, { AvatarHandle } from "./avatar";
+import dynamic from "next/dynamic";
+import type { AvatarHandle } from "./avatar";
 import { useSpeechRecognition } from "@/lib/speech";
 import { fetchTTS } from "@/lib/tts";
+
+// Dynamically import Avatar component with SSR disabled to avoid bundler errors
+// from TalkingHead.js dynamic lipsync module imports
+const Avatar = dynamic(() => import("./avatar"), {
+  ssr: false,
+  loading: () => (
+    <div
+      style={{
+        width: "100%",
+        height: "400px",
+        backgroundColor: "#f5f5f5",
+        borderRadius: "8px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <p className="text-sm text-gray-500">Loading avatar...</p>
+    </div>
+  ),
+});
 
 interface VoiceModeProps {
   onUserSpeech?: (transcript: string) => void;
@@ -17,37 +39,77 @@ export function VoiceMode({
   messageText,
 }: VoiceModeProps) {
   const avatarRef = useRef<AvatarHandle>(null);
-  const { transcript, isListening, isSupported, start, stop } =
-    useSpeechRecognition();
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-play avatar speech when messageText changes
+  // Hook fires onFinalTranscript exactly once per utterance,
+  // after 3 seconds of silence (or when the user clicks stop).
+  const { transcript, isListening, isSupported, start, stop } =
+    useSpeechRecognition({
+      silenceTimeoutMs: 3000,
+      onFinalTranscript: (text) => {
+        onUserSpeech?.(text);
+      },
+    });
+
+  // Track the last message we played so we don't replay on re-renders
+  const lastPlayedRef = useRef<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Auto-play assistant speech when messageText changes
   useEffect(() => {
-    if (!messageText || !avatarRef.current) return;
+    if (!messageText) return;
+    if (lastPlayedRef.current === messageText) return;
+    lastPlayedRef.current = messageText;
 
     const playMessage = async () => {
+      let url: string | null = null;
       try {
         setIsSpeaking(true);
         setError(null);
+        console.log("[VoiceMode] Fetching TTS for:", messageText.slice(0, 60));
+
         const blob = await fetchTTS(messageText);
-        await avatarRef.current!.speakAudio(blob, messageText);
+        console.log("[VoiceMode] Got audio blob, size:", blob.size, "type:", blob.type);
+
+        if (blob.size === 0) {
+          throw new Error("Empty audio response from backend");
+        }
+
+        // Stop any previous audio
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+        }
+
+        url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audioRef.current = audio;
+
+        audio.addEventListener("ended", () => {
+          console.log("[VoiceMode] Audio finished");
+          setIsSpeaking(false);
+          if (url) URL.revokeObjectURL(url);
+        });
+        audio.addEventListener("error", (e) => {
+          console.error("[VoiceMode] Audio element error:", e, audio.error);
+          setIsSpeaking(false);
+          setError(`Audio playback failed: ${audio.error?.message ?? "unknown"}`);
+        });
+
+        console.log("[VoiceMode] Calling audio.play()");
+        await audio.play();
+        console.log("[VoiceMode] Audio playing");
       } catch (err) {
+        console.error("[VoiceMode] TTS playback error:", err);
         setError(err instanceof Error ? err.message : "TTS failed");
-      } finally {
         setIsSpeaking(false);
+        if (url) URL.revokeObjectURL(url);
       }
     };
 
     playMessage();
   }, [messageText]);
-
-  // Send transcript when listening stops
-  useEffect(() => {
-    if (!isListening && transcript && onUserSpeech) {
-      onUserSpeech(transcript);
-    }
-  }, [isListening, transcript, onUserSpeech]);
 
   if (!isSupported) {
     return (

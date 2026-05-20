@@ -1,11 +1,9 @@
 "use client";
 
 import { forwardRef, useEffect, useRef, useImperativeHandle } from "react";
-import * as THREE from "three";
-import type { TalkingHead as TalkingHeadType } from "@met4citizen/talkinghead";
 
-// Use dynamic require to avoid bundling issues with lipsync modules
-let TalkingHead: typeof TalkingHeadType;
+// TalkingHead is loaded dynamically at runtime to avoid bundler issues
+// with its dynamic lipsync module imports (lipsync-en.mjs, lipsync-nl.mjs, etc.)
 
 export interface AvatarHandle {
   speakAudio(blob: Blob, text: string): Promise<void>;
@@ -16,71 +14,64 @@ interface AvatarProps {
 }
 
 const Avatar = forwardRef<AvatarHandle, AvatarProps>(
-  ({ avatarUrl = "https://models.readyplayer.me/DEFAULT_AVATAR.glb" }, ref) => {
+  ({ avatarUrl }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const talkingHeadRef = useRef<TalkingHead | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const talkingHeadRef = useRef<any>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
 
     useEffect(() => {
       if (!containerRef.current) return;
 
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
-
-      // Initialize Three.js scene
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-      camera.position.z = 2.5;
-
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setSize(width, height);
-      renderer.setClearColor(0xffffff, 1);
-      containerRef.current.appendChild(renderer.domElement);
-
-      // Animation loop - will update if talkingHead is initialized
-      let animationId: number;
-      const animate = () => {
-        animationId = requestAnimationFrame(animate);
-        if (talkingHeadRef.current) {
-          talkingHeadRef.current.update();
-        }
-        renderer.render(scene, camera);
-      };
-      animate();
+      const container = containerRef.current;
+      let cancelled = false;
 
       // Dynamically import TalkingHead to avoid bundler issues with dynamic lipsync imports
       import("@met4citizen/talkinghead")
-        .then(({ TalkingHead: TH }) => {
-          TalkingHead = TH;
+        .then(({ TalkingHead }) => {
+          if (cancelled) return;
 
-          // Initialize TalkingHead
-          const talkingHead = new TalkingHead(scene, {
-            modelUrl: avatarUrl,
-            cameraTarget: new THREE.Vector3(0, 0.1, 0),
+          // TalkingHead manages its own Three.js scene; pass it the container DOM node
+          const talkingHead = new TalkingHead(container, {
+            ttsEndpoint: "",
+            cameraView: "upper",
           });
 
           talkingHeadRef.current = talkingHead;
+
+          // Only try to load an avatar model if a URL was explicitly provided.
+          // Without a valid Ready Player Me URL the GLB fetch fails noisily;
+          // the audio playback works fine without an avatar.
+          if (avatarUrl) {
+            talkingHead
+              .showAvatar({
+                url: avatarUrl,
+                body: "F",
+                avatarMood: "neutral",
+                lipsyncLang: "en",
+              })
+              .catch((err: Error) => {
+                console.warn("[Avatar] Could not load avatar model:", err.message);
+              });
+          }
         })
         .catch((err) => {
           console.error("Failed to load TalkingHead:", err);
         });
 
-      // Handle resize
-      const handleResize = () => {
-        const newWidth = containerRef.current?.clientWidth ?? width;
-        const newHeight = containerRef.current?.clientHeight ?? height;
-        camera.aspect = newWidth / newHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(newWidth, newHeight);
-      };
-
-      window.addEventListener("resize", handleResize);
-
       return () => {
-        window.removeEventListener("resize", handleResize);
-        cancelAnimationFrame(animationId);
-        if (containerRef.current && renderer.domElement.parentNode === containerRef.current) {
-          containerRef.current.removeChild(renderer.domElement);
+        cancelled = true;
+        if (talkingHeadRef.current) {
+          try {
+            talkingHeadRef.current.stop?.();
+          } catch (err) {
+            console.error("Error stopping TalkingHead:", err);
+          }
+          talkingHeadRef.current = null;
+        }
+        // Clear container children
+        while (container.firstChild) {
+          container.removeChild(container.firstChild);
         }
       };
     }, [avatarUrl]);
@@ -89,31 +80,44 @@ const Avatar = forwardRef<AvatarHandle, AvatarProps>(
       ref,
       () => ({
         async speakAudio(blob: Blob, text: string) {
-          if (!talkingHeadRef.current) return;
-
-          // Initialize audio context
-          if (!audioContextRef.current) {
-            audioContextRef.current = new (window.AudioContext ||
-              (window as any).webkitAudioContext)();
+          if (!talkingHeadRef.current) {
+            // Fallback: just play the audio if TalkingHead isn't loaded
+            const audio = new Audio(URL.createObjectURL(blob));
+            await audio.play();
+            return;
           }
 
-          // Decode audio
-          const arrayBuffer = await blob.arrayBuffer();
-          const audioBuffer = await audioContextRef.current.decodeAudioData(
-            arrayBuffer
-          );
+          try {
+            // Initialize audio context
+            if (!audioContextRef.current) {
+              audioContextRef.current = new (window.AudioContext ||
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (window as any).webkitAudioContext)();
+            }
 
-          // Extract visemes using simple energy-based approach
-          const visemes = extractVisemes(audioBuffer, text);
+            // Decode audio
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
 
-          // Play audio and animate
-          const source = audioContextRef.current.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(audioContextRef.current.destination);
-          source.start(0);
-
-          // Animate avatar with visemes
-          animateWithVisemes(visemes, audioBuffer.duration);
+            // Try to use TalkingHead's speakAudio method if available
+            if (typeof talkingHeadRef.current.speakAudio === "function") {
+              await talkingHeadRef.current.speakAudio({
+                audio: audioBuffer,
+                words: text.split(" "),
+              });
+            } else {
+              // Fallback: just play the audio
+              const source = audioContextRef.current.createBufferSource();
+              source.buffer = audioBuffer;
+              source.connect(audioContextRef.current.destination);
+              source.start(0);
+            }
+          } catch (err) {
+            console.error("Error in speakAudio:", err);
+            // Fallback: play raw audio
+            const audio = new Audio(URL.createObjectURL(blob));
+            await audio.play();
+          }
         },
       }),
       []
@@ -128,6 +132,7 @@ const Avatar = forwardRef<AvatarHandle, AvatarProps>(
           backgroundColor: "#f5f5f5",
           borderRadius: "8px",
           overflow: "hidden",
+          position: "relative",
         }}
       />
     );
@@ -135,57 +140,5 @@ const Avatar = forwardRef<AvatarHandle, AvatarProps>(
 );
 
 Avatar.displayName = "Avatar";
-
-function extractVisemes(
-  audioBuffer: AudioBuffer,
-  text: string
-): { viseme: string; time: number }[] {
-  const channelData = audioBuffer.getChannelData(0);
-  const sampleRate = audioBuffer.sampleRate;
-  const frameSize = Math.floor(sampleRate / 30); // ~30 FPS
-
-  const visemeMap: { [key: string]: string } = {
-    a: "viseme_aa",
-    e: "viseme_E",
-    i: "viseme_I",
-    o: "viseme_O",
-    u: "viseme_U",
-    m: "viseme_M",
-  };
-
-  const visemes = [];
-  let visemeIndex = 0;
-  const textVisemes = text.toLowerCase().split("");
-
-  for (let i = 0; i < channelData.length; i += frameSize) {
-    const frame = channelData.slice(i, i + frameSize);
-    const energy = frame.reduce((sum, val) => sum + val * val, 0) / frame.length;
-
-    if (energy > 0.01) {
-      const char = textVisemes[visemeIndex % textVisemes.length];
-      const viseme = visemeMap[char] || "viseme_neutral";
-      visemes.push({
-        viseme,
-        time: i / sampleRate,
-      });
-      visemeIndex++;
-    }
-  }
-
-  return visemes;
-}
-
-function animateWithVisemes(
-  visemes: { viseme: string; time: number }[],
-  duration: number
-): void {
-  // Simplified animation: apply visemes over time
-  // In production, synchronize with TalkingHead.js morphTargets
-  visemes.forEach((v) => {
-    if (v.time < duration) {
-      // Schedule viseme update at v.time (requires TalkingHead morphTarget binding)
-    }
-  });
-}
 
 export default Avatar;
