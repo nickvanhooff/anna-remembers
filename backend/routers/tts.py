@@ -2,8 +2,8 @@
 from fastapi import APIRouter
 from fastapi.responses import Response
 
-from backend.schemas.tts import TTSRequest
-from backend.services.tts import synthesize
+from schemas.tts import TTSRequest
+from services.tts import synthesize
 
 router = APIRouter(prefix="/tts", tags=["tts"])
 

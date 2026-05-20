@@ -12,8 +12,8 @@ app = Flask(__name__)
 
 # Initialize Piper voice
 # TODO: Find working Dutch voice (nl_NL-mls not found on HF)
-# Fallback to English for MVP
-VOICE = "en_US-lessac"
+# Fallback to English for MVP (en_US-hfc is reliably available)
+VOICE = "en_US-hfc"
 voice_dir = Path.home() / ".local" / "share" / "piper" / "voices"
 voice_path = voice_dir / f"{VOICE}.onnx"
 config_path = voice_dir / f"{VOICE}.onnx.json"
