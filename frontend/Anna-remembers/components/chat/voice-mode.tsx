@@ -76,26 +76,29 @@ export function VoiceMode({
           throw new Error("Empty audio response from backend");
         }
 
-        // Stop any previous audio
+        // Stop any previous audio (pause only — setting src="" triggers a benign error event)
         if (audioRef.current) {
           audioRef.current.pause();
-          audioRef.current.src = "";
+          audioRef.current.onerror = null;
+          audioRef.current.onended = null;
         }
 
         url = URL.createObjectURL(blob);
         const audio = new Audio(url);
         audioRef.current = audio;
 
-        audio.addEventListener("ended", () => {
+        audio.onended = () => {
           console.log("[VoiceMode] Audio finished");
           setIsSpeaking(false);
           if (url) URL.revokeObjectURL(url);
-        });
-        audio.addEventListener("error", (e) => {
-          console.error("[VoiceMode] Audio element error:", e, audio.error);
+        };
+        audio.onerror = () => {
+          // Ignore errors from elements that have been replaced (no src)
+          if (!audio.src) return;
+          console.error("[VoiceMode] Audio element error:", audio.error);
           setIsSpeaking(false);
           setError(`Audio playback failed: ${audio.error?.message ?? "unknown"}`);
-        });
+        };
 
         console.log("[VoiceMode] Calling audio.play()");
         await audio.play();

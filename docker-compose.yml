@@ -131,7 +131,7 @@ services:
     ports:
       - "10200:10200"
     environment:
-      PIPER_VOICE: en_US-libritts-high
+      PIPER_VOICE: nl_NL-ronnie-medium
       PIPER_LENGTH_SCALE: "1.0"
     volumes:
       - piper_voices:/config

@@ -15,8 +15,8 @@ except ImportError:
     print("Error: piper-tts not installed", file=sys.stderr, flush=True)
     sys.exit(1)
 
-voice_path = "/config/en_US-libritts-high.onnx"
-config_path = "/config/en_US-libritts-high.onnx.json"
+voice_path = "/config/nl_NL-ronnie-medium.onnx"
+config_path = "/config/nl_NL-ronnie-medium.onnx.json"
 
 print(f"Loading voice from {voice_path}", file=sys.stderr, flush=True)
 voice = piper.PiperVoice.load(voice_path, config_path=config_path, use_cuda=False)
