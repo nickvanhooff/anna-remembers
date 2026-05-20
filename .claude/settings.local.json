@@ -72,7 +72,11 @@
       "Bash(docker container inspect *)",
       "Bash(docker volume *)",
       "Bash(curl -X POST \"http://localhost:5005/?text=Hello%20there\" -w \"\\\\nStatus: %{http_code}\\\\n\" --max-time 30)",
-      "Bash(curl -X POST \"http://localhost:5005/?text=Welcome%20to%20Anna%20Remembers\" -w \"\\\\nStatus: %{http_code}\\\\n\" --max-time 30)"
+      "Bash(curl -X POST \"http://localhost:5005/?text=Welcome%20to%20Anna%20Remembers\" -w \"\\\\nStatus: %{http_code}\\\\n\" --max-time 30)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3001)",
+      "Bash(npm list *)",
+      "Bash(npm install *)"
     ]
   }
 }

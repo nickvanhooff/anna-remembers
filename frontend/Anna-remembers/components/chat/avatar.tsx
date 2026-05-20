@@ -2,7 +2,10 @@
 
 import { forwardRef, useEffect, useRef, useImperativeHandle } from "react";
 import * as THREE from "three";
-import { TalkingHead } from "@met4citizen/talkinghead";
+import type { TalkingHead as TalkingHeadType } from "@met4citizen/talkinghead";
+
+// Use dynamic require to avoid bundling issues with lipsync modules
+let TalkingHead: typeof TalkingHeadType;
 
 export interface AvatarHandle {
   speakAudio(blob: Blob, text: string): Promise<void>;
@@ -34,21 +37,33 @@ const Avatar = forwardRef<AvatarHandle, AvatarProps>(
       renderer.setClearColor(0xffffff, 1);
       containerRef.current.appendChild(renderer.domElement);
 
-      // Initialize TalkingHead
-      const talkingHead = new TalkingHead(scene, {
-        modelUrl: avatarUrl,
-        cameraTarget: new THREE.Vector3(0, 0.1, 0),
-      });
-
-      talkingHeadRef.current = talkingHead;
-
-      // Animation loop
+      // Animation loop - will update if talkingHead is initialized
+      let animationId: number;
       const animate = () => {
-        requestAnimationFrame(animate);
-        talkingHead.update();
+        animationId = requestAnimationFrame(animate);
+        if (talkingHeadRef.current) {
+          talkingHeadRef.current.update();
+        }
         renderer.render(scene, camera);
       };
       animate();
+
+      // Dynamically import TalkingHead to avoid bundler issues with dynamic lipsync imports
+      import("@met4citizen/talkinghead")
+        .then(({ TalkingHead: TH }) => {
+          TalkingHead = TH;
+
+          // Initialize TalkingHead
+          const talkingHead = new TalkingHead(scene, {
+            modelUrl: avatarUrl,
+            cameraTarget: new THREE.Vector3(0, 0.1, 0),
+          });
+
+          talkingHeadRef.current = talkingHead;
+        })
+        .catch((err) => {
+          console.error("Failed to load TalkingHead:", err);
+        });
 
       // Handle resize
       const handleResize = () => {
@@ -63,7 +78,10 @@ const Avatar = forwardRef<AvatarHandle, AvatarProps>(
 
       return () => {
         window.removeEventListener("resize", handleResize);
-        containerRef.current?.removeChild(renderer.domElement);
+        cancelAnimationFrame(animationId);
+        if (containerRef.current && renderer.domElement.parentNode === containerRef.current) {
+          containerRef.current.removeChild(renderer.domElement);
+        }
       };
     }, [avatarUrl]);
 
