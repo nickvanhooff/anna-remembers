@@ -1,31 +1,9 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import dynamic from "next/dynamic";
-import type { AvatarHandle } from "./avatar";
+import Avatar, { type AvatarHandle } from "./avatar";
 import { useSpeechRecognition } from "@/lib/speech";
 import { fetchTTS } from "@/lib/tts";
-
-// Dynamically import Avatar component with SSR disabled to avoid bundler errors
-// from TalkingHead.js dynamic lipsync module imports
-const Avatar = dynamic(() => import("./avatar"), {
-  ssr: false,
-  loading: () => (
-    <div
-      style={{
-        width: "100%",
-        height: "400px",
-        backgroundColor: "#f5f5f5",
-        borderRadius: "8px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <p className="text-sm text-gray-500">Loading avatar...</p>
-    </div>
-  ),
-});
 
 interface VoiceModeProps {
   onUserSpeech?: (transcript: string) => void;
@@ -76,7 +54,15 @@ export function VoiceMode({
           throw new Error("Empty audio response from backend");
         }
 
-        // Stop any previous audio (pause only — setting src="" triggers a benign error event)
+        // If the avatar is mounted, hand off playback so it can drive lip-sync
+        // from the audio amplitude. Otherwise fall back to a plain <audio> element.
+        if (avatarRef.current?.speakAudio) {
+          console.log("[VoiceMode] Playing through avatar (lip-sync enabled)");
+          await avatarRef.current.speakAudio(blob);
+          setIsSpeaking(false);
+          return;
+        }
+
         if (audioRef.current) {
           audioRef.current.pause();
           audioRef.current.onerror = null;
@@ -88,21 +74,17 @@ export function VoiceMode({
         audioRef.current = audio;
 
         audio.onended = () => {
-          console.log("[VoiceMode] Audio finished");
           setIsSpeaking(false);
           if (url) URL.revokeObjectURL(url);
         };
         audio.onerror = () => {
-          // Ignore errors from elements that have been replaced (no src)
           if (!audio.src) return;
           console.error("[VoiceMode] Audio element error:", audio.error);
           setIsSpeaking(false);
           setError(`Audio playback failed: ${audio.error?.message ?? "unknown"}`);
         };
 
-        console.log("[VoiceMode] Calling audio.play()");
         await audio.play();
-        console.log("[VoiceMode] Audio playing");
       } catch (err) {
         console.error("[VoiceMode] TTS playback error:", err);
         setError(err instanceof Error ? err.message : "TTS failed");
@@ -127,8 +109,28 @@ export function VoiceMode({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Avatar */}
-      <Avatar ref={avatarRef} avatarUrl={avatarUrl} />
+      {/* Avatar — only rendered if an avatarUrl is provided. Otherwise show a
+          simple visual indicator so the user gets feedback without a dead white canvas. */}
+      {avatarUrl ? (
+        <Avatar ref={avatarRef} avatarUrl={avatarUrl} />
+      ) : (
+        <div
+          className={`w-full h-[180px] rounded-lg flex flex-col items-center justify-center gap-3 transition-colors ${
+            isSpeaking ? "bg-blue-50" : "bg-gray-50"
+          }`}
+        >
+          <div
+            className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl ${
+              isSpeaking ? "bg-blue-500 text-white animate-pulse" : "bg-gray-300 text-gray-600"
+            }`}
+          >
+            🩺
+          </div>
+          <p className="text-sm text-gray-600">
+            {isSpeaking ? "Anna is aan het woord…" : "Wacht op uw antwoord"}
+          </p>
+        </div>
+      )}
 
       {/* Error message */}
       {error && (
