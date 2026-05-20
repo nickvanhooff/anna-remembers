@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Plus, ChevronRight, Send, ScrollText } from "lucide-react"
+import { Plus, ChevronRight, Send, ScrollText, Mic, MessageSquare } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 
 import { StatusBadge } from "@/components/dashboard/status-badge"
+import { VoiceMode } from "./voice-mode"
 import { fmtTime } from "@/lib/utils"
 import { getPatients, getPatient, getChatSessions, getChatMessages, sendMessage, closeSession } from "@/lib/api"
 import type { ChatSession } from "@/lib/api"
@@ -35,6 +36,7 @@ export function ChatScreen() {
   const [typing, setTyping]             = useState(false)
   const [panelOpen, setPanelOpen]       = useState(true)
   const [summaryOpen, setSummaryOpen]   = useState(false)
+  const [voiceMode, setVoiceMode]       = useState(false)
   const streamRef = useRef<HTMLDivElement>(null)
 
   // Load patients on mount
@@ -91,13 +93,12 @@ export function ChatScreen() {
     }
   }, [messages.length, typing])
 
-  async function send() {
+  async function handleSendMessage(text: string) {
     if (!patient) return
-    const text = draft.trim()
-    if (!text) return
-    setDraft("")
+    const trimmedText = text.trim()
+    if (!trimmedText) return
 
-    const userMsg: Message = { role: "me", who: patient.first, t: fmtTime(), body: text }
+    const userMsg: Message = { role: "me", who: patient.first, t: fmtTime(), body: trimmedText }
     const currentId = activeId
 
     if (currentId) {
@@ -106,7 +107,7 @@ export function ChatScreen() {
     setTyping(true)
 
     try {
-      const { reply, sessionId, summaryUpdateTriggered, escalationTriggered } = await sendMessage(patient.id, text)
+      const { reply, sessionId, summaryUpdateTriggered, escalationTriggered } = await sendMessage(patient.id, trimmedText)
       const annaMsg: Message = { role: "them", who: "Anna", t: fmtTime(), body: reply }
 
       if (escalationTriggered) {
@@ -153,6 +154,13 @@ export function ChatScreen() {
     } finally {
       setTyping(false)
     }
+  }
+
+  async function send() {
+    const text = draft.trim()
+    if (!text) return
+    setDraft("")
+    await handleSendMessage(text)
   }
 
   const today = new Date().toISOString().slice(0, 10)
@@ -295,6 +303,16 @@ export function ChatScreen() {
                 </div>
                 <StatusBadge status={patient.status} label={patient.label} />
                 <Button
+                  variant={voiceMode ? "default" : "ghost"}
+                  size="sm"
+                  className="gap-1.5 text-[12.5px]"
+                  onClick={() => setVoiceMode(!voiceMode)}
+                  title={voiceMode ? "Terug naar text mode" : "Schakel stemmode in"}
+                >
+                  {voiceMode ? <MessageSquare className="size-3.5" /> : <Mic className="size-3.5" />}
+                  {voiceMode ? "Text" : "Spraak"}
+                </Button>
+                <Button
                   variant="ghost"
                   size="sm"
                   className="gap-1.5 text-[12.5px] text-muted-foreground hover:text-foreground"
@@ -414,18 +432,31 @@ export function ChatScreen() {
 
           {/* Composer */}
           <div className="flex items-end gap-2.5 px-7 py-3 border-t bg-card shrink-0">
-            <Textarea
-              className="flex-1 min-h-[40px] max-h-[140px] resize-none text-[14px]"
-              placeholder={patient ? `Typ als ${patient.first}…  (Enter om te versturen)` : "Selecteer een patiënt…"}
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send() } }}
-              disabled={!patient || typing || loadingMsgs}
-            />
-            <Button size="sm" onClick={() => void send()} disabled={!draft.trim() || !patient || typing || loadingMsgs}>
-              <Send data-icon="inline-start" />
-              Versturen
-            </Button>
+            {voiceMode ? (
+              <VoiceMode
+                onUserSpeech={(transcript) => {
+                  if (transcript) void handleSendMessage(transcript)
+                }}
+                messageText={messages.length > 0 && messages[messages.length - 1].role === "them"
+                  ? messages[messages.length - 1].body
+                  : undefined}
+              />
+            ) : (
+              <>
+                <Textarea
+                  className="flex-1 min-h-[40px] max-h-[140px] resize-none text-[14px]"
+                  placeholder={patient ? `Typ als ${patient.first}…  (Enter om te versturen)` : "Selecteer een patiënt…"}
+                  value={draft}
+                  onChange={e => setDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send() } }}
+                  disabled={!patient || typing || loadingMsgs}
+                />
+                <Button size="sm" onClick={() => void send()} disabled={!draft.trim() || !patient || typing || loadingMsgs}>
+                  <Send data-icon="inline-start" />
+                  Versturen
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
