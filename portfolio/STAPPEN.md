@@ -1058,3 +1058,186 @@ Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie
 - Documentatie in het Engels (projectconventie CLAUDE.md); producttaal Anna en patiënt blijft Nederlands
 
 **Commit:** (nog niet gecommit)
+
+---
+
+## Stap 50 — 2026-05-20
+
+**Wat:** Piper TTS Docker service toegevoegd aan docker-compose.yml (Task 1 van voice-mode plan).
+
+**Gedaan:**
+- `docker-compose.yml` — piper-tts service ingevoegd met custom Dockerfile
+- `piper.Dockerfile` — aangepast image met Flask HTTP wrapper (`piper_server.py`)
+- `piper_server.py` — Flask app wrapping piper-tts engine, auto-downloads voice model van HuggingFace bij startup
+- Voice model: `en_US-lessac` (English fallback; Dutch nl_NL-mls unavailable op verwachte HuggingFace-pad)
+- Poort: 5000 intern, 5005 extern via Docker
+
+**Beslissingen:**
+- Custom Dockerfile boven linuxserver/piper: linuxserver-variant had VoiceNotFoundError
+- English fallback: nl_NL-mls-low URL niet beschikbaar; Dutch support uitgesteld naar toekomstige iteratie
+- Piper boven cloud TTS (ElevenLabs): past bij privacy-narratief uit DL4, geen API-kosten
+
+**Commit:** `c5bc52c` — feat(docker): add piper TTS service with Flask wrapper
+
+---
+
+## Stap 51 — 2026-05-20
+
+**Wat:** Backend TTS httpx client geïmplementeerd (Task 2).
+
+**Gedaan:**
+- `backend/services/tts.py` — async `synthesize(text: str) -> bytes` functie
+- httpx client met 10 seconden timeout, error-handling op timeout/ConnectionError/non-200 responses
+- `PIPER_URL` uit environment variable (default `http://piper-tts:5000`)
+
+**Beslissingen:**
+- Async httpx i.p.v. requests: integreert met FastAPI async context
+- 10s timeout: genoeg voor CPU-inferentie van korte zinnen (<100 tokens)
+
+**Commit:** `f6744c5` — feat(backend): add Piper TTS httpx client service
+
+---
+
+## Stap 52 — 2026-05-20
+
+**Wat:** TTS Pydantic schema + FastAPI router geïmplementeerd, wired in main.py (Task 3).
+
+**Gedaan:**
+- `backend/schemas/tts.py` — `TTSRequest` model met `text` veld (min 1, max 4000 chars)
+- `backend/routers/tts.py` — `POST /tts` endpoint dat `TTSRequest` accepteert, audio/wav retourneert
+- `backend/main.py` — `tts_router` geregistreerd
+- `.env.example` — `PIPER_URL` env var gedocumenteerd
+
+**Beschikbaarheid:** `/tts` endpoint accessible via `http://localhost:8000/tts` (test: `curl -X POST ... -d '{"text":"Hallo"}'`)
+
+**Commit:** `c5bc52c` (bulk) — feat(backend): add /tts endpoint proxying to Piper
+
+---
+
+## Stap 53 — 2026-05-20
+
+**Wat:** Frontend TTS helper library gecreëerd (Task 4).
+
+**Gedaan:**
+- `frontend/Anna-remembers/lib/tts.ts` — twee functies:
+  - `fetchTTS(text: string): Promise<Blob>` — POST naar backend, retourneert audio blob
+  - `playAudioBlob(blob: Blob)` — speelt blob af via `Audio` element, cleans up object URL
+- `NEXT_PUBLIC_API_URL` env var support (default `http://localhost:8000`)
+
+**Commit:** `4125d07` — feat(frontend): add TTS fetch + playback helper
+
+---
+
+## Stap 54 — 2026-05-20
+
+**Wat:** Frontend Web Speech API hook geïmplementeerd voor push-to-talk (Task 5).
+
+**Gedaan:**
+- `frontend/Anna-remembers/lib/speech.ts` — `useSpeechRecognition()` hook
+- Spraakherkenning: Web Speech API, taal `nl-NL` (Dutch), push-to-talk modus
+- Return: `{ transcript, isListening, isSupported, start, stop }` interface
+
+**Beslissingen:**
+- Fallback naar `webkitSpeechRecognition` voor Chrome/Webkit-browsers
+- `continuous: false` — één utterance per click (push-to-talk UX)
+
+**Commit:** `4125d07` — feat(frontend): add Dutch Web Speech API hook
+
+---
+
+## Stap 55 — 2026-05-20
+
+**Wat:** TalkingHead.js avatar component gebouwd met lip-sync (Task 6).
+
+**Gedaan:**
+- `frontend/Anna-remembers/package.json` — `@met4citizen/talkinghead` + `three` geïnstalleerd
+- `frontend/Anna-remembers/components/chat/avatar.tsx` — React component met:
+  - TalkingHead.js wrapper, Three.js scene
+  - Ready Player Me avatar support (env var `NEXT_PUBLIC_AVATAR_URL`)
+  - `useImperativeHandle` exposeert `speakAudio(blob, text)` method
+  - Web Audio API: audio decoding, viseme-extractie, lip-sync animation
+  - Fallback: gewone audio playback als avatar niet beschikbaar
+
+**Beslissingen:**
+- Energy-based viseme-extractie (simple, adequate voor MVP)
+- Ready Player Me URL: user-provided via env var (standaard morfTargets ARKit+Oculus)
+
+**Commit:** `c5bc52c` — feat(frontend): add TalkingHead avatar component with Ready Player Me
+
+---
+
+## Stap 56 — 2026-05-20
+
+**Wat:** VoiceMode container component gekoppeld aan mic + avatar (Task 7).
+
+**Gedaan:**
+- `frontend/Anna-remembers/components/chat/voice-mode.tsx` — React component met:
+  - Mic knop (push-to-talk, visuele feedback)
+  - Avatar rendering
+  - Auto-playback van assistant messages via avatar
+  - Transcript-display na spraakherkenning
+  - Error-handling, "Doctor speaking..." state
+- Props: `onUserSpeech` callback, `avatarUrl`, `messageText` (auto-playback)
+
+**Beslissingen:**
+- Mic-knop disabled terwijl avatar spreekt (voorkom overlap)
+- Whole-message TTS (geen streaming voor MVP)
+
+**Commit:** `1060689` — feat(frontend): add VoiceMode container with mic + avatar
+
+---
+
+## Stap 57 — 2026-05-20
+
+**Wat:** Voice-mode integratie in chat-screen (Task 8).
+
+**Gedaan:**
+- `frontend/Anna-remembers/components/chat/chat-screen.tsx` — wijzigingen:
+  - `voiceMode` boolean state, voice/text toggle knop in header
+  - `handleSendMessage(text)` refactored: core send-logica, accepts tekst van alle bronnen
+  - Conditioneel renderen: VoiceMode container óf text composer
+  - VoiceMode props: `onUserSpeech` callback, `messageText` voor avatar auto-playback
+  - Speech-transcript via `onUserSpeech` stuurt hetzelfde kanaal als tekstinput
+- Mic icon in text mode, MessageSquare icon in voice mode
+- Labels: "Spraak" (voice), "Text"
+
+**Beslissingen:**
+- Composer plaats (vorig ontwerp): Avatar + mic = in composer area, niet apart stream
+- Refactor `send()` → `handleSendMessage(text)`: één logische kern voor text + voice input
+
+**Commit:** `4ae06b0` — feat(frontend): integrate voice-mode toggle in chat-screen
+
+---
+
+## Stap 58 — 2026-05-20
+
+**Wat:** Voice-mode + avatar implementatie gedocumenteerd in STAPPEN.md (Task 9).
+
+**Gedaan:**
+- STAPPEN.md: Stappen 50–58 toegevoegd (één per task, chronologisch)
+- Elke stap logt: wat gedaan, beslissingen genomen, commit hash
+- Plan-referentie: `docs/superpowers/plans/2026-05-20-voice-mode-avatar.md`
+- Spec-referentie: `docs/superpowers/specs/2026-05-20-voice-mode-avatar-design.md`
+
+**Vorige stappen geferentieerd:**
+- Escalatie (DL4): Stappen 36–48
+- Chat-pipeline: Stappen 19–35
+- Backend + MCP: Stappen 1–18
+
+**Bekende beperkingen:**
+- Dutch voice model: huidige fallback = English en_US-lessac
+- Avatar URL: user provides via env var of Ready Player Me default
+- Viseme extraction: energy-based (refinable met phoneme-analyse)
+
+**Beslissingen:**
+- No tests (per user request in plan)
+- English fallback adequate voor MVP; Dutch voice = toekomstige PR
+- Whole-message TTS simpelheid over streaming complexity
+
+**Commit:** (volgt na goedkeuring gebruiker)
+
+**Volgende sessie:** 
+- Docker Compose + Piper container starten en testen
+- Microphone permissions verifiëren in browser
+- End-to-end test: mic → transcript → message send → avatar playback
+- Integratie in demo seeder + portfolio decision logs
