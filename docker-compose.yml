@@ -121,6 +121,17 @@ services:
       OLLAMA_HOST: http://ollama:11434
     restart: "no"
 
+  # --- Piper TTS (Dutch voice synthesis) ---
+
+  piper-tts:
+    build:
+      context: .
+      dockerfile: piper.Dockerfile
+    container_name: anna-piper-tts
+    restart: unless-stopped
+    ports:
+      - "5005:5000"
+
 volumes:
   postgres_data:    # persistente PostgreSQL data — blijft na container-restart
   chroma_data:      # persistente ChromaDB vectoren — blijft na container-restart

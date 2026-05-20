@@ -57,7 +57,8 @@
       "WebFetch(domain:langfuse.com)",
       "Bash(defuddle parse *)",
       "PowerShell(Get-ChildItem C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\backend\\\\routers -Recurse | ForEach-Object { $_.FullName })",
-      "Bash(docker exec *)"
+      "Bash(docker exec *)",
+      "Bash(docker compose *)"
     ]
   }
 }
