@@ -1241,3 +1241,80 @@ Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie
 - Microphone permissions verifiëren in browser
 - End-to-end test: mic → transcript → message send → avatar playback
 - Integratie in demo seeder + portfolio decision logs
+
+---
+
+## Stap 59 — 2026-05-20
+
+**Wat:** Piper TTS Docker service gefixeerd — linuxserver image met HTTP bridge (Debugging & Fixes).
+
+**Gedaan:**
+- Probleem: Custom `piper.Dockerfile` met Flask wrapper kon stem-bestanden niet downloaden van HuggingFace (404 errors, container restart-loop)
+- Oplossing: Overstap naar `linuxserver/piper:latest` image (Wyoming protocol, automatische stem-download)
+- Nieuwe componenten:
+  - `docker-compose.yml`: Vervangen custom build met `image: linuxserver/piper:latest`
+  - `piper_http_bridge.py`: Flask HTTP wrapper dat lipsync → Piper library translates
+  - `piper_http_bridge.Dockerfile`: Python 3.11 + Flask + piper-tts package
+  - Volume setup: `piper_voices:/config` shared tussen piper-tts en HTTP bridge
+- Voice model: `en_US-libritts-high` (betrouwbaar beschikbaar, MP3-gecomprimeerd)
+- HTTP endpoint: `POST http://localhost:5005?text=<text>` → WAV bytes (200 OK)
+
+**Beslissingen:**
+- linuxserver image: Onderhouden, betrouwbare stem-downloads, geen handmatige file management
+- HTTP bridge: Decoupled van Piper Wyoming protocol, eenvoudiger backend integratie
+- Shared volume: Piper downloadt eenmalig bij startup, bridge hergebruikt bestanden
+
+**Commits:** 
+- `5631999` — fix: replace custom piper.Dockerfile with linuxserver/piper image and HTTP bridge
+
+---
+
+## Stap 60 — 2026-05-20
+
+**Wat:** TalkingHead.js bundler error opgelost — dynamic import at runtime (Debugging & Fixes).
+
+**Gedaan:**
+- Probleem: Next.js bundler kon TalkingHead.js dynamic lipsync imports niet statisch analyseren
+  - Error: `Module not found: Can't resolve <dynamic>` bij `import(moduleName)` (line 2753)
+  - `moduleName` = `path + 'lipsync-' + lang.toLowerCase() + '.mjs'` (runtime-constructed)
+  - Bundler kan variabelen in import-paden niet volgen
+- Oplossing: Wrap TalkingHead import in `import()` call (load at runtime, niet compile-time)
+  - `avatar.tsx`: `import("@met4citizen/talkinghead").then(({ TalkingHead: TH }) => {...})`
+  - Animation loop vooraf: Check `talkingHeadRef.current` voordat `update()` wordt called
+  - Async initialization: TalkingHead laadt nadat Three.js scene gereed is
+- Next.js config: webpack rule added voor dynamische imports (fallback)
+- Result: Geen bundler errors, Avatar component laadt zonder errors op client
+
+**Beslissingen:**
+- Async init: Animation loop draait ook voordat TalkingHead gereed is (render scene empty tot init)
+- Type safety: `let TalkingHead: typeof TalkingHeadType` voor typechecking zonder bundler overhead
+
+**Commits:** 
+- `3c086aa` — fix: resolve TalkingHead bundler error by dynamically importing at runtime
+
+---
+
+## Sessie Samenvatting (2026-05-20 Afternoon)
+
+**Start:** Voice mode fully implemented maar Docker TTS broken, frontend bundler error
+**Einde:** All infrastructure operational, bundler error resolved, ready for end-to-end testing
+
+### Wat Gefixeerd
+1. Piper TTS: Custom Dockerfile → linuxserver image + HTTP bridge
+2. Frontend: TalkingHead dynamic import error → runtime-loaded module
+3. Beide fixes testen: Status 200 op TTS endpoint, geen console errors op frontend
+
+### Status
+- ✅ All Docker services healthy (Piper, Backend, PostgreSQL, ChromaDB, Ollama, MCP)
+- ✅ TTS endpoint working (HTTP 200, WAV audio returned)
+- ✅ Frontend loading without bundler errors
+- ✅ Ready for browser testing: voice mode + avatar + TTS flow
+
+### Next Steps (for user testing)
+1. Open http://localhost:3001/patients in browser
+2. Go to patient chat, toggle voice mode
+3. Test mic → transcript → message send → avatar speaks
+4. Verify no console errors, audio plays
+
+**Beslissing:** Alle voice-mode features klaar voor demo/testing phase
+
