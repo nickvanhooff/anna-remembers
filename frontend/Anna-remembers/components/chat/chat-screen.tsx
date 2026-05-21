@@ -571,18 +571,20 @@ export function ChatScreen() {
           {/* Composer */}
           <div className="flex shrink-0 items-end gap-2.5 border-t bg-card px-7 py-3">
             {voiceMode ? (
-              <VoiceMode
-                avatarUrl="/model (11).glb"
-                onUserSpeech={(transcript) => {
-                  if (transcript) void handleSendMessage(transcript)
-                }}
-                messageText={
-                  messages.length > 0 &&
-                  messages[messages.length - 1].role === "them"
-                    ? messages[messages.length - 1].body
-                    : undefined
-                }
-              />
+              <div className="min-w-0 flex-1">
+                <VoiceMode
+                  avatarUrl="/model (11).glb"
+                  onUserSpeech={(transcript) => {
+                    if (transcript) void handleSendMessage(transcript)
+                  }}
+                  messageText={
+                    messages.length > 0 &&
+                    messages[messages.length - 1].role === "them"
+                      ? messages[messages.length - 1].body
+                      : undefined
+                  }
+                />
+              </div>
             ) : (
               <>
                 <Textarea
