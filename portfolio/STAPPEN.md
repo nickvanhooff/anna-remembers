@@ -1318,3 +1318,33 @@ Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie
 
 **Beslissing:** Alle voice-mode features klaar voor demo/testing phase
 
+
+---
+
+## Stap 61 — XTTS v2 voice cloning bridge toegevoegd (eigen stem)
+
+**Datum:** 2026-05-21
+
+**Wat is er gedaan:**
+- Nieuwe Docker-service `xtts-bridge` (Coqui XTTS v2) toegevoegd aan `docker-compose.yml`, naast bestaande Piper-bridge.
+- `xtts_bridge.py` + `xtts_bridge.Dockerfile` — Flask-app met dezelfde endpoint-shape als de Piper-bridge (`POST /?text=...` → `audio/wav`).
+- `tts_voice/` directory aangemaakt met README; voice-sample (`voice_sample.wav`) wordt bind-mounted naar `/voice` in de container.
+- Backend `services/tts.py`: timeout naar 60s (XTTS doet ~3-10s per zin op GPU vs Piper <1s).
+- `PIPER_URL` env in compose wijst nu standaard naar `xtts-bridge:5000`, maar blijft override-baar via `.env`.
+- GPU passthrough + persistente model-cache volume (`xtts_models`) toegevoegd zodat het ~1.8 GB model niet opnieuw gedownload wordt.
+
+**Waarom:**
+- Piper Dutch (`nl_NL-ronnie-medium`) klinkt synthetisch; voor demo-kwaliteit én voor persoonlijke stem-cloning is XTTS v2 een grote stap.
+- OpenVoice ondersteunt geen Nederlands (base TTS dekt EN/ES/FR/ZH/JA/KO). XTTS v2 wel.
+- Endpoint-shape gelijk houden = geen frontend-aanpassingen, alleen upstream URL switchen.
+
+**Zelf bedacht:**
+- Keuze XTTS v2 i.p.v. OpenVoice na vergelijking taalondersteuning (zie chatlog 2026-05-21).
+- Beslissing om Piper-bridge te behouden naast XTTS (fallback / snelheid-vergelijking voor evidence).
+- `PIPER_URL` als env-var hergebruiken i.p.v. nieuwe variabele — minimaliseert config-oppervlak.
+
+**Bronnen:**
+- Coqui XTTS v2 docs: https://docs.coqui.ai/en/latest/models/xtts.html
+- coqui-tts (maintained fork): https://github.com/idiap/coqui-ai-TTS
+
+**Volgende stap:** gebruiker neemt een 10-15s NL voice sample op en plaatst het in `tts_voice/voice_sample.wav`; daarna `docker compose up -d --build xtts-bridge`.

@@ -5,7 +5,8 @@ import httpx
 from fastapi import HTTPException
 
 PIPER_URL = os.getenv("PIPER_URL", "http://piper-tts:5000")
-TIMEOUT_SECONDS = 10.0
+# XTTS v2 op GPU doet ~3-10s per zin; Piper is sneller maar deelt dezelfde client.
+TIMEOUT_SECONDS = float(os.getenv("TTS_TIMEOUT_SECONDS", "60"))
 
 
 async def synthesize(text: str) -> bytes:

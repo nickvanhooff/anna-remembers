@@ -573,7 +573,7 @@ export function ChatScreen() {
             {voiceMode ? (
               <div className="min-w-0 flex-1">
                 <VoiceMode
-                  avatarUrl="/model (11).glb"
+                  avatarUrl="/model (14).glb"
                   onUserSpeech={(transcript) => {
                     if (transcript) void handleSendMessage(transcript)
                   }}
