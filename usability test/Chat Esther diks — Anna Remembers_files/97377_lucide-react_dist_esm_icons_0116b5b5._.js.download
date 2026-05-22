@@ -1,0 +1,247 @@
+(globalThis.TURBOPACK || (globalThis.TURBOPACK = [])).push([typeof document === "object" ? document.currentScript : undefined,
+"[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/plus.mjs [app-client] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "__iconNode",
+    ()=>__iconNode,
+    "default",
+    ()=>Plus
+]);
+/**
+ * @license lucide-react v1.16.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */ var __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$createLucideIcon$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/createLucideIcon.mjs [app-client] (ecmascript)");
+;
+const __iconNode = [
+    [
+        "path",
+        {
+            d: "M5 12h14",
+            key: "1ays0h"
+        }
+    ],
+    [
+        "path",
+        {
+            d: "M12 5v14",
+            key: "s699le"
+        }
+    ]
+];
+const Plus = (0, __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$createLucideIcon$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"])("plus", __iconNode);
+;
+ //# sourceMappingURL=plus.mjs.map
+}),
+"[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/plus.mjs [app-client] (ecmascript) <export default as Plus>", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "Plus",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$plus$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"]
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$plus$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/plus.mjs [app-client] (ecmascript)");
+}),
+"[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/chevron-right.mjs [app-client] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "__iconNode",
+    ()=>__iconNode,
+    "default",
+    ()=>ChevronRight
+]);
+/**
+ * @license lucide-react v1.16.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */ var __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$createLucideIcon$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/createLucideIcon.mjs [app-client] (ecmascript)");
+;
+const __iconNode = [
+    [
+        "path",
+        {
+            d: "m9 18 6-6-6-6",
+            key: "mthhwq"
+        }
+    ]
+];
+const ChevronRight = (0, __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$createLucideIcon$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"])("chevron-right", __iconNode);
+;
+ //# sourceMappingURL=chevron-right.mjs.map
+}),
+"[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/chevron-right.mjs [app-client] (ecmascript) <export default as ChevronRight>", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "ChevronRight",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$right$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"]
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$chevron$2d$right$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/chevron-right.mjs [app-client] (ecmascript)");
+}),
+"[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/send.mjs [app-client] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "__iconNode",
+    ()=>__iconNode,
+    "default",
+    ()=>Send
+]);
+/**
+ * @license lucide-react v1.16.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */ var __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$createLucideIcon$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/createLucideIcon.mjs [app-client] (ecmascript)");
+;
+const __iconNode = [
+    [
+        "path",
+        {
+            d: "M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z",
+            key: "1ffxy3"
+        }
+    ],
+    [
+        "path",
+        {
+            d: "m21.854 2.147-10.94 10.939",
+            key: "12cjpa"
+        }
+    ]
+];
+const Send = (0, __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$createLucideIcon$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"])("send", __iconNode);
+;
+ //# sourceMappingURL=send.mjs.map
+}),
+"[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/send.mjs [app-client] (ecmascript) <export default as Send>", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "Send",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$send$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"]
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$send$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/send.mjs [app-client] (ecmascript)");
+}),
+"[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/scroll-text.mjs [app-client] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "__iconNode",
+    ()=>__iconNode,
+    "default",
+    ()=>ScrollText
+]);
+/**
+ * @license lucide-react v1.16.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */ var __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$createLucideIcon$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/createLucideIcon.mjs [app-client] (ecmascript)");
+;
+const __iconNode = [
+    [
+        "path",
+        {
+            d: "M15 12h-5",
+            key: "r7krc0"
+        }
+    ],
+    [
+        "path",
+        {
+            d: "M15 8h-5",
+            key: "1khuty"
+        }
+    ],
+    [
+        "path",
+        {
+            d: "M19 17V5a2 2 0 0 0-2-2H4",
+            key: "zz82l3"
+        }
+    ],
+    [
+        "path",
+        {
+            d: "M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3",
+            key: "1ph1d7"
+        }
+    ]
+];
+const ScrollText = (0, __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$createLucideIcon$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"])("scroll-text", __iconNode);
+;
+ //# sourceMappingURL=scroll-text.mjs.map
+}),
+"[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/scroll-text.mjs [app-client] (ecmascript) <export default as ScrollText>", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "ScrollText",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$scroll$2d$text$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"]
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$scroll$2d$text$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/scroll-text.mjs [app-client] (ecmascript)");
+}),
+"[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/mic.mjs [app-client] (ecmascript)", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "__iconNode",
+    ()=>__iconNode,
+    "default",
+    ()=>Mic
+]);
+/**
+ * @license lucide-react v1.16.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */ var __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$createLucideIcon$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/createLucideIcon.mjs [app-client] (ecmascript)");
+;
+const __iconNode = [
+    [
+        "path",
+        {
+            d: "M12 19v3",
+            key: "npa21l"
+        }
+    ],
+    [
+        "path",
+        {
+            d: "M19 10v2a7 7 0 0 1-14 0v-2",
+            key: "1vc78b"
+        }
+    ],
+    [
+        "rect",
+        {
+            x: "9",
+            y: "2",
+            width: "6",
+            height: "13",
+            rx: "3",
+            key: "s6n7sd"
+        }
+    ]
+];
+const Mic = (0, __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$createLucideIcon$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"])("mic", __iconNode);
+;
+ //# sourceMappingURL=mic.mjs.map
+}),
+"[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/mic.mjs [app-client] (ecmascript) <export default as Mic>", ((__turbopack_context__) => {
+"use strict";
+
+__turbopack_context__.s([
+    "Mic",
+    ()=>__TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$mic$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["default"]
+]);
+var __TURBOPACK__imported__module__$5b$project$5d2f$fontys$2f$semester_4$2f$anna_remembers$2f$frontend$2f$Anna$2d$remembers$2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$mic$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/fontys/semester_4/anna_remembers/frontend/Anna-remembers/node_modules/lucide-react/dist/esm/icons/mic.mjs [app-client] (ecmascript)");
+}),
+]);
+
+//# sourceMappingURL=97377_lucide-react_dist_esm_icons_0116b5b5._.js.map

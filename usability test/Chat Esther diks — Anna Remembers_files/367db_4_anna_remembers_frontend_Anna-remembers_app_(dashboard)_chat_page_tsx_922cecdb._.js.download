@@ -1,0 +1,11 @@
+(globalThis.TURBOPACK_CHUNK_LISTS || (globalThis.TURBOPACK_CHUNK_LISTS = [])).push({
+    script: typeof document === "object" ? document.currentScript : undefined,
+    chunks: [
+  "static/chunks/fontys_semester_4_anna_remembers_frontend_Anna-remembers_00ba2565._.js",
+  "static/chunks/97377_three_build_three_core_922f5962.js",
+  "static/chunks/97377_three_build_three_module_b468f213.js",
+  "static/chunks/97377_three_examples_jsm_df78ee6e._.js",
+  "static/chunks/97377_lucide-react_dist_esm_icons_0116b5b5._.js"
+],
+    source: "dynamic"
+});
