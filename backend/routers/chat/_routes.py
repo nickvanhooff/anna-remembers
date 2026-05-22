@@ -1,15 +1,14 @@
 """FastAPI route handlers for the chat endpoint."""
 
 import asyncio
+import re
 import uuid
-from typing import Annotated
 from datetime import datetime
+from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from langfuse import get_client as get_langfuse, propagate_attributes
-from sqlalchemy import func
-from sqlalchemy.orm import Session
-
+from langfuse import get_client as get_langfuse
+from langfuse import propagate_attributes
 from models.message import Message
 from models.patient import Patient
 from models.session import Session as ChatSession
@@ -29,6 +28,8 @@ from schemas.message import (
 from services.database import get_db
 from services.llm import get_llm_provider
 from services.mcp_client import MCPClient, get_mcp_client
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from ._escalation import format_escalation_reason, layer0_check, layer1_classify
 from ._prompts import build_system_prompt
@@ -41,14 +42,325 @@ _RAG_LIMIT = 5
 _HISTORY_PREVIEW_CHARS = 200
 
 _QUESTION_STARTERS = {
-    "waar", "wat", "wie", "hoe", "wanneer", "waarom", "welke", "hoeveel",
-    "kan", "kunt", "weet", "bent", "heeft", "hebben", "is", "zijn",
+    "waar",
+    "wat",
+    "wie",
+    "hoe",
+    "wanneer",
+    "waarom",
+    "welke",
+    "hoeveel",
+    "kan",
+    "kunt",
+    "weet",
+    "bent",
+    "heeft",
+    "hebben",
+    "is",
+    "zijn",
 }
 _REFUSAL_PATTERNS = [
-    "geen toegang", "geen toegang tot", "heb ik geen", "weet ik niet",
-    "weet niet waar", "kan ik niet weten", "heb geen toegang",
-    "als een ai", "als taalmodel",
+    "geen toegang",
+    "geen toegang tot",
+    "heb ik geen",
+    "weet ik niet",
+    "weet niet waar",
+    "kan ik niet weten",
+    "heb geen toegang",
+    "als een ai",
+    "als taalmodel",
 ]
+
+# Mood-namen = bestandsnamen in frontend/public/ (zonder .glb). Default:
+# standard_waiting. De LLM moet uit deze lijst kiezen.
+_DEFAULT_MOOD = "standard_waiting"
+
+# Mood/anim-namen = bestandsnamen in frontend/public/ (zonder .glb). Default:
+# standard_waiting. De LLM moet uit deze lijst kiezen.
+_VALID_MOODS = {
+    "standard_waiting",
+    "stand_look_around",
+    "running_fast",
+    "standard_walk_crouching",
+    "flexing_arm",
+    "gorilla",
+    "laying_on_floor",
+    "just_chilling",
+    "angry",
+    "Expressing_joy",
+    "model",
+    "model (13)",
+}
+
+# Accept [MOOD: x], MOOD: x, [ANIM: x], ANIM: x — case-insensitive,
+# optional whitespace, optional brackets. Robust against small LLM formatting errors.
+# Note: values may contain spaces/parentheses (e.g. "model (13)").
+# Also accepts minor variants like `ANIM - x` or `[ANIM x]` (missing colon).
+_MOOD_RE = re.compile(
+    r"^\s*\[?\s*(?:MOOD|ANIM|ANIMATION)\s*(?::|=|-)?\s*([^\]\r\n]+?)\s*\]?\s*(?:\r?\n)?",
+    re.IGNORECASE,
+)
+_MOOD_LOOKUP = {m.lower(): m for m in _VALID_MOODS}
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """Small Levenshtein distance for fuzzy tag parsing (no external deps)."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, start=1):
+        cur = [i]
+        for j, cb in enumerate(b, start=1):
+            cost = 0 if ca == cb else 1
+            cur.append(
+                min(
+                    prev[j] + 1,  # deletion
+                    cur[j - 1] + 1,  # insertion
+                    prev[j - 1] + cost,  # substitution
+                )
+            )
+        prev = cur
+    return prev[-1]
+
+
+def _canonicalize_mood(raw: str) -> str | None:
+    """Map a raw tag value to a canonical mood key.
+
+    Handles:
+    - exact values from `_VALID_MOODS`
+    - common alias-like values (e.g. "standard_running" → "running_fast")
+    - small typos (Levenshtein)
+
+    Returns None if we can't confidently map.
+    """
+    s = (raw or "").strip().strip("[]").strip()
+    if not s:
+        return None
+
+    s_l = s.lower()
+    exact = _MOOD_LOOKUP.get(s_l)
+    if exact:
+        return exact
+
+    # Alias / heuristic mapping for common "close enough" values
+    alias_contains: list[tuple[str, str]] = [
+        ("standard_running", "running_fast"),
+        ("running", "running_fast"),
+        ("hardloop", "running_fast"),
+        ("sprint", "running_fast"),
+        ("angr", "angry"),
+        ("boos", "angry"),
+        ("joy", "Expressing_joy"),
+        ("happy", "Expressing_joy"),
+        ("wait", "standard_waiting"),
+        ("look", "stand_look_around"),
+        ("crouch", "standard_walk_crouching"),
+        ("flex", "flexing_arm"),
+        ("gorilla", "gorilla"),
+        ("lay", "laying_on_floor"),
+        ("chill", "just_chilling"),
+    ]
+    for needle, target in alias_contains:
+        if needle in s_l and target in _VALID_MOODS:
+            return target
+
+    # Fuzzy match (small typos like `ngry` → `angry`)
+    best: str | None = None
+    best_d = 10**9
+    for m in _VALID_MOODS:
+        d = _levenshtein(s_l, m.lower())
+        if d < best_d:
+            best_d = d
+            best = m
+
+    if best is None:
+        return None
+
+    # Conservative threshold
+    if best_d <= 2:
+        return best
+    if len(best) >= 12 and best_d <= 3 and best_d / len(best) <= 0.25:
+        return best
+
+    return None
+
+
+def _try_extract_bare_mood_prefix(text: str) -> tuple[str, str] | None:
+    """Handle broken prefixes like `tandard_walk_crouching]`, `ngry]`, or `ng]`.
+
+    Looks at the first line only. If it contains a closing `]` early:
+    - If token resembles a known mood key (exact/alias/typo), strip it and return that mood.
+    - Otherwise, if it *looks like* a broken tag (short alpha token), strip it anyway and
+      return the default mood so the tag never leaks into the UI.
+    """
+    stripped = text.lstrip()
+    if not stripped:
+        return None
+
+    first_line = stripped.splitlines(True)[0]
+    end = first_line.find("]")
+    if end == -1 or end > 80:
+        return None
+
+    token = first_line[:end].lstrip("[ ").strip()
+    if not token:
+        return None
+
+    canonical = _canonicalize_mood(token)
+    if canonical:
+        return stripped[end + 1 :].lstrip(), canonical
+
+    # If the model produced a very short broken token like `ng]`, strip it anyway.
+    token_l = token.lower()
+    if token_l.isalpha() and 2 <= len(token_l) <= 6:
+        return stripped[end + 1 :].lstrip(), _DEFAULT_MOOD
+
+    return None
+
+
+def _try_extract_mood_first_line_key(text: str) -> tuple[str, str] | None:
+    """Handle cases where the LLM outputs just the mood key on the first line.
+
+    Example:
+      standard_running_\n<rest>
+    """
+    stripped = text.lstrip()
+    if not stripped:
+        return None
+
+    first_line = stripped.splitlines(True)[0]
+    token = first_line.strip().strip("[]").strip()
+
+    # Only consider single-token lines (avoid matching normal sentences)
+    if not token or " " in token or len(token) > 60:
+        return None
+
+    canonical = _canonicalize_mood(token)
+    if not canonical:
+        return None
+
+    return stripped[len(first_line) :].lstrip(), canonical
+
+
+def _infer_mood_from_user(text: str) -> str | None:
+    """Infer a mood/animation from the user's message (UI-only heuristic).
+
+    This is intentionally conservative and only triggers on clear signals.
+    """
+    t = (text or "").lower().strip()
+
+    # ── Explicit debug / model selection (rare) ───────────────────────────
+    if "model (13)" in t or "model 13" in t:
+        return "model (13)"
+    if t == "model" or " model" in t:
+        return "model"
+    if "gorilla" in t:
+        return "gorilla"
+
+    # ── Clear physical intent ────────────────────────────────────────────
+    if "renn" in t or "hardloop" in t or "sprint" in t or "run" in t:
+        return "running_fast"
+
+    if (
+        "hurk" in t
+        or "gehurkt" in t
+        or "crouch" in t
+        or "squat" in t
+        or "kruip" in t
+        or "kruipen" in t
+        or "door m'n knie" in t
+        or "door mijn knie" in t
+    ):
+        return "standard_walk_crouching"
+
+    # Only trigger "laying_on_floor" on explicit floor/ground language
+    if (
+        "op de grond" in t
+        or "op het grond" in t
+        or "op de vloer" in t
+        or "op de grond" in t
+        or "vloer" in t
+        or "neergevallen" in t
+        or "ik ben gevallen" in t
+    ):
+        return "laying_on_floor"
+
+    # "flexing_arm" only when user indicates flexing/strength, not just "arm" pain
+    if (
+        "flex" in t
+        or "biceps" in t
+        or "spier" in t
+        or "spieren" in t
+        or "kracht" in t
+        or "krachttraining" in t
+        or "spierbal" in t
+        or "span mijn arm" in t
+        or "arm aanspannen" in t
+    ):
+        return "flexing_arm"
+
+    # ── Emotions ─────────────────────────────────────────────────────────
+    if (
+        "heel erg blij" in t
+        or "superblij" in t
+        or "ik ben blij" in t
+        or "gelukkig" in t
+        or "fantastisch" in t
+        or "geweldig" in t
+    ):
+        return "Expressing_joy"
+
+    if "boos" in t or "kwaad" in t or "woed" in t:
+        return "angry"
+
+    # ── Idle / waiting ───────────────────────────────────────────────────
+    if "wacht" in t or "even wachten" in t or "momentje" in t:
+        return "standard_waiting"
+
+    if "chill" in t or "relax" in t or "rustig aan" in t or "niks doen" in t:
+        return "just_chilling"
+
+    if "rondkijk" in t or "rond kijken" in t or "om me heen" in t or "kijk rond" in t:
+        return "stand_look_around"
+
+    return None
+
+
+def _extract_mood(text: str) -> tuple[str, str, bool]:
+    """Strip a leading mood/anim tag and return (clean_text, mood, tag_found).
+
+    Supports:
+    - `[ANIM: x]` / `ANIM: x` / `[MOOD x]` etc.
+    - Broken bracket-only prefixes like `tandard_walk_crouching]`
+
+    Always returns a valid mood string (defaults to standard_waiting).
+    `tag_found` is True if we saw a tag-like prefix (even if unknown).
+    """
+    if not text:
+        return text, _DEFAULT_MOOD, False
+
+    match = _MOOD_RE.match(text)
+    if match:
+        raw = match.group(1)
+        canonical = _canonicalize_mood(raw) or _DEFAULT_MOOD
+        return text[match.end() :].lstrip(), canonical, True
+
+    bare = _try_extract_bare_mood_prefix(text)
+    if bare:
+        clean, mood = bare
+        return clean, mood, True
+
+    bare_line = _try_extract_mood_first_line_key(text)
+    if bare_line:
+        clean, mood = bare_line
+        return clean, mood, True
+
+    return text, _DEFAULT_MOOD, False
 
 
 def _is_question(text: str) -> bool:
@@ -123,6 +435,7 @@ def _build_context_proof(
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
+
 @router.get(
     "/{patient_id}/sessions",
     response_model=list[SessionListItem],
@@ -176,10 +489,14 @@ def list_messages(
     db: Annotated[Session, Depends(get_db)],
 ) -> list[Message]:
     """Return all messages for a session, chronological."""
-    session = db.query(ChatSession).filter(
-        ChatSession.id == session_id,
-        ChatSession.patient_id == patient_id,
-    ).first()
+    session = (
+        db.query(ChatSession)
+        .filter(
+            ChatSession.id == session_id,
+            ChatSession.patient_id == patient_id,
+        )
+        .first()
+    )
     if not session:
         raise HTTPException(status_code=404, detail="Sessie niet gevonden")
 
@@ -245,10 +562,12 @@ async def chat(
     mcp: Annotated[MCPClient, Depends(get_mcp_client)],
     debug: Annotated[
         bool,
-        Query(description=(
-            "If true, response includes context_proof: PostgreSQL message "
-            "history vs MCP recall_context / store_memory (RAG) and how they combine."
-        )),
+        Query(
+            description=(
+                "If true, response includes context_proof: PostgreSQL message "
+                "history vs MCP recall_context / store_memory (RAG) and how they combine."
+            )
+        ),
     ] = False,
 ) -> MessageResponse:
     """Send a message on behalf of the patient and return Anna's response."""
@@ -286,22 +605,35 @@ async def chat(
     )
 
     langfuse = get_langfuse()
-    with langfuse.start_as_current_observation(as_type="span", name="chat-turn", input=body.content) as root_span:
+    with langfuse.start_as_current_observation(
+        as_type="span", name="chat-turn", input=body.content
+    ) as root_span:
         with propagate_attributes(
             user_id=str(patient_id),
             session_id=str(session.id),
             trace_name="chat-turn",
             metadata={"patient_name": f"{patient.first_name} {patient.last_name}"},
         ):
-            with langfuse.start_as_current_observation(as_type="span", name="rag-retrieval", input=body.content) as rag_span:
+            with langfuse.start_as_current_observation(
+                as_type="span", name="rag-retrieval", input=body.content
+            ) as rag_span:
                 rag_result, store_result = await asyncio.gather(
-                    mcp.recall_context(query=body.content, patient_id=str(patient_id), limit=_RAG_LIMIT),
+                    mcp.recall_context(
+                        query=body.content, patient_id=str(patient_id), limit=_RAG_LIMIT
+                    ),
                     store_coro,
                     return_exceptions=True,
                 )
-                memories: list[dict] = rag_result if isinstance(rag_result, list) else []
-                chroma_doc_id: str | None = store_result if isinstance(store_result, str) else None
-                rag_span.update(output=[m.get("content", "") for m in memories], metadata={"hit_count": len(memories)})
+                memories: list[dict] = (
+                    rag_result if isinstance(rag_result, list) else []
+                )
+                chroma_doc_id: str | None = (
+                    store_result if isinstance(store_result, str) else None
+                )
+                rag_span.update(
+                    output=[m.get("content", "") for m in memories],
+                    metadata={"hit_count": len(memories)},
+                )
 
             recent = (
                 db.query(Message)
@@ -318,26 +650,44 @@ async def chat(
             ]
 
             # Layer 0 — keyword check before LLM call
-            with langfuse.start_as_current_observation(as_type="span", name="escalation-layer0", input=body.content) as l0_span:
+            with langfuse.start_as_current_observation(
+                as_type="span", name="escalation-layer0", input=body.content
+            ) as l0_span:
                 layer0_urgency, layer0_reason = layer0_check(body.content)
                 l0_span.update(
-                    output={"triggered": bool(layer0_urgency), "urgency": layer0_urgency or "none"},
+                    output={
+                        "triggered": bool(layer0_urgency),
+                        "urgency": layer0_urgency or "none",
+                    },
                     metadata={"reason": layer0_reason or "geen match"},
                 )
 
             system_prompt = build_system_prompt(patient, memories)
-            root_span.update(metadata={
-                "patient_name": f"{patient.first_name} {patient.last_name}",
-                "rag_hits": len(memories),
-                "history_messages": len(history),
-                "layer0_triggered": bool(layer0_urgency),
-            })
+            root_span.update(
+                metadata={
+                    "patient_name": f"{patient.first_name} {patient.last_name}",
+                    "rag_hits": len(memories),
+                    "history_messages": len(history),
+                    "layer0_triggered": bool(layer0_urgency),
+                }
+            )
             llm = get_llm_provider()
             raw_response = await llm.chat(messages=history, system=system_prompt)
             root_span.update(output=raw_response)
 
-    # Store Anna's reply
-    assistant_message = Message(session_id=session.id, role="assistant", content=raw_response)
+    # Strip leading [ANIM: x] / [MOOD: x] tag — drives the frontend avatar swap.
+    clean_response, mood, tag_found = _extract_mood(raw_response)
+
+    # Heuristic: infer a sensible animation from the user's message.
+    # If the LLM makes a mistake (wrong/garbled tag), this keeps the UI consistent.
+    inferred = _infer_mood_from_user(body.content or "")
+    if inferred and inferred != mood:
+        mood = inferred
+
+    # Store Anna's reply (zonder mood-prefix — patiënt ziet de tag niet)
+    assistant_message = Message(
+        session_id=session.id, role="assistant", content=clean_response
+    )
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
@@ -372,10 +722,13 @@ async def chat(
         background_tasks.add_task(layer1_classify, patient_id, body.content, session.id)
 
     base = MessageResponse.model_validate(assistant_message)
-    base = base.model_copy(update={
-        "summary_update_triggered": summary_triggered,
-        "escalation_triggered": should_escalate,
-    })
+    base = base.model_copy(
+        update={
+            "mood": mood,
+            "summary_update_triggered": summary_triggered,
+            "escalation_triggered": should_escalate,
+        }
+    )
     if not debug:
         return base
 

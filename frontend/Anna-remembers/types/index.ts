@@ -25,12 +25,28 @@ export interface Patient {
   medicalSummary: string | null
 }
 
+// Mood = animatie/model-key uit de backend (komt overeen met .glb bestandsnamen in /public, zonder extensie)
+export type Mood =
+  | "standard_waiting"
+  | "stand_look_around"
+  | "running_fast"
+  | "standard_walk_crouching"
+  | "flexing_arm"
+  | "gorilla"
+  | "laying_on_floor"
+  | "just_chilling"
+  | "angry"
+  | "Expressing_joy"
+  | "model"
+  | "model (13)"
+
 export interface Message {
   role: "me" | "them"
   who: string
   t: string
   body: string
   tag?: string
+  mood?: Mood
 }
 
 export interface Session {

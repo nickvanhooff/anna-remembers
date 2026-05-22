@@ -1348,3 +1348,33 @@ Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie
 - coqui-tts (maintained fork): https://github.com/idiap/coqui-ai-TTS
 
 **Volgende stap:** gebruiker neemt een 10-15s NL voice sample op en plaatst het in `tts_voice/voice_sample.wav`; daarna `docker compose up -d --build xtts-bridge`.
+
+---
+
+## Stap 62 — Mood-driven avatar swap (LLM-tagged output)
+
+**Datum:** 2026-05-21
+
+**Wat is er gedaan:**
+- Anna's system prompt vraagt nu een `[MOOD: x]` prefix met x ∈ {neutral, attentive, happy, concerned, idle}.
+- Backend (`_routes.py`) parsed de mood, stript de tag uit `content`, en geeft hem mee als veld `mood` in `MessageResponse`.
+- Frontend: `Message` type, `MessageResponseAPI`, `sendMessage`, `chat-screen`, `voice-mode`, en `avatar` doorpijpen `mood` end-to-end.
+- `MOOD_TO_MODEL` map in `avatar.tsx` koppelt mood → GLB-bestand in `/public/`:
+  - neutral → `/model.glb`
+  - attentive → `/stand_look_around.glb`
+  - happy → `/Expressing_joy.glb`
+  - concerned → `/angry.glb`
+  - idle → `/just_chilling.glb`
+- `Avatar` accepteert nu zowel een expliciete `avatarUrl` (override) als een `mood` prop; de mood-mapping bepaalt de URL als geen expliciete URL gegeven is.
+
+**Waarom:**
+- Keyword-matching in de frontend zou brittle zijn (mist context, Nederlandse synoniemen, sarcasme). De LLM weet beter wat de toon van zijn antwoord is.
+- LLM-tagging via prefix is robuuster dan JSON-output voor kleinere modellen (Ollama qwen2.5:3b).
+- Eén invariant: het mood-veld bepaalt het 3D-model; de tag is voor de patiënt onzichtbaar.
+
+**Zelf bedacht:**
+- Mood-taxonomie kort houden (5 states) — meer leidt tot LLM-onnauwkeurigheid.
+- Mood-tag als prefix-regex, niet JSON — bestand tegen kleine modelfouten.
+- Onbekende/missende moods → graceful fallback naar `neutral`.
+
+**Volgende stap:** browser-testen via voice mode, evt. preloading van GLBs als asset-swap te traag voelt.

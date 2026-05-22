@@ -103,6 +103,11 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     created_at: datetime
+    mood: str | None = Field(
+        default=None,
+        description="Animatie-/model-tag (bijv. standard_waiting|stand_look_around|Expressing_joy|angry|just_chilling) "
+        "gestript van Anna's antwoord; wordt door de frontend gebruikt om het 3D-avatar model te swappen.",
+    )
     summary_update_triggered: bool = Field(
         default=False,
         description="True when this response triggered a background medical summary update.",

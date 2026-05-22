@@ -134,13 +134,19 @@ export function ChatScreen() {
     setTyping(true)
 
     try {
-      const { reply, sessionId, summaryUpdateTriggered, escalationTriggered } =
-        await sendMessage(patient.id, trimmedText)
+      const {
+        reply,
+        sessionId,
+        mood,
+        summaryUpdateTriggered,
+        escalationTriggered,
+      } = await sendMessage(patient.id, trimmedText)
       const annaMsg: Message = {
         role: "them",
         who: "Anna",
         t: fmtTime(),
         body: reply,
+        mood,
       }
 
       if (escalationTriggered) {
@@ -573,7 +579,6 @@ export function ChatScreen() {
             {voiceMode ? (
               <div className="min-w-0 flex-1">
                 <VoiceMode
-                  avatarUrl="/model (14).glb"
                   onUserSpeech={(transcript) => {
                     if (transcript) void handleSendMessage(transcript)
                   }}
@@ -582,6 +587,13 @@ export function ChatScreen() {
                     messages[messages.length - 1].role === "them"
                       ? messages[messages.length - 1].body
                       : undefined
+                  }
+                  mood={
+                    messages.length > 0 &&
+                    messages[messages.length - 1].role === "them"
+                      ? (messages[messages.length - 1].mood ??
+                        "standard_waiting")
+                      : "standard_waiting"
                   }
                 />
               </div>
