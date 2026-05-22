@@ -51,39 +51,59 @@ USER_KEYWORD_RULES: list[tuple[tuple[str, ...], str]] = [
     (("rondkijk", "rond kijken", "om me heen", "kijk rond"), "stand_look_around"),
 ]
 
-# Regex to extract [ANIM: x] prefix from LLM output
-_ANIM_TAG_RE = re.compile(
+# Matches [ANIM: x] at the start of the text (to extract animation value from prefix).
+_ANIM_TAG_START_RE = re.compile(
     r"^\s*\[?\s*ANIM\s*[:=]?\s*([^\]\r\n]+?)\s*\]?\s*(?:\r?\n|$)",
     re.IGNORECASE,
 )
 
+# Matches [ANIM: x] anywhere in the text (to scrub mid-text tags the LLM sneaked in).
+_ANIM_TAG_ANY_RE = re.compile(
+    r"\[ANIM\s*[:=]\s*[^\]\r\n]+?\]",
+    re.IGNORECASE,
+)
+
+_ANIM_LOOKUP = {a.lower(): a for a in ANIMATIONS}
+
+
+def _validate(raw: str) -> str | None:
+    return _ANIM_LOOKUP.get(raw.strip().strip("[]").strip().lower())
+
 
 def strip_anim_tag(text: str) -> tuple[str, str | None]:
-    """Strip and validate LLM [ANIM: x] tag.
+    """Strip all [ANIM: x] tags from LLM output and return the animation value.
+
+    Checks the start of the text first (preferred position). If the LLM placed
+    the tag mid-text instead, we still capture it and always scrub it so it
+    never leaks into stored content or TTS.
 
     Returns:
         (clean_text, animation_or_None_if_invalid)
-        If tag is found and valid, returns cleaned text and animation key.
-        If tag is found but invalid, returns cleaned text and None.
-        If no tag, returns original text and None.
     """
     if not text:
         return text, None
 
-    match = _ANIM_TAG_RE.match(text)
-    if not match:
-        return text, None
+    animation: str | None = None
 
-    raw_value = match.group(1).strip().strip("[]").strip()
-    clean_text = text[match.end() :].lstrip()
+    # Try start first — this is where the prompt instructs the LLM to put the tag.
+    start_match = _ANIM_TAG_START_RE.match(text)
+    if start_match:
+        animation = _validate(start_match.group(1))
+        text = text[start_match.end():].lstrip()
 
-    # Check if raw value is in our canonical set (case-insensitive)
-    for anim in ANIMATIONS:
-        if raw_value.lower() == anim.lower():
-            return clean_text, anim
+    # If not at start, search anywhere for the first valid tag.
+    if animation is None:
+        any_match = _ANIM_TAG_ANY_RE.search(text)
+        if any_match:
+            # Extract value between the colon/equals and the closing bracket.
+            inner = re.search(r"[:=]\s*([^\]\r\n]+)", any_match.group(), re.IGNORECASE)
+            if inner:
+                animation = _validate(inner.group(1))
 
-    # Tag found but value invalid
-    return clean_text, None
+    # Always scrub every remaining [ANIM: x] tag from the text.
+    clean_text = _ANIM_TAG_ANY_RE.sub("", text).strip()
+
+    return clean_text, animation
 
 
 def _check_user_keywords(user_text: str) -> str | None:

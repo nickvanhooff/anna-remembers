@@ -87,7 +87,8 @@
       "Bash(curl -X POST \"http://localhost:8000/tts\" -H \"Content-Type: application/json\" -d '{\"text\":\"This should work now\"}' -o /tmp/backend_tts.wav -w \"Status: %{http_code}, Size: %{size_download}\\\\n\" -s --max-time 30)",
       "Bash(python -m py_compile \"backend/routers/chat/_animation.py\")",
       "Bash(python -m py_compile \"backend/routers/chat/_routes.py\")",
-      "Bash(python -m py_compile \"backend/schemas/message.py\")"
+      "Bash(python -m py_compile \"backend/schemas/message.py\")",
+      "Bash(python -c \"from backend.routers.chat._animation import strip_anim_tag, resolve_animation; print\\(strip_anim_tag\\('Hallo\\\\n\\\\n[ANIM: flexing_arm]\\\\nHoe gaat het?'\\)\\); print\\(strip_anim_tag\\('[ANIM: angry]\\\\nDat is zorgwekkend.'\\)\\); print\\(resolve_animation\\('', 'Hallo\\\\n\\\\n[ANIM: standard_walk_crouching]\\\\nIk begrijp dat.'\\)\\)\")"
     ]
   }
 }

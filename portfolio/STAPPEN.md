@@ -1415,3 +1415,25 @@ De `[ANIM: x]` prefix wordt altijd gestript voordat het bericht in de DB of UI b
 - De keyword-regel `("model",) → "model"` matcht het Nederlandse woord "model" als substring. Onschuldig voor hartfalen-context, maar in een bredere domeincontext zou ik die rule weghalen of beperken tot exacte-match.
 
 **Volgende stap:** browser-test in voice mode, daarna committen op `feature/tts-stt-avatar`.
+
+---
+
+## Stap 64 — Bugfix: [ANIM: x] tag midden in LLM-output niet gepakt + TTS-lek
+
+**Datum:** 2026-05-22
+
+**Wat is er gedaan:**
+- `strip_anim_tag` in `backend/routers/chat/_animation.py` uitgebreid met een tweede regex (`_ANIM_TAG_ANY_RE`) die tags overal in de tekst vindt.
+- Volgorde: eerst proberen op begin (voorkeurspositie per prompt-instructie), daarna eerste treffer ergens in de tekst als fallback voor de animatie-waarde.
+- Altijd `re.sub` over de volledige tekst om alle `[ANIM: x]` occurrences te verwijderen — ook als de animatie al via de begin-regex gepakt is.
+- Hulpfunctie `_validate` geëxtraheerd voor hergebruik door beide code-paden.
+
+**Waarom:**
+- Qwen2.5 3B plaatst de tag regelmatig midden in de response (`...eerste zin.\n\n[ANIM: flexing_arm]\nTweede zin...`) in plaats van op de eerste regel. De `^`-geankerde regex sloeg dat over.
+- Gevolg was dubbel: animatie bleef op default én de tag zat letterlijk in de tekst die naar de XTTS-bridge gestuurd werd (`POST /?text=...[ANIM:+flexing_arm]...`). De TTS sprak de tag hardop uit.
+
+**Zelf bedacht:**
+- Begin-match blijft de primaire bron voor de animatie-waarde (betrouwbaarder positie), mid-tekst match is fallback.
+- `re.sub` altijd uitvoeren ongeacht welke branch de waarde levert — één scrub-stap die beide gevallen afdekt.
+
+**Commit:** (volgt bij volgende commit op `feature/tts-stt-avatar`)
