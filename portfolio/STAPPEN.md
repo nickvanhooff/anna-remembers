@@ -1378,3 +1378,40 @@ Het escalatiescherm gebruikte nog seed-data uit `mock-data.ts`. Na implementatie
 - Onbekende/missende moods → graceful fallback naar `neutral`.
 
 **Volgende stap:** browser-testen via voice mode, evt. preloading van GLBs als asset-swap te traag voelt.
+
+---
+
+## Stap 63 — Animation-picker refactor: keyword-first, util-bestand, mood → animation
+
+**Datum:** 2026-05-22
+
+**Wat is er gedaan:**
+- Concept hernoemd van "mood" → "animation" door de hele stack heen. Het is geen emotie-systeem, het is een GLB-keuze uit 12 animaties in `frontend/Anna-remembers/public/`.
+- Nieuwe util `backend/routers/chat/_animation.py` (~135 regels) met één publieke functie `resolve_animation(user_text, llm_text) → (clean_text, animation)`. Bevat verder `ANIMATIONS` (whitelist), `DEFAULT_ANIMATION`, `USER_KEYWORD_RULES`, `strip_anim_tag`.
+- `_routes.py` afgeslankt: ~290 regels mood-code verwijderd (`_levenshtein`, `_canonicalize_mood`, `_try_extract_bare_mood_prefix`, `_try_extract_mood_first_line_key`, `_infer_mood_from_user`, `_extract_mood`, `_VALID_MOODS`, `_MOOD_RE`, `_MOOD_LOOKUP`). Vervangen door één import + één aanroep.
+- Schema-veld `MessageResponse.mood` → `animation`. Frontend types, api-client, `Avatar`, `chat-screen`, `voice-mode` allemaal mee hernoemd (`AvatarMood` → `AvatarAnimation`, `MOOD_TO_MODEL` → `ANIMATION_TO_MODEL`).
+- Werkverdeling: twee Haiku-subagents parallel — één backend, één frontend. Opus orchestreerde + reviewde de output.
+
+**Resolutie-volgorde (nieuw):**
+1. **Keyword-check op user-bericht** (Nederlandse triggerwoorden, eerste match wint).
+2. **LLM `[ANIM: x]` tag** — exact match tegen whitelist (case-insensitive).
+3. **Default**: `standard_waiting`.
+
+De `[ANIM: x]` prefix wordt altijd gestript voordat het bericht in de DB of UI belandt, ongeacht welke bron de animatie kiest.
+
+**Waarom:**
+- GPT-5.2 leverde in stap 62 een opgeblazen 290-regel mood-pijp af met Levenshtein, alias-tabel en een `_infer_mood_from_user` die de LLM-keuze óverschreef. De motivatie in stap 62 ("LLM weet het beter") stond haaks op die override.
+- Nu is de prioriteit expliciet andersom én bewust gekozen: het user-bericht is het meest betrouwbare signaal ("ik ren een marathon" → `running_fast` is een feit, niet een interpretatie van Anna's toon). LLM-tag is back-up voor gevallen zonder duidelijk keyword.
+- Strip-logica naar eigen bestand → `_routes.py` blijft over de chat-flow gaan, niet over regex-parsing. Util is makkelijk los te testen.
+- Whitelist exact-match i.p.v. fuzzy: als de LLM iets onzinnigs produceert valt het terug op default. Robuuster dan giswerk.
+
+**Zelf bedacht:**
+- Resolutie-volgorde omdraaien (keyword vóór LLM) als ontwerpbeslissing, niet als bug-fix achteraf.
+- Util-bestand i.p.v. inline helpers in route-file — separation of concerns.
+- Geen Levenshtein/alias/fuzzy: een strakke prompt + whitelist + default-fallback is genoeg. Hoe meer "robustness layers", hoe vager het contract met de LLM.
+- Sub-agent strategie: Haiku voor mechanische rename + extractie, Opus voor planning + review.
+
+**Bekende caveat:**
+- De keyword-regel `("model",) → "model"` matcht het Nederlandse woord "model" als substring. Onschuldig voor hartfalen-context, maar in een bredere domeincontext zou ik die rule weghalen of beperken tot exacte-match.
+
+**Volgende stap:** browser-test in voice mode, daarna committen op `feature/tts-stt-avatar`.

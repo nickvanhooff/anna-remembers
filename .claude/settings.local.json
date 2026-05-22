@@ -84,7 +84,10 @@
       "Bash(curl -X POST \"http://localhost:8000/tts\" -H \"Content-Type: application/json\" -d '{\"text\":\"hello there\"}' -w \"\\\\nStatus: %{http_code}, Size: %{size_download} bytes\\\\n\" -o /tmp/tts_test.wav --max-time 30)",
       "Bash(curl -X POST \"http://localhost:5005/?text=Hello%20test\" -w \"\\\\nStatus: %{http_code}, Size: %{size_download}\\\\n\" -o /tmp/from_host.wav --max-time 30 -s)",
       "Bash(curl -X POST \"http://localhost:5005/?text=Hello%20there%20it%20works\" -o /tmp/test.wav -w \"Status: %{http_code}, Size: %{size_download}\\\\n\" -s --max-time 30)",
-      "Bash(curl -X POST \"http://localhost:8000/tts\" -H \"Content-Type: application/json\" -d '{\"text\":\"This should work now\"}' -o /tmp/backend_tts.wav -w \"Status: %{http_code}, Size: %{size_download}\\\\n\" -s --max-time 30)"
+      "Bash(curl -X POST \"http://localhost:8000/tts\" -H \"Content-Type: application/json\" -d '{\"text\":\"This should work now\"}' -o /tmp/backend_tts.wav -w \"Status: %{http_code}, Size: %{size_download}\\\\n\" -s --max-time 30)",
+      "Bash(python -m py_compile \"backend/routers/chat/_animation.py\")",
+      "Bash(python -m py_compile \"backend/routers/chat/_routes.py\")",
+      "Bash(python -m py_compile \"backend/schemas/message.py\")"
     ]
   }
 }

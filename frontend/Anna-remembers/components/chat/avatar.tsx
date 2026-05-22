@@ -9,7 +9,7 @@ export interface AvatarHandle {
   speakAudio(blob: Blob): Promise<void>
 }
 
-export type AvatarMood =
+export type AvatarAnimation =
   | "standard_waiting"
   | "stand_look_around"
   | "running_fast"
@@ -23,8 +23,8 @@ export type AvatarMood =
   | "model"
   | "model (13)"
 
-// ANIM/mood → GLB-bestand in /public. Keys moeten overeenkomen met backend mood.
-export const MOOD_TO_MODEL: Record<AvatarMood, string> = {
+// ANIM/animation → GLB-bestand in /public. Keys moeten overeenkomen met backend animation.
+export const ANIMATION_TO_MODEL: Record<AvatarAnimation, string> = {
   standard_waiting: "/standard_waiting.glb",
   stand_look_around: "/stand_look_around.glb",
   running_fast: "/running_fast.glb",
@@ -40,10 +40,10 @@ export const MOOD_TO_MODEL: Record<AvatarMood, string> = {
 }
 
 interface AvatarProps {
-  /** Expliciete URL — heeft voorrang boven `mood`. */
+  /** Expliciete URL — heeft voorrang boven `animation`. */
   avatarUrl?: string
-  /** Mood-tag uit Anna's response. Wordt gemapt naar een GLB-URL. */
-  mood?: AvatarMood
+  /** Animation-tag uit Anna's response. Wordt gemapt naar een GLB-URL. */
+  animation?: AvatarAnimation
 }
 
 // Candidate morph target names for the jaw/mouth opening, in order of preference.
@@ -71,10 +71,10 @@ const JAW_BONE_NAMES = [
 ]
 
 const Avatar = forwardRef<AvatarHandle, AvatarProps>(
-  ({ avatarUrl, mood }, ref) => {
-    // Resolve the effective URL: explicit avatarUrl wins; otherwise mood maps to a GLB.
+  ({ avatarUrl, animation }, ref) => {
+    // Resolve the effective URL: explicit avatarUrl wins; otherwise animation maps to a GLB.
     const resolvedUrl =
-      avatarUrl ?? (mood ? MOOD_TO_MODEL[mood] : MOOD_TO_MODEL.standard_waiting)
+      avatarUrl ?? (animation ? ANIMATION_TO_MODEL[animation] : ANIMATION_TO_MODEL.standard_waiting)
     const containerRef = useRef<HTMLDivElement>(null)
     const audioContextRef = useRef<AudioContext | null>(null)
     const analyserRef = useRef<AnalyserNode | null>(null)

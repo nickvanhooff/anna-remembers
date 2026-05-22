@@ -137,7 +137,7 @@ export function ChatScreen() {
       const {
         reply,
         sessionId,
-        mood,
+        animation,
         summaryUpdateTriggered,
         escalationTriggered,
       } = await sendMessage(patient.id, trimmedText)
@@ -146,7 +146,7 @@ export function ChatScreen() {
         who: "Anna",
         t: fmtTime(),
         body: reply,
-        mood,
+        animation,
       }
 
       if (escalationTriggered) {
@@ -588,10 +588,10 @@ export function ChatScreen() {
                       ? messages[messages.length - 1].body
                       : undefined
                   }
-                  mood={
+                  animation={
                     messages.length > 0 &&
                     messages[messages.length - 1].role === "them"
-                      ? (messages[messages.length - 1].mood ??
+                      ? (messages[messages.length - 1].animation ??
                         "standard_waiting")
                       : "standard_waiting"
                   }

@@ -244,7 +244,7 @@ interface MessageResponseAPI {
   role: string
   content: string
   created_at: string
-  mood?: string | null
+  animation?: string | null
   summary_update_triggered?: boolean
   escalation_triggered?: boolean
 }
@@ -282,7 +282,7 @@ export async function getChatMessages(
   const data = await get<MessageResponseAPI[]>(
     `/chat/${patientId}/sessions/${sessionId}/messages`
   )
-  const validMoods = [
+  const validAnimations = [
     "standard_waiting",
     "stand_look_around",
     "running_fast",
@@ -298,11 +298,11 @@ export async function getChatMessages(
   ] as const
 
   return data.map((m) => {
-    const mood =
+    const animation =
       m.role !== "user" &&
-      m.mood &&
-      (validMoods as readonly string[]).includes(m.mood)
-        ? (m.mood as import("@/types").Mood)
+      m.animation &&
+      (validAnimations as readonly string[]).includes(m.animation)
+        ? (m.animation as import("@/types").Animation)
         : undefined
 
     return {
@@ -313,7 +313,7 @@ export async function getChatMessages(
         minute: "2-digit",
       }),
       body: m.content,
-      mood,
+      animation,
     }
   })
 }
@@ -324,7 +324,7 @@ export async function sendMessage(
 ): Promise<{
   reply: string
   sessionId: string
-  mood: import("@/types").Mood
+  animation: import("@/types").Animation
   summaryUpdateTriggered: boolean
   escalationTriggered: boolean
 }> {
@@ -340,7 +340,7 @@ export async function sendMessage(
     })
     if (!res.ok) throw new Error(`API ${res.status}`)
     const data = (await res.json()) as MessageResponseAPI
-    const validMoods = [
+    const validAnimations = [
       "standard_waiting",
       "stand_look_around",
       "running_fast",
@@ -355,14 +355,14 @@ export async function sendMessage(
       "model (13)",
     ] as const
 
-    const mood =
-      data.mood && (validMoods as readonly string[]).includes(data.mood)
-        ? (data.mood as import("@/types").Mood)
+    const animation =
+      data.animation && (validAnimations as readonly string[]).includes(data.animation)
+        ? (data.animation as import("@/types").Animation)
         : "standard_waiting"
     return {
       reply: data.content,
       sessionId: data.session_id,
-      mood,
+      animation,
       summaryUpdateTriggered: data.summary_update_triggered ?? false,
       escalationTriggered: data.escalation_triggered ?? false,
     }

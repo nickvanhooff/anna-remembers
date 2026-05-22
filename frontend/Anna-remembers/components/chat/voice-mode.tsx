@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useState } from "react"
-import Avatar, { type AvatarHandle, type AvatarMood } from "./avatar"
+import Avatar, { type AvatarHandle, type AvatarAnimation } from "./avatar"
 import { useSpeechRecognition } from "@/lib/speech"
 import { fetchTTS } from "@/lib/tts"
 
@@ -9,14 +9,14 @@ interface VoiceModeProps {
   onUserSpeech?: (transcript: string) => void
   avatarUrl?: string
   messageText?: string
-  mood?: AvatarMood
+  animation?: AvatarAnimation
 }
 
 export function VoiceMode({
   onUserSpeech,
   avatarUrl,
   messageText,
-  mood,
+  animation,
 }: VoiceModeProps) {
   const avatarRef = useRef<AvatarHandle>(null)
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -120,8 +120,8 @@ export function VoiceMode({
     <div className="flex w-full min-w-0 flex-col gap-4">
       {/* Avatar — only rendered if an avatarUrl is provided. Otherwise show a
           simple visual indicator so the user gets feedback without a dead white canvas. */}
-      {avatarUrl || mood ? (
-        <Avatar ref={avatarRef} avatarUrl={avatarUrl} mood={mood} />
+      {avatarUrl || animation ? (
+        <Avatar ref={avatarRef} avatarUrl={avatarUrl} animation={animation} />
       ) : (
         <div
           className={`flex h-[180px] w-full flex-col items-center justify-center gap-3 rounded-lg transition-colors ${
