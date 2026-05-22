@@ -1,0 +1,9 @@
+(globalThis.TURBOPACK_CHUNK_LISTS || (globalThis.TURBOPACK_CHUNK_LISTS = [])).push({
+    script: typeof document === "object" ? document.currentScript : undefined,
+    chunks: [
+  "static/chunks/[root-of-the-server]__0b2fca6d._.css",
+  "static/chunks/97377_ee69e052._.js",
+  "static/chunks/fontys_semester_4_anna_remembers_frontend_Anna-remembers_da185653._.js"
+],
+    source: "dynamic"
+});
