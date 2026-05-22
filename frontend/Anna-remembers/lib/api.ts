@@ -1,4 +1,12 @@
-import type { Patient, Session, Escalation, EscalationUrgency, EscalationStatus, TrendPoint, PatientStatus } from "@/types"
+import type {
+  Patient,
+  Session,
+  Escalation,
+  EscalationUrgency,
+  EscalationStatus,
+  TrendPoint,
+  PatientStatus,
+} from "@/types"
 import { TRENDS, ESCALATIONS } from "./mock-data"
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
@@ -53,8 +61,8 @@ interface PatientAPI {
 const STATUS_LABEL: Record<PatientStatus, string> = {
   success: "Stabiel",
   warning: "Aandacht",
-  urgent:  "Urgent",
-  info:    "Nieuw",
+  urgent: "Urgent",
+  info: "Nieuw",
 }
 
 function calcAge(birthDate: string | null): number {
@@ -64,24 +72,27 @@ function calcAge(birthDate: string | null): number {
 }
 
 function medsString(schedule: Record<string, unknown>): string {
-  if (schedule.tekst && typeof schedule.tekst === "string") return schedule.tekst
-  const all = Object.values(schedule).flatMap(v => Array.isArray(v) ? v : [v])
+  if (schedule.tekst && typeof schedule.tekst === "string")
+    return schedule.tekst
+  const all = Object.values(schedule).flatMap((v) =>
+    Array.isArray(v) ? v : [v]
+  )
   return all.filter(Boolean).join(" · ")
 }
 
 function toPatient(p: PatientAPI): Patient {
   return {
-    id:             p.id,
-    first:          p.first_name,
-    last:           p.last_name,
-    dob:            p.birth_date ?? "",
-    age:            calcAge(p.birth_date),
-    sessions:       0,
-    lastSession:    null,
-    status:         p.status,
-    label:          STATUS_LABEL[p.status],
-    meds:           medsString(p.medication_schedule),
-    notes:          p.notes ?? "",
+    id: p.id,
+    first: p.first_name,
+    last: p.last_name,
+    dob: p.birth_date ?? "",
+    age: calcAge(p.birth_date),
+    sessions: 0,
+    lastSession: null,
+    status: p.status,
+    label: STATUS_LABEL[p.status],
+    meds: medsString(p.medication_schedule),
+    notes: p.notes ?? "",
     medicalSummary: p.medical_summary ?? null,
   }
 }
@@ -106,10 +117,12 @@ export interface PatientCreateInput {
   notes: string
 }
 
-export async function createPatient(input: PatientCreateInput): Promise<Patient> {
+export async function createPatient(
+  input: PatientCreateInput
+): Promise<Patient> {
   const body = {
     first_name: input.first,
-    last_name:  input.last,
+    last_name: input.last,
     birth_date: input.dob || null,
     medication_schedule: input.meds ? { tekst: input.meds } : {},
     notes: input.notes || null,
@@ -119,13 +132,17 @@ export async function createPatient(input: PatientCreateInput): Promise<Patient>
   return toPatient(data)
 }
 
-export async function updatePatient(id: string, input: Partial<PatientCreateInput> & { status?: PatientStatus }): Promise<Patient> {
+export async function updatePatient(
+  id: string,
+  input: Partial<PatientCreateInput> & { status?: PatientStatus }
+): Promise<Patient> {
   const body: Record<string, unknown> = {}
   if (input.first !== undefined) body.first_name = input.first
-  if (input.last  !== undefined) body.last_name  = input.last
-  if (input.dob   !== undefined) body.birth_date = input.dob || null
-  if (input.meds  !== undefined) body.medication_schedule = input.meds ? { tekst: input.meds } : {}
-  if (input.notes !== undefined) body.notes  = input.notes || null
+  if (input.last !== undefined) body.last_name = input.last
+  if (input.dob !== undefined) body.birth_date = input.dob || null
+  if (input.meds !== undefined)
+    body.medication_schedule = input.meds ? { tekst: input.meds } : {}
+  if (input.notes !== undefined) body.notes = input.notes || null
   if (input.status !== undefined) body.status = input.status
   const data = await patch<PatientAPI>(`/patients/${id}`, body)
   return toPatient(data)
@@ -150,41 +167,41 @@ interface EscalationAPI {
 }
 
 const URGENCY_MAP: Record<EscalationAPI["urgency"], EscalationUrgency> = {
-  high:   "urgent",
+  high: "urgent",
   medium: "warning",
-  low:    "info",
+  low: "info",
 }
 
 const STATUS_MAP: Record<EscalationAPI["status"], EscalationStatus> = {
-  open:         "open",
+  open: "open",
   acknowledged: "in_progress",
-  resolved:     "closed",
+  resolved: "closed",
 }
 
 const STATUS_MAP_REVERSE: Record<EscalationStatus, EscalationAPI["status"]> = {
-  open:        "open",
+  open: "open",
   in_progress: "acknowledged",
-  closed:      "resolved",
+  closed: "resolved",
 }
 
 const CHANNEL_MAP: Record<EscalationAPI["urgency"], string> = {
-  high:   "Slack",
+  high: "Slack",
   medium: "E-mail",
-  low:    "E-mail",
+  low: "E-mail",
 }
 
 function toEscalation(e: EscalationAPI): Escalation {
   return {
-    id:       e.id,
-    patient:  e.patient_id,
-    name:     e.patient_name,
-    urgency:  URGENCY_MAP[e.urgency],
-    status:   STATUS_MAP[e.status],
-    reason:   e.reason,
-    channel:  CHANNEL_MAP[e.urgency],
+    id: e.id,
+    patient: e.patient_id,
+    name: e.patient_name,
+    urgency: URGENCY_MAP[e.urgency],
+    status: STATUS_MAP[e.status],
+    reason: e.reason,
+    channel: CHANNEL_MAP[e.urgency],
     assignee: null,
-    opened:   e.created_at,
-    closed:   null,
+    opened: e.created_at,
+    closed: null,
   }
 }
 
@@ -193,7 +210,10 @@ export async function getEscalations(): Promise<Escalation[]> {
   return data.map(toEscalation)
 }
 
-export async function updateEscalationStatus(id: string, status: EscalationStatus): Promise<Escalation> {
+export async function updateEscalationStatus(
+  id: string,
+  status: EscalationStatus
+): Promise<Escalation> {
   const data = await patch<EscalationAPI>(`/escalations/${id}/status`, {
     status: STATUS_MAP_REVERSE[status],
   })
@@ -224,6 +244,7 @@ interface MessageResponseAPI {
   role: string
   content: string
   created_at: string
+  animation?: string | null
   summary_update_triggered?: boolean
   escalation_triggered?: boolean
 }
@@ -241,36 +262,72 @@ export async function closeSession(patientId: string): Promise<void> {
   await post(`/chat/${patientId}/sessions/close`, {})
 }
 
-export async function getChatSessions(patientId: string): Promise<ChatSession[]> {
+export async function getChatSessions(
+  patientId: string
+): Promise<ChatSession[]> {
   const data = await get<SessionAPI[]>(`/chat/${patientId}/sessions`)
-  return data.map(s => ({
-    id:           s.id,
-    date:         s.started_at.slice(0, 10),
+  return data.map((s) => ({
+    id: s.id,
+    date: s.started_at.slice(0, 10),
     messageCount: s.message_count,
-    isOpen:       s.is_open,
+    isOpen: s.is_open,
   }))
 }
 
 export async function getChatMessages(
   patientId: string,
   sessionId: string,
-  patientFirst: string,
+  patientFirst: string
 ): Promise<import("@/types").Message[]> {
   const data = await get<MessageResponseAPI[]>(
-    `/chat/${patientId}/sessions/${sessionId}/messages`,
+    `/chat/${patientId}/sessions/${sessionId}/messages`
   )
-  return data.map(m => ({
-    role: m.role === "user" ? "me" : "them",
-    who:  m.role === "user" ? patientFirst : "Anna",
-    t:    new Date(m.created_at).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" }),
-    body: m.content,
-  }))
+  const validAnimations = [
+    "standard_waiting",
+    "stand_look_around",
+    "running_fast",
+    "standard_walk_crouching",
+    "flexing_arm",
+    "gorilla",
+    "laying_on_floor",
+    "just_chilling",
+    "angry",
+    "Expressing_joy",
+    "model",
+    "model (13)",
+  ] as const
+
+  return data.map((m) => {
+    const animation =
+      m.role !== "user" &&
+      m.animation &&
+      (validAnimations as readonly string[]).includes(m.animation)
+        ? (m.animation as import("@/types").Animation)
+        : undefined
+
+    return {
+      role: m.role === "user" ? "me" : "them",
+      who: m.role === "user" ? patientFirst : "Anna",
+      t: new Date(m.created_at).toLocaleTimeString("nl-NL", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      body: m.content,
+      animation,
+    }
+  })
 }
 
 export async function sendMessage(
   patientId: string,
-  content: string,
-): Promise<{ reply: string; sessionId: string; summaryUpdateTriggered: boolean; escalationTriggered: boolean }> {
+  content: string
+): Promise<{
+  reply: string
+  sessionId: string
+  animation: import("@/types").Animation
+  summaryUpdateTriggered: boolean
+  escalationTriggered: boolean
+}> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
 
@@ -282,10 +339,30 @@ export async function sendMessage(
       signal: controller.signal,
     })
     if (!res.ok) throw new Error(`API ${res.status}`)
-    const data = await res.json() as MessageResponseAPI
+    const data = (await res.json()) as MessageResponseAPI
+    const validAnimations = [
+      "standard_waiting",
+      "stand_look_around",
+      "running_fast",
+      "standard_walk_crouching",
+      "flexing_arm",
+      "gorilla",
+      "laying_on_floor",
+      "just_chilling",
+      "angry",
+      "Expressing_joy",
+      "model",
+      "model (13)",
+    ] as const
+
+    const animation =
+      data.animation && (validAnimations as readonly string[]).includes(data.animation)
+        ? (data.animation as import("@/types").Animation)
+        : "standard_waiting"
     return {
       reply: data.content,
       sessionId: data.session_id,
+      animation,
       summaryUpdateTriggered: data.summary_update_triggered ?? false,
       escalationTriggered: data.escalation_triggered ?? false,
     }

@@ -1,0 +1,24 @@
+diff --git a/node_modules/@met4citizen/talkinghead/modules/talkinghead.mjs b/node_modules/@met4citizen/talkinghead/modules/talkinghead.mjs
+index 441ddff..03a9ea2 100644
+--- a/node_modules/@met4citizen/talkinghead/modules/talkinghead.mjs
++++ b/node_modules/@met4citizen/talkinghead/modules/talkinghead.mjs
+@@ -2747,13 +2747,12 @@ class TalkingHead {
+   * @param {string} [path="./"] Module path
+   */
+   lipsyncGetProcessor(lang, path="./") {
+-    if ( !this.lipsync.hasOwnProperty(lang) ) {
+-      const moduleName = path + 'lipsync-' + lang.toLowerCase() + '.mjs';
+-      const className = 'Lipsync' + lang.charAt(0).toUpperCase() + lang.slice(1);
+-      import(moduleName).then( module => {
+-        this.lipsync[lang] = new module[className];
+-      });
+-    }
++    // Patched: lipsync modules disabled. The original implementation used a
++    // runtime-constructed dynamic import that breaks bundlers (Next.js/webpack)
++    // and produces 404s for missing lipsync-<lang>.mjs files. We don't use
++    // language-specific viseme mapping in this project — avatar still works
++    // visually, audio still plays.
++    return;
+   }
+ 
+   /**

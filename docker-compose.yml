@@ -78,6 +78,7 @@ services:
       MCP_URL: http://mcp-server:8001
       ESCALATION_MODEL: ${ESCALATION_MODEL:-qwen2.5:0.5b}
       ESCALATION_COOLDOWN_MINUTES: ${ESCALATION_COOLDOWN_MINUTES:-5}
+      PIPER_URL: ${PIPER_URL:-http://xtts-bridge:5000}
     depends_on:
       postgres:
         condition: service_healthy
@@ -121,7 +122,62 @@ services:
       OLLAMA_HOST: http://ollama:11434
     restart: "no"
 
+  # --- Piper TTS (English voice synthesis) ---
+
+  piper-tts:
+    image: linuxserver/piper:latest
+    container_name: anna-piper-tts
+    restart: unless-stopped
+    ports:
+      - "10200:10200"
+    environment:
+      PIPER_VOICE: nl_NL-ronnie-medium
+      PIPER_LENGTH_SCALE: "1.0"
+    volumes:
+      - piper_voices:/config
+
+  # --- Piper HTTP Bridge (simple HTTP wrapper for Piper synthesis) ---
+
+  piper-http-bridge:
+    build:
+      context: .
+      dockerfile: piper_http_bridge.Dockerfile
+    container_name: anna-piper-http-bridge
+    restart: unless-stopped
+    ports:
+      - "5005:5000"
+    volumes:
+      - piper_voices:/config
+    depends_on:
+      - piper-tts
+
+  # --- XTTS v2 (Coqui) — Dutch voice cloning from a reference sample ---
+
+  xtts-bridge:
+    build:
+      context: .
+      dockerfile: xtts_bridge.Dockerfile
+    container_name: anna-xtts-bridge
+    restart: unless-stopped
+    ports:
+      - "5006:5000"
+    environment:
+      XTTS_LANGUAGE: nl
+      XTTS_VOICE_SAMPLE: /voice/voice_sample.wav
+    volumes:
+      - ./tts_voice:/voice:ro          # eigen stem als referentie-audio
+      - xtts_models:/root/.local/share/tts   # model cache (~1.8 GB, niet opnieuw downloaden)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
 volumes:
   postgres_data:    # persistente PostgreSQL data — blijft na container-restart
   chroma_data:      # persistente ChromaDB vectoren — blijft na container-restart
   ollama_data:      # Ollama model-gewichten — voorkomt herdownload bij restart
+  piper_voices:     # Piper voice models — voorkomt herdownload bij restart
+  xtts_models:      # XTTS v2 model cache — voorkomt herdownload (~1.8 GB)

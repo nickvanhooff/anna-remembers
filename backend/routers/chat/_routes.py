@@ -2,14 +2,12 @@
 
 import asyncio
 import uuid
-from typing import Annotated
 from datetime import datetime
+from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from langfuse import get_client as get_langfuse, propagate_attributes
-from sqlalchemy import func
-from sqlalchemy.orm import Session
-
+from langfuse import get_client as get_langfuse
+from langfuse import propagate_attributes
 from models.message import Message
 from models.patient import Patient
 from models.session import Session as ChatSession
@@ -29,7 +27,10 @@ from schemas.message import (
 from services.database import get_db
 from services.llm import get_llm_provider
 from services.mcp_client import MCPClient, get_mcp_client
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
+from ._animation import resolve_animation
 from ._escalation import format_escalation_reason, layer0_check, layer1_classify
 from ._prompts import build_system_prompt
 from ._summary import _SUMMARY_INTERVAL, trigger_summary_update
@@ -41,13 +42,33 @@ _RAG_LIMIT = 5
 _HISTORY_PREVIEW_CHARS = 200
 
 _QUESTION_STARTERS = {
-    "waar", "wat", "wie", "hoe", "wanneer", "waarom", "welke", "hoeveel",
-    "kan", "kunt", "weet", "bent", "heeft", "hebben", "is", "zijn",
+    "waar",
+    "wat",
+    "wie",
+    "hoe",
+    "wanneer",
+    "waarom",
+    "welke",
+    "hoeveel",
+    "kan",
+    "kunt",
+    "weet",
+    "bent",
+    "heeft",
+    "hebben",
+    "is",
+    "zijn",
 }
 _REFUSAL_PATTERNS = [
-    "geen toegang", "geen toegang tot", "heb ik geen", "weet ik niet",
-    "weet niet waar", "kan ik niet weten", "heb geen toegang",
-    "als een ai", "als taalmodel",
+    "geen toegang",
+    "geen toegang tot",
+    "heb ik geen",
+    "weet ik niet",
+    "weet niet waar",
+    "kan ik niet weten",
+    "heb geen toegang",
+    "als een ai",
+    "als taalmodel",
 ]
 
 
@@ -123,6 +144,7 @@ def _build_context_proof(
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
+
 @router.get(
     "/{patient_id}/sessions",
     response_model=list[SessionListItem],
@@ -176,10 +198,14 @@ def list_messages(
     db: Annotated[Session, Depends(get_db)],
 ) -> list[Message]:
     """Return all messages for a session, chronological."""
-    session = db.query(ChatSession).filter(
-        ChatSession.id == session_id,
-        ChatSession.patient_id == patient_id,
-    ).first()
+    session = (
+        db.query(ChatSession)
+        .filter(
+            ChatSession.id == session_id,
+            ChatSession.patient_id == patient_id,
+        )
+        .first()
+    )
     if not session:
         raise HTTPException(status_code=404, detail="Sessie niet gevonden")
 
@@ -245,10 +271,12 @@ async def chat(
     mcp: Annotated[MCPClient, Depends(get_mcp_client)],
     debug: Annotated[
         bool,
-        Query(description=(
-            "If true, response includes context_proof: PostgreSQL message "
-            "history vs MCP recall_context / store_memory (RAG) and how they combine."
-        )),
+        Query(
+            description=(
+                "If true, response includes context_proof: PostgreSQL message "
+                "history vs MCP recall_context / store_memory (RAG) and how they combine."
+            )
+        ),
     ] = False,
 ) -> MessageResponse:
     """Send a message on behalf of the patient and return Anna's response."""
@@ -286,22 +314,35 @@ async def chat(
     )
 
     langfuse = get_langfuse()
-    with langfuse.start_as_current_observation(as_type="span", name="chat-turn", input=body.content) as root_span:
+    with langfuse.start_as_current_observation(
+        as_type="span", name="chat-turn", input=body.content
+    ) as root_span:
         with propagate_attributes(
             user_id=str(patient_id),
             session_id=str(session.id),
             trace_name="chat-turn",
             metadata={"patient_name": f"{patient.first_name} {patient.last_name}"},
         ):
-            with langfuse.start_as_current_observation(as_type="span", name="rag-retrieval", input=body.content) as rag_span:
+            with langfuse.start_as_current_observation(
+                as_type="span", name="rag-retrieval", input=body.content
+            ) as rag_span:
                 rag_result, store_result = await asyncio.gather(
-                    mcp.recall_context(query=body.content, patient_id=str(patient_id), limit=_RAG_LIMIT),
+                    mcp.recall_context(
+                        query=body.content, patient_id=str(patient_id), limit=_RAG_LIMIT
+                    ),
                     store_coro,
                     return_exceptions=True,
                 )
-                memories: list[dict] = rag_result if isinstance(rag_result, list) else []
-                chroma_doc_id: str | None = store_result if isinstance(store_result, str) else None
-                rag_span.update(output=[m.get("content", "") for m in memories], metadata={"hit_count": len(memories)})
+                memories: list[dict] = (
+                    rag_result if isinstance(rag_result, list) else []
+                )
+                chroma_doc_id: str | None = (
+                    store_result if isinstance(store_result, str) else None
+                )
+                rag_span.update(
+                    output=[m.get("content", "") for m in memories],
+                    metadata={"hit_count": len(memories)},
+                )
 
             recent = (
                 db.query(Message)
@@ -318,26 +359,38 @@ async def chat(
             ]
 
             # Layer 0 — keyword check before LLM call
-            with langfuse.start_as_current_observation(as_type="span", name="escalation-layer0", input=body.content) as l0_span:
+            with langfuse.start_as_current_observation(
+                as_type="span", name="escalation-layer0", input=body.content
+            ) as l0_span:
                 layer0_urgency, layer0_reason = layer0_check(body.content)
                 l0_span.update(
-                    output={"triggered": bool(layer0_urgency), "urgency": layer0_urgency or "none"},
+                    output={
+                        "triggered": bool(layer0_urgency),
+                        "urgency": layer0_urgency or "none",
+                    },
                     metadata={"reason": layer0_reason or "geen match"},
                 )
 
             system_prompt = build_system_prompt(patient, memories)
-            root_span.update(metadata={
-                "patient_name": f"{patient.first_name} {patient.last_name}",
-                "rag_hits": len(memories),
-                "history_messages": len(history),
-                "layer0_triggered": bool(layer0_urgency),
-            })
+            root_span.update(
+                metadata={
+                    "patient_name": f"{patient.first_name} {patient.last_name}",
+                    "rag_hits": len(memories),
+                    "history_messages": len(history),
+                    "layer0_triggered": bool(layer0_urgency),
+                }
+            )
             llm = get_llm_provider()
             raw_response = await llm.chat(messages=history, system=system_prompt)
             root_span.update(output=raw_response)
 
-    # Store Anna's reply
-    assistant_message = Message(session_id=session.id, role="assistant", content=raw_response)
+    # Resolve animation: priority is user keyword, then LLM tag, then default.
+    clean_response, animation = resolve_animation(body.content or "", raw_response)
+
+    # Store Anna's reply (zonder animation-prefix — patiënt ziet de tag niet)
+    assistant_message = Message(
+        session_id=session.id, role="assistant", content=clean_response
+    )
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
@@ -372,10 +425,13 @@ async def chat(
         background_tasks.add_task(layer1_classify, patient_id, body.content, session.id)
 
     base = MessageResponse.model_validate(assistant_message)
-    base = base.model_copy(update={
-        "summary_update_triggered": summary_triggered,
-        "escalation_triggered": should_escalate,
-    })
+    base = base.model_copy(
+        update={
+            "animation": animation,
+            "summary_update_triggered": summary_triggered,
+            "escalation_triggered": should_escalate,
+        }
+    )
     if not debug:
         return base
 
