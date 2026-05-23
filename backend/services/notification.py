@@ -32,7 +32,7 @@ def send_sms_notification(escalation_id: uuid.UUID) -> None:
     """Verstuur een SMS voor de opgegeven escalatie en werk notification_status bij.
 
     Draait als FastAPI BackgroundTask — gebruikt een eigen DB-sessie.
-    Stil overgeslagen als Twilio niet geconfigureerd is.
+    Stil overgeslagen als Twilio niet geconfigureerd of uitgeschakeld is.
     """
     if not all([_ACCOUNT_SID, _AUTH_TOKEN, _FROM, _TO]):
         logger.info(
@@ -42,6 +42,15 @@ def send_sms_notification(escalation_id: uuid.UUID) -> None:
 
     db = SessionLocal()
     try:
+        from models.setting import Setting
+
+        sms_setting = db.query(Setting).filter(Setting.key == "twilio_sms_enabled").first()
+        if sms_setting and sms_setting.value != "true":
+            logger.info(
+                "Twilio SMS uitgeschakeld — SMS overgeslagen voor escalatie %s", escalation_id
+            )
+            return
+
         escalation = (
             db.query(Escalation)
             .options(joinedload(Escalation.patient))

@@ -44,6 +44,8 @@ class TestSendSmsNotification:
 
     def test_sends_sms_and_updates_status_to_sent(self):
         """Succesvolle SMS → notification_status = 'sent'."""
+        from models.setting import Setting
+
         escalation_id = uuid.uuid4()
 
         mock_patient = MagicMock()
@@ -55,7 +57,15 @@ class TestSendSmsNotification:
         mock_escalation.reason = "Ernstige benauwdheid"
         mock_escalation.patient = mock_patient
 
+        mock_setting = MagicMock(spec=Setting)
+        mock_setting.value = "true"
+
         mock_db = MagicMock()
+        # Chain: query().filter().first() for setting, then query().options().filter().first() for escalation
+        mock_db.query.return_value.filter.return_value.first.side_effect = [
+            mock_setting,  # first call: setting query
+            mock_escalation,  # second call: escalation query
+        ]
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_escalation
 
         mock_twilio_client = MagicMock()
@@ -77,6 +87,7 @@ class TestSendSmsNotification:
     def test_sets_failed_on_twilio_error(self):
         """Twilio-fout → notification_status = 'failed', geen crash."""
         from twilio.base.exceptions import TwilioRestException
+        from models.setting import Setting
 
         escalation_id = uuid.uuid4()
 
@@ -89,7 +100,15 @@ class TestSendSmsNotification:
         mock_escalation.reason = "Lichte klachten"
         mock_escalation.patient = mock_patient
 
+        mock_setting = MagicMock(spec=Setting)
+        mock_setting.value = "true"
+
         mock_db = MagicMock()
+        # Chain: query().filter().first() for setting, then query().options().filter().first() for escalation
+        mock_db.query.return_value.filter.return_value.first.side_effect = [
+            mock_setting,  # first call: setting query
+            mock_escalation,  # second call: escalation query
+        ]
         mock_db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_escalation
 
         mock_twilio_client = MagicMock()
@@ -106,3 +125,28 @@ class TestSendSmsNotification:
                                 send_sms_notification(escalation_id)
 
         assert mock_escalation.notification_status == "failed"
+
+
+class TestSmsDisabledSetting:
+    def test_skips_sms_when_setting_is_false(self, caplog):
+        """Als twilio_sms_enabled=false, geen SMS ondanks geldige config."""
+        import logging
+        from models.setting import Setting
+
+        mock_setting = MagicMock(spec=Setting)
+        mock_setting.value = "false"
+
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.first.side_effect = [
+            mock_setting,  # eerste call: setting query
+        ]
+
+        with patch("services.notification._ACCOUNT_SID", "ACtest"):
+            with patch("services.notification._AUTH_TOKEN", "token"):
+                with patch("services.notification._FROM", "+15550000000"):
+                    with patch("services.notification._TO", "+31600000000"):
+                        with patch("services.notification.SessionLocal", return_value=mock_db):
+                            with caplog.at_level(logging.INFO, logger="services.notification"):
+                                send_sms_notification(uuid.uuid4())
+
+        assert "uitgeschakeld" in caplog.text
