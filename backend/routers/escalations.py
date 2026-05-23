@@ -2,12 +2,13 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
 from models.escalation import Escalation
 from schemas.escalation import EscalationCreate, EscalationResponse, EscalationStatusUpdate
 from services.database import get_db
+from services.notification import send_sms_notification
 
 router = APIRouter(prefix="/escalations", tags=["escalations"])
 
@@ -30,7 +31,11 @@ def _to_response(e: Escalation) -> EscalationResponse:
 
 
 @router.post("/", response_model=EscalationResponse, status_code=201)
-def create_escalation(body: EscalationCreate, db: Session = Depends(get_db)) -> EscalationResponse:
+def create_escalation(
+    body: EscalationCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> EscalationResponse:
     """Store an escalation. Called by the MCP server tool escalate_to_human."""
     if body.urgency not in _VALID_URGENCY:
         raise HTTPException(status_code=422, detail=f"urgency moet een van {_VALID_URGENCY} zijn")
@@ -48,8 +53,7 @@ def create_escalation(body: EscalationCreate, db: Session = Depends(get_db)) -> 
     db.refresh(escalation)
     db.refresh(escalation, ["patient"])
 
-    # Issue #25: send notification here (email for low/medium, Slack for high)
-    # and update escalation.notification_status to "sent" or "failed".
+    background_tasks.add_task(send_sms_notification, escalation.id)
 
     return _to_response(escalation)
 
