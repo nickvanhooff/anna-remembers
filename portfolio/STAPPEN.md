@@ -1529,3 +1529,34 @@ De `[ANIM: x]` prefix wordt altijd gestript voordat het bericht in de DB of UI b
 
 **Commit:** `c59f622` — feat: add settings router with GET and PUT endpoints
 
+---
+
+## Stap 69 — Notificatieservice checkt twilio_sms_enabled DB-instelling
+
+**Datum:** 2026-05-23
+
+**Wat is er gedaan:**
+- Task 3 van Twilio SMS integratietaak: `send_sms_notification()` leest `twilio_sms_enabled` setting uit PostgreSQL voordat SMS wordt verstuurd.
+- `backend/services/notification.py` — `send_sms_notification()` functie uitgebreid:
+  - Na config-check: query `db.query(Setting).filter(Setting.key == "twilio_sms_enabled").first()`
+  - Als setting aanwezig en `value != "true"`, log "Twilio SMS uitgeschakeld — SMS overgeslagen..." en return (early exit)
+  - Verder verloop ongewijzigd: escalatie opzoeken, SMS bouwen en versturen
+- `backend/tests/test_notification.py` — nieuwe testklasse `TestSmsDisabledSetting`:
+  - `test_skips_sms_when_setting_is_false` — mock setting met `value = "false"`, verwacht log-bericht "uitgeschakeld"
+- Bestaande tests `test_sends_sms_and_updates_status_to_sent` en `test_sets_failed_on_twilio_error` bijgewerkt:
+  - Mock-setup uitgebreid om `Setting` query te mocken (side_effect chain: setting first, dan escalation)
+  - Beide tests passen nog steeds met side_effect list
+
+**Test-resultaat:** 9 passed (5 `TestBuildSms` + 3 `TestSendSmsNotification` + 1 `TestSmsDisabledSetting`) ✅
+
+**Waarom:**
+- Decouples configuratie van code — operators kunnen SMS globaal uitschakelen zonder redeploy.
+- Slot voor toekomstige feature-flags (bijv. `slack_escalation_enabled`, `email_digest_enabled`).
+- Early exit na setting-check sparen overhead: geen Twilio-client aanmaken als het toch niet nodig is.
+
+**Zelf bedacht:**
+- Setting-check direct na config-check — twee lagen defensie: variabele-presence (config), plus intentionaliteit (setting).
+- Mock-setup via `side_effect` list i.p.v. separate `query()` patch per setting-type — eenvoudiger, meer deterministisch dan chained `MagicMock().query().filter()...`.
+
+**Commit:** `eed16ef` — feat: skip SMS when twilio_sms_enabled setting is false
+
