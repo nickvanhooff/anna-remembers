@@ -6,6 +6,7 @@ import type {
   EscalationStatus,
   TrendPoint,
   PatientStatus,
+  Settings,
 } from "@/types"
 import { TRENDS, ESCALATIONS } from "./mock-data"
 
@@ -40,6 +41,16 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
 async function del(path: string): Promise<void> {
   const res = await fetch(`${BASE}${path}`, { method: "DELETE" })
   if (!res.ok) throw new Error(`API ${res.status} ${path}`)
+}
+
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`API ${res.status} ${path}`)
+  return res.json() as Promise<T>
 }
 
 // ─── Backend response types ───────────────────────────────────────
@@ -374,4 +385,14 @@ export async function sendMessage(
   } finally {
     clearTimeout(timeoutId)
   }
+}
+
+// ─── Settings ─────────────────────────────────────────────────────
+
+export async function getSettings(): Promise<Settings> {
+  return get<Settings>("/settings")
+}
+
+export async function updateSetting(key: keyof Settings, value: string): Promise<void> {
+  await put<{ key: string; value: string }>(`/settings/${key}`, { value })
 }

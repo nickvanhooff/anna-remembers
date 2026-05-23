@@ -76,3 +76,7 @@ export interface TrendPoint {
   medicatietrouw: number
   vermoeidheid: number
 }
+
+export interface Settings {
+  twilio_sms_enabled: "true" | "false"
+}

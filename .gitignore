@@ -37,3 +37,7 @@ Thumbs.db
 
 # ChromaDB data
 chroma_data/
+
+# SQLite bestanden (lokale test-artefacten)
+*.db
+backend/Untitled

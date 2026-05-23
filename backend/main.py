@@ -1,9 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import chat, escalations, patients, tts
+from routers import chat, escalations, patients, settings, tts
 
-# No logic in this file — app setup and router registration only.
 app = FastAPI(
     title="Anna Remembers API",
     description="Backend API for the Anna Remembers health assistant",
@@ -21,6 +20,7 @@ app.include_router(patients.router)
 app.include_router(chat.router)
 app.include_router(escalations.router)
 app.include_router(tts.router)
+app.include_router(settings.router)
 
 
 @app.get("/health")

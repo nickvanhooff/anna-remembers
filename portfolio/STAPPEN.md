@@ -1437,3 +1437,168 @@ De `[ANIM: x]` prefix wordt altijd gestript voordat het bericht in de DB of UI b
 - `re.sub` altijd uitvoeren ongeacht welke branch de waarde levert — één scrub-stap die beide gevallen afdekt.
 
 **Commit:** (volgt bij volgende commit op `feature/tts-stt-avatar`)
+
+---
+
+## Stap 65 — TDD: Twilio SMS notificatieservice
+
+**Datum:** 2026-05-23
+
+**Wat is er gedaan:**
+- `backend/tests/test_notification.py` aangemaakt met 8 tests (TDD: rood eerst).
+- `backend/services/notification.py` aangemaakt: `_build_sms()` + `send_sms_notification()`.
+- Alle 8 tests groen: 5 unit-tests voor `_build_sms`, 3 integratietests voor `send_sms_notification` (skip zonder config, sent-pad, failed-pad bij Twilio-fout).
+
+**Beslissingen:**
+- Module-level `_ACCOUNT_SID` / `_AUTH_TOKEN` / `_FROM` / `_TO` — eenmalig ingelezen bij import, patchbaar via `unittest.mock.patch` in tests.
+- `send_sms_notification` opent eigen `SessionLocal()` in try/finally — zelfde patroon als `_summary.py` BackgroundTask.
+- `high` → prefix `URGENT`, alles lager → `Aandacht vereist` — eenvoudige twee-standen logica, voldoende voor hartfalen-context.
+- Twilio-fout wordt afgevangen en zet `notification_status = "failed"` zonder crash — BackgroundTask mag nooit de HTTP-response beïnvloeden.
+
+**Commit:** `6e88280` — feat: add Twilio SMS notification service for escalations
+
+---
+
+## Stap 66 — Router gekoppeld aan notificatieservice
+
+**Datum:** 2026-05-23
+
+**Wat is er gedaan:**
+- `backend/routers/escalations.py` imports bijgewerkt: `BackgroundTasks` toegevoegd aan FastAPI imports, `send_sms_notification` geïmporteerd uit `services.notification`.
+- `create_escalation()` functie handtekening uitgebreid met `background_tasks: BackgroundTasks` parameter.
+- Na DB commit + refresh: `background_tasks.add_task(send_sms_notification, escalation.id)` queued de notificatie voor async verwerking.
+- Comment "Issue #25" verwijderd — de implementatie is nu compleet.
+
+**Waarom:**
+- BackgroundTasks decouples de HTTP-response van de SMS-verwerking. Escalatie opgeslagen = direct 201 terug naar client, SMS stuurt asynchroon.
+- `escalation.id` als enige argument: de task leest patient contact info en escalatie-details zelf op (geen data-duplication).
+
+**Zelf bedacht:**
+- Geen Co-Authored-By trailer in commit (portfolio-conventie).
+- Syntax-check via `python -m py_compile` — import-fouten gevangen vóór commit.
+
+**Commit:** `331a7a5` — feat: trigger SMS notification as background task on escalation create
+
+---
+
+## Stap 67 — Backend model, schema en Alembic-migratie voor settings
+
+**Datum:** 2026-05-23
+
+**Wat is er gedaan:**
+- `backend/models/setting.py` aangemaakt: SQLAlchemy model `Setting` met `key` (PK, String(100)) en `value` (String(500)).
+- `backend/schemas/setting.py` aangemaakt: twee Pydantic schemas — `SettingUpdate` (value) en `SettingResponse` (key + value).
+- `backend/alembic/versions/0004_add_settings_table.py` aangemaakt: migratie met `op.create_table()` en seed `INSERT INTO settings (key, value) VALUES ('twilio_sms_enabled', 'true')`.
+- Migratie gedraaid: `docker compose exec backend alembic upgrade head` — output `Running upgrade 0003 -> 0004, add settings table`.
+- Verificatie: `docker compose exec postgres psql -U anna -d anna_remembers -c "SELECT * FROM settings;"` — tabel aanwezig met seed-waarde.
+
+**Waarom:**
+- Task 1 van de Twilio SMS integratietaak: persistente app-instellingen (bijv. `twilio_sms_enabled`) uit de code halen, in de DB opslaan, runtime wijzigbaar maken.
+- Settings-tabel is de basis waarop Task 2 (API-endpoint) en Task 3 (toggle in frontend) voortbouwen.
+
+**Zelf bedacht:**
+- Model-patroon gelijk aan andere modellen (`Patient`, `Session`) — `Mapped`-syntax, inhoud van `models.base.Base`.
+- Schema-patroon gelijk aan `PatientResponse`, `PatientUpdate` — `model_config = {"from_attributes": True}`.
+- Migratie-patroon gelijk aan 0003 — seed-waarde ervan af gecommit om lokale DB gelijk te houden.
+
+**Commit:** `74fec3e` — feat: add settings table with Alembic migration and seed
+
+---
+
+## Stap 68 — Settings router + registratie in main.py
+
+**Datum:** 2026-05-23
+
+**Wat is er gedaan:**
+- `backend/tests/test_settings.py` aangemaakt: 3 unittest-cases via TestClient + FastAPI `dependency_overrides[get_db]` mocking — `TestGetSettings.test_returns_all_settings_as_dict`, `TestPutSetting.test_updates_existing_setting`, `TestPutSetting.test_returns_404_for_unknown_key`.
+- `backend/routers/settings.py` aangemaakt: APIRouter met twee endpoints:
+  - `GET /settings/` — geeft alle instellingen terug als dict `{key: value}`.
+  - `PUT /settings/{key}` — accepteert `SettingUpdate` body, updatet bestaande setting of geeft 404.
+- `backend/main.py` bijgewerkt: import `settings` toegevoegd aan routers-line, `app.include_router(settings.router)` geregistreerd na andere routers.
+- Tests gedraaid: `pytest tests/test_settings.py -v` — **3 passed** ✅
+
+**Waarom:**
+- Task 2 van Twilio SMS integratietaak: API-endpoints waarmee settings kunnen worden gelezen en gewijzigd (bijv. `PUT /settings/twilio_sms_enabled`).
+- Dependency overrides ipv unit mocking: TestClient met dependency_overrides is FastAPI-best-practice voor router tests.
+- PUT geeft 404 in plaats van 400 omdat "setting niet gevonden" is een Not Found, niet een Bad Request.
+
+**Zelf bedacht:**
+- Test setup met try/finally en `app.dependency_overrides.clear()` — voorkomt test-pollution tussen tests.
+- Router importeerd direct (geen `from routers import settings` in loop) — volgt het `chat`, `escalations`, `patients` patroon.
+- Patch niet nodig: FastAPI `dependency_overrides` is schoner dan mock.patch.
+
+**Commit:** `c59f622` — feat: add settings router with GET and PUT endpoints
+
+---
+
+## Stap 69 — Notificatieservice checkt twilio_sms_enabled DB-instelling
+
+**Datum:** 2026-05-23
+
+**Wat is er gedaan:**
+- Task 3 van Twilio SMS integratietaak: `send_sms_notification()` leest `twilio_sms_enabled` setting uit PostgreSQL voordat SMS wordt verstuurd.
+- `backend/services/notification.py` — `send_sms_notification()` functie uitgebreid:
+  - Na config-check: query `db.query(Setting).filter(Setting.key == "twilio_sms_enabled").first()`
+  - Als setting aanwezig en `value != "true"`, log "Twilio SMS uitgeschakeld — SMS overgeslagen..." en return (early exit)
+  - Verder verloop ongewijzigd: escalatie opzoeken, SMS bouwen en versturen
+- `backend/tests/test_notification.py` — nieuwe testklasse `TestSmsDisabledSetting`:
+  - `test_skips_sms_when_setting_is_false` — mock setting met `value = "false"`, verwacht log-bericht "uitgeschakeld"
+- Bestaande tests `test_sends_sms_and_updates_status_to_sent` en `test_sets_failed_on_twilio_error` bijgewerkt:
+  - Mock-setup uitgebreid om `Setting` query te mocken (side_effect chain: setting first, dan escalation)
+  - Beide tests passen nog steeds met side_effect list
+
+**Test-resultaat:** 9 passed (5 `TestBuildSms` + 3 `TestSendSmsNotification` + 1 `TestSmsDisabledSetting`) ✅
+
+**Waarom:**
+- Decouples configuratie van code — operators kunnen SMS globaal uitschakelen zonder redeploy.
+- Slot voor toekomstige feature-flags (bijv. `slack_escalation_enabled`, `email_digest_enabled`).
+- Early exit na setting-check sparen overhead: geen Twilio-client aanmaken als het toch niet nodig is.
+
+**Zelf bedacht:**
+- Setting-check direct na config-check — twee lagen defensie: variabele-presence (config), plus intentionaliteit (setting).
+- Mock-setup via `side_effect` list i.p.v. separate `query()` patch per setting-type — eenvoudiger, meer deterministisch dan chained `MagicMock().query().filter()...`.
+
+**Commit:** `eed16ef` — feat: skip SMS when twilio_sms_enabled setting is false
+
+---
+
+## Stap 70 — Frontend types en API-client voor settings
+
+**Datum:** 2026-05-23
+
+**Wat:**
+- `frontend/Anna-remembers/types/index.ts` — `Settings` interface toegevoegd: `{ twilio_sms_enabled: "true" | "false" }`
+- `frontend/Anna-remembers/lib/api.ts` — twee functies toegevoegd:
+  - `getSettings(): Promise<Settings>` — haalt alle instellingen op via `GET /settings`
+  - `updateSetting(key, value): Promise<void>` — wijzigt een instelling via `PUT /settings/{key}`
+  - `put<T>()` helper toegevoegd als die nog niet bestond
+
+**Waarom:**
+Frontend heeft typed API-functies nodig zodat TypeScript de response structuur kent en het settings-scherm type-veilig kan werken.
+
+**Zelf bedacht:**
+- `Settings` type gebruikt string literals `"true" | "false"` i.p.v. `boolean` omdat de backend key-value opslaat als strings — dit voorkomt mismatch bij JSON parsing.
+
+---
+
+## Stap 71 — Settings-pagina en sidebar-link
+
+**Datum:** 2026-05-23
+
+**Wat:**
+- `frontend/Anna-remembers/components/settings/settings-screen.tsx` — nieuw client component:
+  - Laadt settings bij mount via `getSettings()`
+  - shadcn `Switch` toggle voor Twilio SMS aan/uit
+  - Optimistic update: toggle schakelt direct, `updateSetting()` op achtergrond
+  - Bij fout: toggle wordt teruggedraaid, foutmelding getoond
+- `frontend/Anna-remembers/app/(dashboard)/settings/page.tsx` — server page component die `SettingsScreen` rendert
+- `frontend/Anna-remembers/components/dashboard/dashboard-sidebar.tsx` — Settings-knop gelinkt aan `/settings` via `Link` + `isActive` check
+- `frontend/Anna-remembers/components/ui/switch.tsx` — shadcn Switch component geïnstalleerd
+
+**Waarom:**
+Zorgverlener moet Twilio SMS kunnen in- en uitschakelen zonder Docker te herstarten. De instelling is nu live te beheren via de UI.
+
+**Zelf bedacht:**
+- Optimistic update i.p.v. wachten op server response — toggle voelt direct aan, rollback bij netwerk-fout zodat UI consistent blijft met DB-staat.
+- Settings-knop stond al in de sidebar maar was niet gelinkt — minimale wijziging volstond.
+

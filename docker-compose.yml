@@ -79,6 +79,10 @@ services:
       ESCALATION_MODEL: ${ESCALATION_MODEL:-qwen2.5:0.5b}
       ESCALATION_COOLDOWN_MINUTES: ${ESCALATION_COOLDOWN_MINUTES:-5}
       PIPER_URL: ${PIPER_URL:-http://xtts-bridge:5000}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM: ${TWILIO_FROM:-}
+      NOTIFICATION_PHONE: ${NOTIFICATION_PHONE:-}
     depends_on:
       postgres:
         condition: service_healthy
