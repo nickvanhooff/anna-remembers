@@ -1478,3 +1478,27 @@ De `[ANIM: x]` prefix wordt altijd gestript voordat het bericht in de DB of UI b
 - Syntax-check via `python -m py_compile` — import-fouten gevangen vóór commit.
 
 **Commit:** `331a7a5` — feat: trigger SMS notification as background task on escalation create
+
+---
+
+## Stap 67 — Backend model, schema en Alembic-migratie voor settings
+
+**Datum:** 2026-05-23
+
+**Wat is er gedaan:**
+- `backend/models/setting.py` aangemaakt: SQLAlchemy model `Setting` met `key` (PK, String(100)) en `value` (String(500)).
+- `backend/schemas/setting.py` aangemaakt: twee Pydantic schemas — `SettingUpdate` (value) en `SettingResponse` (key + value).
+- `backend/alembic/versions/0004_add_settings_table.py` aangemaakt: migratie met `op.create_table()` en seed `INSERT INTO settings (key, value) VALUES ('twilio_sms_enabled', 'true')`.
+- Migratie gedraaid: `docker compose exec backend alembic upgrade head` — output `Running upgrade 0003 -> 0004, add settings table`.
+- Verificatie: `docker compose exec postgres psql -U anna -d anna_remembers -c "SELECT * FROM settings;"` — tabel aanwezig met seed-waarde.
+
+**Waarom:**
+- Task 1 van de Twilio SMS integratietaak: persistente app-instellingen (bijv. `twilio_sms_enabled`) uit de code halen, in de DB opslaan, runtime wijzigbaar maken.
+- Settings-tabel is de basis waarop Task 2 (API-endpoint) en Task 3 (toggle in frontend) voortbouwen.
+
+**Zelf bedacht:**
+- Model-patroon gelijk aan andere modellen (`Patient`, `Session`) — `Mapped`-syntax, inhoud van `models.base.Base`.
+- Schema-patroon gelijk aan `PatientResponse`, `PatientUpdate` — `model_config = {"from_attributes": True}`.
+- Migratie-patroon gelijk aan 0003 — seed-waarde ervan af gecommit om lokale DB gelijk te houden.
+
+**Commit:** `74fec3e` — feat: add settings table with Alembic migration and seed
