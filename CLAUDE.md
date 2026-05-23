@@ -16,15 +16,18 @@ over meerdere weken, en escaleert naar een zorgverlener wanneer dat nodig is.
 
 | Laag | Technologie | Poort |
 |---|---|---|
-| Frontend | Next.js 15 (App Router) | 3000 |
+| Frontend | Next.js 15 (App Router) | 3001 |
 | Backend API | FastAPI (Python) | 8000 |
 | MCP Server | fastmcp (Python, apart proces) | 8001 |
 | Relationele DB | PostgreSQL 16 | 5432 |
 | Vector DB | ChromaDB (RAG geheugen) | 8002 |
 | LLM | Ollama (gemma4:e2b) of cloud: Groq / Anthropic / OpenRouter | 11434 / cloud |
 | Embeddings | bge-m3 via Ollama | 11434 |
+| TTS (snel) | Piper TTS nl_NL-ronnie via HTTP-bridge | 5005 / 10200 |
+| TTS (kwaliteit) | XTTS v2 (Coqui) — GPU, stemkloning | 5006 |
+| STT | Web Speech API (browser, cloud) | — |
 | Observability | Langfuse (tracing LLM + RAG) | cloud |
-| Notificaties | Email / Slack (escalatie, stub) | cloud |
+| Notificaties | Twilio SMS (escalatie) | cloud |
 | Omgeving | Docker Compose (alle lokale services) | — |
 
 LLM-aanroepen in `backend/services/llm.py` zijn provider-agnostisch via een abstracte klasse.
@@ -80,9 +83,11 @@ Gebruik JSONB-kolommen voor flexibele symptoomdata per sessie. Tabellen minimaal
 ## Buiten scope (niet implementeren)
 
 - Authenticatie (geen auth, geen login)
-- TTS/STT (ElevenLabs, Whisper) — mogelijke uitbreiding, niet nu
-- Twilio (echte telefoongesprekken) — mogelijke uitbreiding, niet nu
+- ElevenLabs TTS — te duur, Piper + XTTS zijn geïmplementeerd
+- Whisper/lokale STT — lage prioriteit (Issue #47), Web Speech API werkt goed genoeg voor demo
+- Twilio bellen (echte telefoongesprekken) — buiten scope, SMS is geïmplementeerd
 - SSR in Next.js voor SEO
+- Voice sample upload via settings pagina — medium prioriteit, nog niet gebouwd (Issue #48)
 
 ---
 
@@ -246,10 +251,14 @@ Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat v
 | LLM provider | Ollama + gemma4:e4b (lokaal, GPU passthrough RTX 4050) | Nog te documenteren |
 | Embedding model | bge-m3 via Ollama (meertalig, 1024-dim, 8192 context) | `docs/superpowers/specs/2026-05-08-embedding-model-design.md` |
 | Alembic vs init-script | Alembic (versie-gecontroleerde migraties, rollback mogelijk) | Nog te documenteren |
+| TTS provider | Piper (snel, offline) + XTTS v2 (GPU, stemkloning), instelbaar via settings page | `docs/superpowers/plans/2026-05-23-tts-provider-toggle.md` |
+| TTS provider toggle | Key-value `settings` tabel (zelfde patroon als Twilio toggle), optimistic update in frontend | migration 0005 |
+| STT implementatie | Web Speech API (browser-native, cloud) — offline Whisper is Issue #47 lage prioriteit | Nog te documenteren |
+| Avatar lip sync | Three.js morph targets met volledige ARKit viseme set, Web Audio API FFT frequency analysis | feature/tts-stt-avatar branch |
 
 ---
 
-## Huidige bouwstaat (bijgewerkt 2026-05-14)
+## Huidige bouwstaat (bijgewerkt 2026-05-23)
 
 ### Klaar (issue gesloten)
 - **Issue #1** — Docker Compose setup: postgres, chromadb, ollama (GPU), backend, mcp-server
@@ -263,6 +272,9 @@ Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat v
 - **Issue #28** — Periodieke medische samenvatting: `patients.medical_summary` elke N berichten bijgewerkt via BackgroundTask
 - **Issue #29** — Medische samenvatting geïnjecteerd in system prompt als apart blok boven RAG-dossier
 - **Issue #32** — Samenvatting omgezet van Markdown naar compact JSON (`sym/med/wgt/bhv/ovr`); `DossierCard` in frontend
+- **Issue #44** — TTS integratie: Piper + XTTS via backend, audio playback in chat
+- **Issue #45** — STT + avatar: Web Speech API microfooninvoer, 3D avatar (Three.js + GLB), lip sync met ARKit visemes
+- **TTS provider toggle** — settings page Select (Piper/XTTS), DB-driven routing via `tts_provider` setting, migration 0005
 
 ### MCP-server — deels klaar
 - ✅ `mcp-server/services/embedding.py` — `EmbeddingProvider` ABC + `OllamaEmbeddingProvider` (bge-m3)
@@ -271,15 +283,19 @@ Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat v
 - ✅ `mcp-server/main.py` — alle tools geregistreerd
 - ❌ `tools/trends.py` — `get_symptom_trends` nog niet gebouwd
 
-### Chat-pipeline (actief, feature/patient-summary branch)
-- `backend/routers/chat.py` — volledig bedraad: RAG (ChromaDB), Postgres history, `_is_question()` filter, `_is_refusal()` filter, Langfuse tracing (root span + RAG child span + LLM generation), medische samenvatting als BackgroundTask
-- `backend/services/llm.py` — provider-agnostisch: `OllamaProvider`, `GroqProvider`, `AnthropicProvider`, `OpenRouterProvider`
-- Observability: elke LLM-aanroep en RAG-retrieval wordt getraceerd in Langfuse
-- Debug-endpoint: `?debug=true` geeft `context_proof` terug (Postgres history, RAG hits, summary block aanwezig)
+### Chat-pipeline + voice mode (actief, feature/tts-stt-avatar branch)
+- `backend/routers/chat.py` — volledig bedraad: RAG, Postgres history, Langfuse tracing, medische samenvatting
+- `backend/routers/tts.py` — TTS provider routing via `tts_provider` DB setting
+- `backend/services/tts.py` — Piper (`PIPER_URL`) + XTTS (`XTTS_URL`) URL-mapping per provider
+- `backend/services/llm.py` — provider-agnostisch: Ollama, Groq, Anthropic, OpenRouter
+- `frontend/.../components/chat/avatar.tsx` — Three.js GLB avatar, 72 morph targets, Web Audio API FFT, ARKit visemes
+- `frontend/.../components/settings/settings-screen.tsx` — TTS provider Select + Twilio toggle
 
 ### Open
 - **Issue #13** — `get_symptom_trends` (PostgreSQL week-aggregatie) — nog niet gebouwd
 - **Issue #4** — Frontend dashboard volledig wiren (trends + escalaties live)
+- **Issue #47** — Offline STT (Whisper) — lage prioriteit, known limitation
+- **Issue #48** — Voice sample upload via settings — medium prioriteit
 - Gesimuleerde patiënten (10 sessies elk) draaien
 - Decision logs DL3+ afronden voor portfolio
 
