@@ -1437,3 +1437,44 @@ De `[ANIM: x]` prefix wordt altijd gestript voordat het bericht in de DB of UI b
 - `re.sub` altijd uitvoeren ongeacht welke branch de waarde levert — één scrub-stap die beide gevallen afdekt.
 
 **Commit:** (volgt bij volgende commit op `feature/tts-stt-avatar`)
+
+---
+
+## Stap 65 — TDD: Twilio SMS notificatieservice
+
+**Datum:** 2026-05-23
+
+**Wat is er gedaan:**
+- `backend/tests/test_notification.py` aangemaakt met 8 tests (TDD: rood eerst).
+- `backend/services/notification.py` aangemaakt: `_build_sms()` + `send_sms_notification()`.
+- Alle 8 tests groen: 5 unit-tests voor `_build_sms`, 3 integratietests voor `send_sms_notification` (skip zonder config, sent-pad, failed-pad bij Twilio-fout).
+
+**Beslissingen:**
+- Module-level `_ACCOUNT_SID` / `_AUTH_TOKEN` / `_FROM` / `_TO` — eenmalig ingelezen bij import, patchbaar via `unittest.mock.patch` in tests.
+- `send_sms_notification` opent eigen `SessionLocal()` in try/finally — zelfde patroon als `_summary.py` BackgroundTask.
+- `high` → prefix `URGENT`, alles lager → `Aandacht vereist` — eenvoudige twee-standen logica, voldoende voor hartfalen-context.
+- Twilio-fout wordt afgevangen en zet `notification_status = "failed"` zonder crash — BackgroundTask mag nooit de HTTP-response beïnvloeden.
+
+**Commit:** `6e88280` — feat: add Twilio SMS notification service for escalations
+
+---
+
+## Stap 66 — Router gekoppeld aan notificatieservice
+
+**Datum:** 2026-05-23
+
+**Wat is er gedaan:**
+- `backend/routers/escalations.py` imports bijgewerkt: `BackgroundTasks` toegevoegd aan FastAPI imports, `send_sms_notification` geïmporteerd uit `services.notification`.
+- `create_escalation()` functie handtekening uitgebreid met `background_tasks: BackgroundTasks` parameter.
+- Na DB commit + refresh: `background_tasks.add_task(send_sms_notification, escalation.id)` queued de notificatie voor async verwerking.
+- Comment "Issue #25" verwijderd — de implementatie is nu compleet.
+
+**Waarom:**
+- BackgroundTasks decouples de HTTP-response van de SMS-verwerking. Escalatie opgeslagen = direct 201 terug naar client, SMS stuurt asynchroon.
+- `escalation.id` als enige argument: de task leest patient contact info en escalatie-details zelf op (geen data-duplication).
+
+**Zelf bedacht:**
+- Geen Co-Authored-By trailer in commit (portfolio-conventie).
+- Syntax-check via `python -m py_compile` — import-fouten gevangen vóór commit.
+
+**Commit:** `331a7a5` — feat: trigger SMS notification as background task on escalation create
