@@ -80,9 +80,11 @@ export function DashboardSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Instellingen">
-              <Settings />
-              <span>Instellingen</span>
+            <SidebarMenuButton asChild tooltip="Instellingen" isActive={pathname === "/settings"}>
+              <Link href="/settings">
+                <Settings />
+                <span>Instellingen</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

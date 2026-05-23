@@ -1560,3 +1560,45 @@ De `[ANIM: x]` prefix wordt altijd gestript voordat het bericht in de DB of UI b
 
 **Commit:** `eed16ef` — feat: skip SMS when twilio_sms_enabled setting is false
 
+---
+
+## Stap 70 — Frontend types en API-client voor settings
+
+**Datum:** 2026-05-23
+
+**Wat:**
+- `frontend/Anna-remembers/types/index.ts` — `Settings` interface toegevoegd: `{ twilio_sms_enabled: "true" | "false" }`
+- `frontend/Anna-remembers/lib/api.ts` — twee functies toegevoegd:
+  - `getSettings(): Promise<Settings>` — haalt alle instellingen op via `GET /settings`
+  - `updateSetting(key, value): Promise<void>` — wijzigt een instelling via `PUT /settings/{key}`
+  - `put<T>()` helper toegevoegd als die nog niet bestond
+
+**Waarom:**
+Frontend heeft typed API-functies nodig zodat TypeScript de response structuur kent en het settings-scherm type-veilig kan werken.
+
+**Zelf bedacht:**
+- `Settings` type gebruikt string literals `"true" | "false"` i.p.v. `boolean` omdat de backend key-value opslaat als strings — dit voorkomt mismatch bij JSON parsing.
+
+---
+
+## Stap 71 — Settings-pagina en sidebar-link
+
+**Datum:** 2026-05-23
+
+**Wat:**
+- `frontend/Anna-remembers/components/settings/settings-screen.tsx` — nieuw client component:
+  - Laadt settings bij mount via `getSettings()`
+  - shadcn `Switch` toggle voor Twilio SMS aan/uit
+  - Optimistic update: toggle schakelt direct, `updateSetting()` op achtergrond
+  - Bij fout: toggle wordt teruggedraaid, foutmelding getoond
+- `frontend/Anna-remembers/app/(dashboard)/settings/page.tsx` — server page component die `SettingsScreen` rendert
+- `frontend/Anna-remembers/components/dashboard/dashboard-sidebar.tsx` — Settings-knop gelinkt aan `/settings` via `Link` + `isActive` check
+- `frontend/Anna-remembers/components/ui/switch.tsx` — shadcn Switch component geïnstalleerd
+
+**Waarom:**
+Zorgverlener moet Twilio SMS kunnen in- en uitschakelen zonder Docker te herstarten. De instelling is nu live te beheren via de UI.
+
+**Zelf bedacht:**
+- Optimistic update i.p.v. wachten op server response — toggle voelt direct aan, rollback bij netwerk-fout zodat UI consistent blijft met DB-staat.
+- Settings-knop stond al in de sidebar maar was niet gelinkt — minimale wijziging volstond.
+

@@ -8,25 +8,42 @@ from services.notification import _build_sms, send_sms_notification
 
 
 class TestBuildSms:
-    def test_high_urgency_prefix(self):
+    def test_high_urgency_tag(self):
         result = _build_sms("Jan de Vries", "high", "Ernstige benauwdheid")
-        assert result.startswith("[Anna Remembers] URGENT")
+        assert "[Anna] URGENT" in result
 
-    def test_medium_urgency_prefix(self):
+    def test_medium_urgency_tag(self):
         result = _build_sms("Jan de Vries", "medium", "Lichte klachten")
-        assert result.startswith("[Anna Remembers] Aandacht vereist")
+        assert "[Anna] Let op" in result
 
-    def test_low_urgency_prefix(self):
+    def test_low_urgency_tag(self):
         result = _build_sms("Jan de Vries", "low", "Lichte klachten")
-        assert result.startswith("[Anna Remembers] Aandacht vereist")
+        assert "[Anna] Let op" in result
 
     def test_contains_patient_name(self):
         result = _build_sms("Maria Jansen", "high", "Test reden")
         assert "Maria Jansen" in result
 
-    def test_contains_reason(self):
+    def test_extracts_patient_message_from_formatted_reason(self):
+        """Extracts «msg» from 'Laag X · Patiëntbericht: «msg» · detail' format."""
+        reason = "Laag 1 (qwen2.5:3b) · Patiëntbericht: «Ik krijg geen lucht» · ademhalingsproblemen"
+        result = _build_sms("Jan", "high", reason)
+        assert "Ik krijg geen lucht" in result
+        assert "Laag 1" not in result
+
+    def test_uses_raw_reason_when_no_special_format(self):
         result = _build_sms("Jan de Vries", "high", "Kortademigheid toegenomen")
         assert "Kortademigheid toegenomen" in result
+
+    def test_truncates_long_messages(self):
+        long_reason = "A" * 200
+        result = _build_sms("Jan de Vries", "high", long_reason)
+        assert len(result) <= 160
+        assert result.endswith("…")
+
+    def test_fits_single_sms_segment(self):
+        result = _build_sms("Manis de fretes", "high", "Ik kan niet ademen")
+        assert len(result) <= 160
 
 
 class TestSendSmsNotification:

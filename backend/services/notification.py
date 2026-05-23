@@ -19,13 +19,25 @@ _FROM = os.getenv("TWILIO_FROM")
 _TO = os.getenv("NOTIFICATION_PHONE")
 
 
+_SMS_MAX_LEN = 160  # GSM-7 single segment limit for Twilio trial
+
+
 def _build_sms(patient_name: str, urgency: str, reason: str) -> str:
-    """Bouw de SMS-tekst op basis van urgentieniveau."""
-    if urgency == "high":
-        prefix = "[Anna Remembers] URGENT"
-    else:
-        prefix = "[Anna Remembers] Aandacht vereist"
-    return f"{prefix}\nPatiënt: {patient_name}\nUrgentie: {urgency.capitalize()}\nReden: {reason}"
+    """Build SMS text, truncated to fit Twilio trial single-segment limit."""
+    tag = "URGENT" if urgency == "high" else "Let op"
+    # Extract just the patient message from the reason if present
+    # Format: "Laag X (...) · Patiëntbericht: «msg» · detail"
+    short_reason = reason
+    if "Patiëntbericht:" in reason and "»" in reason:
+        start = reason.find("«") + 1
+        end = reason.find("»")
+        if start > 0 and end > start:
+            short_reason = reason[start:end]
+    # Build compact message
+    body = f"[Anna] {tag}\n{patient_name}\n{short_reason}"
+    if len(body) > _SMS_MAX_LEN:
+        body = body[: _SMS_MAX_LEN - 1] + "…"
+    return body
 
 
 def send_sms_notification(escalation_id: uuid.UUID) -> None:
