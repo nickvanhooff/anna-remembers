@@ -111,7 +111,8 @@
       "Bash(python -m pytest tests/test_settings.py -v)",
       "Bash(pip install *)",
       "Bash(python -m pytest tests/test_notification.py::TestSmsDisabledSetting -v)",
-      "PowerShell(npx skills add https://github.com/softaworks/agent-toolkit --skill c4-architecture)"
+      "PowerShell(npx skills add https://github.com/softaworks/agent-toolkit --skill c4-architecture)",
+      "Bash(gh api *)"
     ]
   }
 }
