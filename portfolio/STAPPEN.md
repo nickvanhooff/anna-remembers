@@ -1502,3 +1502,30 @@ De `[ANIM: x]` prefix wordt altijd gestript voordat het bericht in de DB of UI b
 - Migratie-patroon gelijk aan 0003 — seed-waarde ervan af gecommit om lokale DB gelijk te houden.
 
 **Commit:** `74fec3e` — feat: add settings table with Alembic migration and seed
+
+---
+
+## Stap 68 — Settings router + registratie in main.py
+
+**Datum:** 2026-05-23
+
+**Wat is er gedaan:**
+- `backend/tests/test_settings.py` aangemaakt: 3 unittest-cases via TestClient + FastAPI `dependency_overrides[get_db]` mocking — `TestGetSettings.test_returns_all_settings_as_dict`, `TestPutSetting.test_updates_existing_setting`, `TestPutSetting.test_returns_404_for_unknown_key`.
+- `backend/routers/settings.py` aangemaakt: APIRouter met twee endpoints:
+  - `GET /settings/` — geeft alle instellingen terug als dict `{key: value}`.
+  - `PUT /settings/{key}` — accepteert `SettingUpdate` body, updatet bestaande setting of geeft 404.
+- `backend/main.py` bijgewerkt: import `settings` toegevoegd aan routers-line, `app.include_router(settings.router)` geregistreerd na andere routers.
+- Tests gedraaid: `pytest tests/test_settings.py -v` — **3 passed** ✅
+
+**Waarom:**
+- Task 2 van Twilio SMS integratietaak: API-endpoints waarmee settings kunnen worden gelezen en gewijzigd (bijv. `PUT /settings/twilio_sms_enabled`).
+- Dependency overrides ipv unit mocking: TestClient met dependency_overrides is FastAPI-best-practice voor router tests.
+- PUT geeft 404 in plaats van 400 omdat "setting niet gevonden" is een Not Found, niet een Bad Request.
+
+**Zelf bedacht:**
+- Test setup met try/finally en `app.dependency_overrides.clear()` — voorkomt test-pollution tussen tests.
+- Router importeerd direct (geen `from routers import settings` in loop) — volgt het `chat`, `escalations`, `patients` patroon.
+- Patch niet nodig: FastAPI `dependency_overrides` is schoner dan mock.patch.
+
+**Commit:** `c59f622` — feat: add settings router with GET and PUT endpoints
+
