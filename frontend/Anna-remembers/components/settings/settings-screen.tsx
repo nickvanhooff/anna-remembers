@@ -5,6 +5,7 @@ import { Mic, Settings2, Square, Trash2, Upload } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getSettings, updateSetting, listVoiceSamples, uploadVoiceSample, deleteVoiceSample } from "@/lib/api"
 import { useAudioRecorder } from "@/hooks/useAudioRecorder"
@@ -15,6 +16,8 @@ export function SettingsScreen() {
   const [error, setError] = useState<string | null>(null)
   const [samples, setSamples] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
+  const [twilioTo, setTwilioTo] = useState("")
+  const [twilioToSaving, setTwilioToSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const { state: recorderState, seconds, error: recorderError, startRecording, stopRecording } =
@@ -24,7 +27,10 @@ export function SettingsScreen() {
 
   useEffect(() => {
     getSettings()
-      .then(setSettings)
+      .then((s) => {
+        setSettings(s)
+        setTwilioTo(s.twilio_to ?? "")
+      })
       .catch(() => setError("Instellingen konden niet worden geladen"))
     listVoiceSamples()
       .then(setSamples)
@@ -80,6 +86,18 @@ export function SettingsScreen() {
     }
   }
 
+  async function saveTwilioTo() {
+    setTwilioToSaving(true)
+    setError(null)
+    try {
+      await updateSetting("twilio_to", twilioTo)
+    } catch {
+      setError("Telefoonnummer kon niet worden opgeslagen")
+    } finally {
+      setTwilioToSaving(false)
+    }
+  }
+
   const busy = uploading || recorderState !== "idle"
   const displayError = error ?? recorderError
 
@@ -111,6 +129,30 @@ export function SettingsScreen() {
                 onCheckedChange={toggleTwilio}
                 disabled={settings === null}
               />
+            </div>
+            <div className="flex items-end gap-2 pt-2">
+              <div className="flex-1">
+                <p className="text-sm font-medium mb-1">SMS-ontvanger</p>
+                <Input
+                  type="tel"
+                  placeholder="+31612345678"
+                  value={twilioTo}
+                  onChange={(e) => setTwilioTo(e.target.value)}
+                  disabled={twilioToSaving}
+                  className="max-w-xs"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Internationaal formaat, bijv. +31612345678
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={saveTwilioTo}
+                disabled={twilioToSaving}
+              >
+                {twilioToSaving ? "Opslaan..." : "Opslaan"}
+              </Button>
             </div>
           </CardContent>
         </Card>
