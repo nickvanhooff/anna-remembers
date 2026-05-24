@@ -14,7 +14,7 @@ export interface UseAudioRecorder {
 }
 
 export function useAudioRecorder(
-  onUploaded: () => void
+  onUploaded: () => void | Promise<void>
 ): UseAudioRecorder {
   const [state, setState] = useState<RecorderState>("idle")
   const [seconds, setSeconds] = useState(0)
@@ -62,7 +62,7 @@ export function useAudioRecorder(
 
         try {
           await uploadVoiceSample(file)
-          onUploaded()
+          await Promise.resolve(onUploaded())
         } catch (err) {
           console.error("Voice sample upload error:", err)
           setError("Upload van opname mislukt")
