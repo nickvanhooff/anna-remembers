@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { uploadVoiceSample } from "@/lib/api"
 
 export type RecorderState = "idle" | "recording" | "uploading"
@@ -23,6 +23,15 @@ export function useAudioRecorder(
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop()
+      }
+    }
+  }, [])
 
   async function startRecording() {
     setError(null)
@@ -54,7 +63,8 @@ export function useAudioRecorder(
         try {
           await uploadVoiceSample(file)
           onUploaded()
-        } catch {
+        } catch (err) {
+          console.error("Voice sample upload error:", err)
           setError("Upload van opname mislukt")
         } finally {
           setState("idle")
@@ -64,7 +74,8 @@ export function useAudioRecorder(
       mr.start()
       setState("recording")
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000)
-    } catch {
+    } catch (err) {
+      console.error("getUserMedia error:", err)
       setError("Microfoon niet beschikbaar — geef toegang in de browser")
       setState("idle")
     }
