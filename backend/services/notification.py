@@ -1,4 +1,4 @@
-"""Escalatienotificaties via Twilio SMS."""
+"""Escalation notifications via Twilio SMS."""
 
 import logging
 import os
@@ -41,10 +41,10 @@ def _build_sms(patient_name: str, urgency: str, reason: str) -> str:
 
 
 def send_sms_notification(escalation_id: uuid.UUID) -> None:
-    """Verstuur een SMS voor de opgegeven escalatie en werk notification_status bij.
+    """Send an SMS for the given escalation and update notification_status.
 
-    Draait als FastAPI BackgroundTask — gebruikt een eigen DB-sessie.
-    Stil overgeslagen als Twilio niet geconfigureerd of uitgeschakeld is.
+    Runs as a FastAPI BackgroundTask — uses its own DB session.
+    Silently skipped if Twilio is not configured or disabled.
     """
     if not all([_ACCOUNT_SID, _AUTH_TOKEN, _FROM, _TO]):
         logger.info(
@@ -63,6 +63,10 @@ def send_sms_notification(escalation_id: uuid.UUID) -> None:
             )
             return
 
+        # Bepaal ontvangernummer: DB-waarde heeft prioriteit over env var
+        to_setting = db.query(Setting).filter(Setting.key == "twilio_to").first()
+        effective_to = (to_setting.value if to_setting and to_setting.value else None) or _TO
+
         escalation = (
             db.query(Escalation)
             .options(joinedload(Escalation.patient))
@@ -77,11 +81,11 @@ def send_sms_notification(escalation_id: uuid.UUID) -> None:
         sms_body = _build_sms(patient_name, escalation.urgency, escalation.reason)
 
         client = Client(_ACCOUNT_SID, _AUTH_TOKEN)
-        client.messages.create(body=sms_body, from_=_FROM, to=_TO)
+        client.messages.create(body=sms_body, from_=_FROM, to=effective_to)
 
         escalation.notification_status = "sent"
         db.commit()
-        logger.info("SMS verstuurd voor escalatie %s naar %s", escalation_id, _TO)
+        logger.info("SMS verstuurd voor escalatie %s naar %s", escalation_id, effective_to)
 
     except TwilioRestException as exc:
         logger.warning("Twilio-fout voor escalatie %s: %s", escalation_id, exc)
