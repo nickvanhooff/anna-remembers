@@ -1747,3 +1747,41 @@ Zorgverlener moet Twilio SMS kunnen in- en uitschakelen zonder Docker te herstar
 
 ---
 
+
+## Stap 77 — Task 3: Frontend SMS-ontvanger tekstveld in settings
+
+**Datum:** 2026-05-25
+
+**Wat:**
+- Task 3: SMS-ontvanger inputveld toegevoegd aan settings-pagina frontend
+- Gebruiker kan nu telefoonnummer ingeven en opslaan via UI
+
+**Gedaan:**
+- `frontend/Anna-remembers/types/index.ts` — `twilio_to: string` veld toegevoegd aan `Settings` interface
+- `frontend/Anna-remembers/components/settings/settings-screen.tsx`:
+  - `Input` component geïmporteerd uit shadcn UI
+  - `useState` toegevoegd: `twilioTo` (huidige waarde), `twilioToSaving` (loading-state)
+  - `useEffect` aangepast: laadt `twilio_to` van API met fallback `?? ""`
+  - Functie `saveTwilioTo()`: asynchrone save via `updateSetting("twilio_to", value)`
+  - Inputveld in "Notificaties"-card met:
+    - Type: `tel`, placeholder: `+31612345678`, disabled terwijl saving
+    - Helper-text: "Internationaal formaat, bijv. +31612345678"
+    - Save-button naast inputveld, label verandert naar "Opslaan..." tijdens save
+
+**TypeScript check:**
+- `npx tsc --noEmit` — geen nieuwe fouten
+- Pre-existing fouten in `avatar.tsx` (Three.js types) blijven ongewijzigd en irrelevant
+
+**Commits:**
+- `c930bcd` — feat: add SMS recipient text field to settings screen
+
+**Waarom:**
+- Clinician kan telefoonnummer wijzigen zonder database te raken
+- Volgt exact dezelfde patroon als `tts_provider` setting (State, useEffect, updateSetting, loading UI)
+- Input-validatie gebeurt backend-side (nummer-format)
+
+**Zelf bedacht:**
+- Flex-layout `flex items-end gap-2` zodat button op hoogte van input staat (niet bovenaan label)
+- `max-w-xs` class op input — beperkt breedte voor telefoonnummer (normaal 15-20 karakters)
+- Helper-text in muted-foreground — licht hint over format, niet storend
+
