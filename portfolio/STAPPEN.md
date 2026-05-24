@@ -1602,3 +1602,79 @@ Zorgverlener moet Twilio SMS kunnen in- en uitschakelen zonder Docker te herstar
 - Optimistic update i.p.v. wachten op server response — toggle voelt direct aan, rollback bij netwerk-fout zodat UI consistent blijft met DB-staat.
 - Settings-knop stond al in de sidebar maar was niet gelinkt — minimale wijziging volstond.
 
+---
+
+## Stap 72 — Microphone recording button in settings screen
+
+**Datum:** 2026-05-24
+
+**Wat:**
+- Task 2: `frontend/Anna-remembers/components/settings/settings-screen.tsx` vervangen met versie die microphone recording integreert:
+  - Import `useAudioRecorder` hook (geïmplementeerd in Task 1)
+  - Destructure `{ state, seconds, error, startRecording, stopRecording }` uit hook
+  - Twee neue lucide icons geïmporteerd: `Mic`, `Square` (stop-knop styling)
+  - Recorder-callstack: `startRecording(async () => { setSamples(await listVoiceSamples()) })` — na opname auto-refresh stemsamples
+  - UI-logica: `busy = uploading || recorderState !== "idle"` — disables alle knoppen during opname/upload
+  - Display-error logic: `displayError = error ?? recorderError` — combineert beide error states
+  - Recording state conditional render:
+    - Als `recorderState === "recording"`: rode "Stop (Xs)" knop
+    - Anders: "Opnemen" knop met Mic icon, disabled als `busy`
+  - Upload knop: disabled als `busy`, label verandert naar "Uploaden..." tijdens opname
+  - Delete-knoppen: ook disabled als `busy`
+  - Flexibele button-layout via `flex gap-2 flex-wrap` (past op mobiel en desktop)
+- TypeScript check: geen errors in settings-screen.tsx zelf (avatar.tsx heeft pre-existing three.js type issues, niet relevant)
+
+**Waarom:**
+- Clinician mag voice samples opnemen rechtstreeks in de settings UI, ipv gecompliceerde file upload-workflow
+- Recording state management centralized in hook — component is simpel en focused op presentatie
+- `busy` flag voorkomt race conditions: opname kan niet tegelijk met upload gebeuren
+
+**Zelf bedacht:**
+- `displayError ?? recorderError` fallthrough logic — toont hook-errors (microfoon denied, etc.) als component-error null is
+- Conditional button text ("Uploaden..." vs "Opnemen") geeft real-time feedback over recorder state
+- Redux-style state merging (`setSamples(await listVoiceSamples())` in callback) zorgt UI in sync blijft met backend
+
+**Commit:** `8011bb0` — feat: add microphone recording button to voice samples settings
+
+---
+
+## Stap 73 — useAudioRecorder hook (browser audio recording)
+
+**Datum:** 2026-05-24
+
+**Wat:**
+- `frontend/Anna-remembers/hooks/useAudioRecorder.ts` aangemaakt — React hook die de MediaRecorder lifecycle beheert:
+  - Exporteert `RecorderState = "idle" | "recording" | "uploading"` en `UseAudioRecorder` interface
+  - `startRecording()`: vraagt microfoontoestemming via `getUserMedia`, maakt `MediaRecorder`, verzamelt chunks, start live timer (setInterval 1s)
+  - `mr.onstop`: stopt stream tracks, bouwt Blob, bepaalt extensie (`.ogg` voor Firefox, `.webm` voor Chrome), maakt File met timestamp-naam, roept `uploadVoiceSample(file)` aan, roept `onUploaded()` callback aan bij succes
+  - `stopRecording()`: controleert state === "recording" vóór stop aanroepen
+  - `useEffect` cleanup bij unmount: timer clearen + recorder stoppen — voorkomt memory leak als pagina weg navigeert tijdens opname
+  - Foutmeldingen in het Nederlands, beide catch-blokken loggen ook `console.error` voor debugging
+
+**Beslissingen:**
+- Hook isoleert alle MediaRecorder complexiteit — component (settings-screen) hoeft alleen state en callbacks te consumeren
+- Firefox-compatibiliteit expliciet afgehandeld via `mimeType.includes("ogg")` check
+- `onUploaded: () => void | Promise<void>` — ondersteunt async callbacks zodat de samples-lijst gewacht kan worden voor de state terugkeert naar idle
+
+**Commits:**
+- `e51cba1` — feat: add useAudioRecorder hook with MediaRecorder and auto-upload
+- `65704a1` — fix: add unmount cleanup and error logging to useAudioRecorder
+- `01937c5` — fix: await onUploaded callback in useAudioRecorder to prevent stale samples list
+
+---
+
+## Stap 74 — Fix: onUploaded callback geawait in useAudioRecorder
+
+**Datum:** 2026-05-24
+
+**Wat:**
+- Bug gevonden in code-review: `onUploaded()` werd aangeroepen zonder `await` terwijl de settings-screen een `async` callback doorgeeft (`async () => { setSamples(await listVoiceSamples()) }`).
+- Gevolg: de hook keerde terug naar `idle` state voordat de samples-lijst ververst was — race condition.
+- Fix: type gewijzigd naar `() => void | Promise<void>`, aanroep vervangen door `await Promise.resolve(onUploaded())`.
+- `Promise.resolve()` handelt zowel sync als async callbacks correct af.
+
+**Beslissingen:**
+- `Promise.resolve(onUploaded())` i.p.v. cast naar `Promise` — veiliger, werkt voor beide callback-types zonder type assertion
+
+**Commit:** `01937c5` — fix: await onUploaded callback in useAudioRecorder to prevent stale samples list
+
