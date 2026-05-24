@@ -1678,3 +1678,72 @@ Zorgverlener moet Twilio SMS kunnen in- en uitschakelen zonder Docker te herstar
 
 **Commit:** `01937c5` — fix: await onUploaded callback in useAudioRecorder to prevent stale samples list
 
+---
+
+## Stap 75 — Alembic migratie 0006 voor twilio_to setting
+
+**Datum:** 2026-05-24
+
+**Wat:**
+- `backend/alembic/versions/0006_add_twilio_to_setting.py` aangemaakt — Alembic migratie om een nieuwe `twilio_to` setting toe te voegen aan de `settings` tabel
+- Migratie-patroon volgt exact migratie 0005 (`tts_provider` setting)
+- `upgrade()`: `INSERT INTO settings (key, value) VALUES ('twilio_to', '')` — default lege waarde
+- `downgrade()`: `DELETE FROM settings WHERE key = 'twilio_to'`
+
+**Gedaan:**
+- Migratie aangemaakt en gedraaid: `docker compose exec backend alembic upgrade head`
+- Output: `Running upgrade 0005 -> 0006, add twilio_to setting` ✅
+- Verificatie: `docker compose exec postgres psql -U anna -d anna_remembers -c "SELECT * FROM settings;"` — tabel toont 3 rijen:
+  - `twilio_sms_enabled | false`
+  - `tts_provider | xtts`
+  - `twilio_to | ` (new, empty)
+- Commit: `1c9f0d7` — feat: add twilio_to setting via Alembic migration 0006
+
+**Waarom:**
+- De `twilio_to` setting slaat het telefoonnummer op waar escalatie-SMS naartoe gestuurd worden
+- Vorige migratie (0004) creëerde de `settings` tabel, 0005 voegde `tts_provider` toe — 0006 volgt het patroon
+
+**Zelf bedacht:**
+- Migratie-header en upgrade/downgrade-functies exact gelijk aan 0005 — consistency in codebase
+- DEFAULT lege string i.p.v. NULL — settings zijn altijd aanwezig, zelfs als niet ingesteld
+
+**Volgende stap:** Task 2 — API-endpoint(s) om `twilio_to` setting te lezen en wijzigen via frontend
+
+---
+
+## Stap 76 — TDD: notification.py leest twilio_to uit DB met fallback
+
+**Datum:** 2026-05-24
+
+**Wat:**
+- Task 2: `backend/services/notification.py` uitgebreid om de `twilio_to` ontvangenummersetting uit de database te lezen
+- TDD aanpak: 2 nieuwe tests toegevoegd aan `backend/tests/test_notification.py`:
+  1. `test_uses_db_twilio_to_when_set()` — controleert dat het DB-nummer ("+31699999999") wordt gebruikt als `twilio_to` setting non-leeg is
+  2. `test_falls_back_to_env_when_db_twilio_to_empty()` — controleert dat env var `_TO` wordt gebruikt als `twilio_to` setting leeg is
+- Bestaande tests aangepast (stap 4): `test_sends_sms_and_updates_status_to_sent` en `test_sets_failed_on_twilio_error` mocken nu ook de `twilio_to` query
+- Implementatie in `send_sms_notification()`: na `twilio_sms_enabled` check, nieuwe query om `twilio_to` setting op te halen:
+  ```python
+  to_setting = db.query(Setting).filter(Setting.key == "twilio_to").first()
+  effective_to = (to_setting.value if to_setting and to_setting.value else None) or _TO
+  ```
+- Twilio SMS-aanroep gewijzigd: `to=_TO` → `to=effective_to`
+- Logging gewijzigd: logmeldingen gebruiken nu `effective_to` i.p.v. hardcoded `_TO`
+
+**Test-resultaten:**
+- Alle 14 tests in `test_notification.py` SLAGEN (8 TestBuildSms + 5 TestSendSmsNotification + 1 TestSmsDisabledSetting)
+- Nieuwe tests: beide PASSED
+- Bestaande tests: geen regressies — allemaal nog groen
+
+**Waarom:**
+- Clinician moet telefoonnummer kunnen wijzigen via settings UI zonder env var aan te raken
+- DB-waarde heeft prioriteit over env var — veiliger dan hardcoded of env-only
+- Fallback op env var — backward-compatible, werkend even als DB-waarde leeg is
+
+**Zelf bedacht:**
+- Query-ketting: `side_effect = [mock_sms_enabled, mock_twilio_to]` — beide settings ophalen zonder query-vervuiling
+- Fallback-logica: `(value if value else None) or _TO` — handelt lege string EN None af
+
+**Commit:** `132ae85` — feat: read twilio_to recipient from DB with env var fallback
+
+---
+
