@@ -91,6 +91,7 @@ export function SettingsScreen() {
     setError(null)
     try {
       await updateSetting("twilio_to", twilioTo)
+      if (settings) setSettings({ ...settings, twilio_to: twilioTo })
     } catch {
       setError("Telefoonnummer kon niet worden opgeslagen")
     } finally {
