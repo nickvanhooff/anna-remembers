@@ -59,6 +59,7 @@ services:
       # Uvicorn detecteert bestandswijzigingen en herstart automatisch.
       # Verwijder deze volume-regel voor een productie-build.
       - ./backend:/app
+      - ./tts_voice:/voice:rw
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       CHROMA_HOST: chromadb
@@ -80,6 +81,7 @@ services:
       ESCALATION_COOLDOWN_MINUTES: ${ESCALATION_COOLDOWN_MINUTES:-5}
       PIPER_URL: ${PIPER_URL:-http://piper-http-bridge:5000}
       XTTS_URL: ${XTTS_URL:-http://xtts-bridge:5000}
+      VOICE_DIR: /voice
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_FROM: ${TWILIO_FROM:-}

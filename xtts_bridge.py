@@ -5,9 +5,11 @@ Same endpoint shape as piper_http_bridge.py so the backend can swap providers
 by only changing the upstream URL.
 
 POST /        ?text=...  or  {"text": "..."}   -> audio/wav
+POST /reload                                    -> {"status": "ok", "samples": N}
 GET  /health                                    -> {"status": "ok"}
 """
 
+import glob
 import io
 import os
 import sys
@@ -28,18 +30,17 @@ VOICE_DIR = os.getenv("XTTS_VOICE_DIR", "/voice")
 LANGUAGE = os.getenv("XTTS_LANGUAGE", "nl")
 MODEL_NAME = os.getenv("XTTS_MODEL", "tts_models/multilingual/multi-dataset/xtts_v2")
 
-# Alle WAV-bestanden in /voice/ worden gebruikt als reference clips.
-# Meerdere clips = veel betere speaker embedding voor XTTS v2.
-import glob
-VOICE_SAMPLES = sorted(glob.glob(os.path.join(VOICE_DIR, "*.wav")))
-if not VOICE_SAMPLES:
+# Mutable list — can be updated via /reload without restart.
+_voice_samples: list[str] = sorted(glob.glob(os.path.join(VOICE_DIR, "*.wav")))
+if not _voice_samples:
     print(f"ERROR: no WAV files found in {VOICE_DIR}", file=sys.stderr, flush=True)
     sys.exit(1)
-print(f"Using {len(VOICE_SAMPLES)} reference clip(s): {VOICE_SAMPLES}", file=sys.stderr, flush=True)
+print(f"Using {len(_voice_samples)} reference clip(s): {_voice_samples}", file=sys.stderr, flush=True)
 
 use_gpu = torch.cuda.is_available()
-print(f"Loading XTTS v2 (gpu={use_gpu})...", file=sys.stderr, flush=True)
-tts = TTS(MODEL_NAME, gpu=use_gpu)
+device = "cuda" if use_gpu else "cpu"
+print(f"Loading XTTS v2 (device={device})...", file=sys.stderr, flush=True)
+tts = TTS(MODEL_NAME).to(device)
 print(f"Language: {LANGUAGE}", file=sys.stderr, flush=True)
 print("Model loaded.", file=sys.stderr, flush=True)
 
@@ -64,8 +65,11 @@ def synthesize():
     if not text or not text.strip():
         return {"error": "Missing or empty text parameter"}, 400
 
+    if not _voice_samples:
+        return {"error": "No voice samples available"}, 503
+
     try:
-        wav = tts.tts(text=text.strip(), speaker_wav=VOICE_SAMPLES, language=LANGUAGE)
+        wav = tts.tts(text=text.strip(), speaker_wav=list(_voice_samples), language=LANGUAGE)
         sample_rate = tts.synthesizer.output_sample_rate
         buf = _wav_bytes(np.array(wav), sample_rate)
         print(f"Synthesized {len(buf.getvalue())} bytes for: {text[:60]}", file=sys.stderr, flush=True)
@@ -75,6 +79,15 @@ def synthesize():
         import traceback
         traceback.print_exc(file=sys.stderr)
         return {"error": str(exc)}, 500
+
+
+@app.route("/reload", methods=["POST"])
+def reload_samples():
+    """Rescan /voice/*.wav and refresh the speaker list without restart."""
+    global _voice_samples
+    _voice_samples = sorted(glob.glob(os.path.join(VOICE_DIR, "*.wav")))
+    print(f"Reloaded: {len(_voice_samples)} sample(s)", file=sys.stderr, flush=True)
+    return {"status": "ok", "samples": len(_voice_samples)}, 200
 
 
 @app.route("/health", methods=["GET"])

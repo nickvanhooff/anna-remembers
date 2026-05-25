@@ -1,4 +1,4 @@
-"""Settings router — lees en wijzig app-instellingen."""
+"""Settings router — read and update application settings."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 @router.get("/", response_model=dict[str, str])
 def get_settings(db: Session = Depends(get_db)) -> dict[str, str]:
-    """Geeft alle instellingen terug als key-value dict."""
+    """Return all settings as a key-value dict."""
     rows = db.query(Setting).all()
     return {row.key: row.value for row in rows}
 
@@ -23,7 +23,7 @@ def update_setting(
     body: SettingUpdate,
     db: Session = Depends(get_db),
 ) -> SettingResponse:
-    """Wijzig een bestaande instelling. Geeft 404 als de key niet bestaat."""
+    """Update an existing setting. Returns 404 if the key does not exist."""
     setting = db.query(Setting).filter(Setting.key == key).first()
     if not setting:
         raise HTTPException(status_code=404, detail=f"Instelling '{key}' niet gevonden")

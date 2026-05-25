@@ -1,4 +1,4 @@
-"""HTTP client voor Piper en XTTS TTS-containers."""
+"""HTTP client for Piper and XTTS TTS containers."""
 import os
 
 import httpx
@@ -15,9 +15,9 @@ _PROVIDER_URLS: dict[str, str] = {
 
 
 async def synthesize(text: str, provider: str = "xtts") -> bytes:
-    """Stuur tekst naar de TTS-service en geef WAV-bytes terug.
+    """Send text to the TTS service and return WAV bytes.
 
-    provider moet 'piper' of 'xtts' zijn. Onbekende waarden vallen terug op xtts.
+    provider must be 'piper' or 'xtts'. Unknown values fall back to xtts.
     """
     if not text or not text.strip():
         raise HTTPException(status_code=400, detail="text mag niet leeg zijn")
