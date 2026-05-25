@@ -1,4 +1,4 @@
-"""Tests voor backend/routers/settings.py"""
+"""Tests for backend/routers/settings.py"""
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient

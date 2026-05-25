@@ -396,3 +396,28 @@ export async function getSettings(): Promise<Settings> {
 export async function updateSetting(key: keyof Settings, value: string): Promise<void> {
   await put<{ key: string; value: string }>(`/settings/${key}`, { value })
 }
+
+// ─── Voice samples ────────────────────────────────────────────────
+
+export async function listVoiceSamples(): Promise<string[]> {
+  const data = await get<{ samples: string[] }>("/tts/voice-samples")
+  return data.samples
+}
+
+export async function uploadVoiceSample(file: File): Promise<void> {
+  const form = new FormData()
+  form.append("file", file)
+  const res = await fetch(`${BASE}/tts/voice-samples`, {
+    method: "POST",
+    body: form,
+  })
+  if (!res.ok) throw new Error(`API ${res.status} /tts/voice-samples`)
+}
+
+export async function deleteVoiceSample(filename: string): Promise<void> {
+  const res = await fetch(
+    `${BASE}/tts/voice-samples/${encodeURIComponent(filename)}`,
+    { method: "DELETE" }
+  )
+  if (!res.ok) throw new Error(`API ${res.status} /tts/voice-samples/${filename}`)
+}

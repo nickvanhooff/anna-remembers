@@ -1,4 +1,4 @@
-"""TTS router — proxies text-to-speech requests naar Piper of XTTS."""
+"""TTS router — proxies text-to-speech requests to Piper or XTTS."""
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -16,7 +16,7 @@ async def text_to_speech(
     req: TTSRequest,
     db: Session = Depends(get_db),
 ) -> Response:
-    """Synthetiseer Nederlandse spraak via de geconfigureerde TTS-provider."""
+    """Synthesize Dutch speech via the configured TTS provider."""
     setting = db.query(Setting).filter(Setting.key == "tts_provider").first()
     provider = setting.value if setting else "xtts"
     audio = await synthesize(req.text, provider)

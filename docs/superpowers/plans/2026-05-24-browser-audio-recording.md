@@ -1,3 +1,144 @@
+# Browser Audio Recording Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Voeg een "Opnemen" knop toe aan de Stemsamples card waarmee de gebruiker direct via de microfoon een stemopname maakt en deze automatisch uploadt naar de backend.
+
+**Architecture:** Een nieuwe `useAudioRecorder` hook beheert de MediaRecorder lifecycle (starten, stoppen, chunks verzamelen, uploaden). De hook geeft een `state` terug (`"idle" | "recording" | "uploading"`) en roept de bestaande `uploadVoiceSample` API-functie aan zodra de opname stopt. De browser neemt op in WebM/Opus — het bestaande ffmpeg-conversieplan converteert dat al naar WAV, dus er zijn geen backend-wijzigingen nodig.
+
+**Tech Stack:** MediaRecorder API (browser-native), React `useRef`/`useState`, lucide-react `Mic`/`Square` iconen, bestaande `uploadVoiceSample` functie in `lib/api.ts`
+
+---
+
+## File Map
+
+| File | Wijziging |
+|---|---|
+| `frontend/Anna-remembers/hooks/useAudioRecorder.ts` | NEW — hook die MediaRecorder beheert |
+| `frontend/Anna-remembers/components/settings/settings-screen.tsx` | MODIFY — "Opnemen" knop + timer toevoegen |
+
+Geen backend-wijzigingen — `.webm` staat al in `ALLOWED_EXTENSIONS` van `audio_converter.py`.
+
+---
+
+## Task 1: `useAudioRecorder` hook
+
+**Files:**
+- Create: `frontend/Anna-remembers/hooks/useAudioRecorder.ts`
+
+De hook heeft geen tests (geen Jest-setup in dit project). Validatie = TypeScript check + handmatig testen.
+
+- [ ] **Stap 1: Maak de hook aan**
+
+```typescript
+// frontend/Anna-remembers/hooks/useAudioRecorder.ts
+"use client"
+
+import { useRef, useState } from "react"
+import { uploadVoiceSample } from "@/lib/api"
+
+export type RecorderState = "idle" | "recording" | "uploading"
+
+export interface UseAudioRecorder {
+  state: RecorderState
+  seconds: number
+  error: string | null
+  startRecording: () => Promise<void>
+  stopRecording: () => void
+}
+
+export function useAudioRecorder(
+  onUploaded: () => void
+): UseAudioRecorder {
+  const [state, setState] = useState<RecorderState>("idle")
+  const [seconds, setSeconds] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  async function startRecording() {
+    setError(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mr = new MediaRecorder(stream)
+      mediaRecorderRef.current = mr
+      chunksRef.current = []
+      setSeconds(0)
+
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop())
+
+        const mimeType = mr.mimeType || "audio/webm"
+        const blob = new Blob(chunksRef.current, { type: mimeType })
+
+        // Gebruik .ogg extensie voor Firefox (neemt op in audio/ogg), anders .webm
+        const ext = mimeType.includes("ogg") ? ".ogg" : ".webm"
+        const filename = `opname-${Date.now()}${ext}`
+        const file = new File([blob], filename, { type: mimeType })
+
+        setState("uploading")
+        if (timerRef.current) clearInterval(timerRef.current)
+
+        try {
+          await uploadVoiceSample(file)
+          onUploaded()
+        } catch {
+          setError("Upload van opname mislukt")
+        } finally {
+          setState("idle")
+        }
+      }
+
+      mr.start()
+      setState("recording")
+      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000)
+    } catch {
+      setError("Microfoon niet beschikbaar — geef toegang in de browser")
+      setState("idle")
+    }
+  }
+
+  function stopRecording() {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop()
+    }
+  }
+
+  return { state, seconds, error, startRecording, stopRecording }
+}
+```
+
+- [ ] **Stap 2: TypeScript check**
+
+```bash
+cd frontend/Anna-remembers && npx tsc --noEmit
+```
+
+Verwacht: geen fouten.
+
+- [ ] **Stap 3: Commit**
+
+```bash
+git add frontend/Anna-remembers/hooks/useAudioRecorder.ts
+git commit -m "feat: add useAudioRecorder hook with MediaRecorder and auto-upload"
+```
+
+---
+
+## Task 2: Opnemen-knop in de settings screen
+
+**Files:**
+- Modify: `frontend/Anna-remembers/components/settings/settings-screen.tsx`
+
+- [ ] **Stap 1: Vervang de volledige inhoud van `settings-screen.tsx`**
+
+```tsx
 "use client"
 
 import { useEffect, useRef, useState } from "react"
@@ -5,7 +146,6 @@ import { Mic, Settings2, Square, Trash2, Upload } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getSettings, updateSetting, listVoiceSamples, uploadVoiceSample, deleteVoiceSample } from "@/lib/api"
 import { useAudioRecorder } from "@/hooks/useAudioRecorder"
@@ -16,8 +156,6 @@ export function SettingsScreen() {
   const [error, setError] = useState<string | null>(null)
   const [samples, setSamples] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
-  const [twilioTo, setTwilioTo] = useState("")
-  const [twilioToSaving, setTwilioToSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const { state: recorderState, seconds, error: recorderError, startRecording, stopRecording } =
@@ -27,10 +165,7 @@ export function SettingsScreen() {
 
   useEffect(() => {
     getSettings()
-      .then((s) => {
-        setSettings(s)
-        setTwilioTo(s.twilio_to ?? "")
-      })
+      .then(setSettings)
       .catch(() => setError("Instellingen konden niet worden geladen"))
     listVoiceSamples()
       .then(setSamples)
@@ -86,19 +221,6 @@ export function SettingsScreen() {
     }
   }
 
-  async function saveTwilioTo() {
-    setTwilioToSaving(true)
-    setError(null)
-    try {
-      await updateSetting("twilio_to", twilioTo)
-      if (settings) setSettings({ ...settings, twilio_to: twilioTo })
-    } catch {
-      setError("Telefoonnummer kon niet worden opgeslagen")
-    } finally {
-      setTwilioToSaving(false)
-    }
-  }
-
   const busy = uploading || recorderState !== "idle"
   const displayError = error ?? recorderError
 
@@ -130,30 +252,6 @@ export function SettingsScreen() {
                 onCheckedChange={toggleTwilio}
                 disabled={settings === null}
               />
-            </div>
-            <div className="flex items-end gap-2 pt-2">
-              <div className="flex-1">
-                <p className="text-sm font-medium mb-1">SMS-ontvanger</p>
-                <Input
-                  type="tel"
-                  placeholder="+31612345678"
-                  value={twilioTo}
-                  onChange={(e) => setTwilioTo(e.target.value)}
-                  disabled={twilioToSaving}
-                  className="max-w-xs"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Internationaal formaat, bijv. +31612345678
-                </p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={saveTwilioTo}
-                disabled={twilioToSaving}
-              >
-                {twilioToSaving ? "Opslaan..." : "Opslaan"}
-              </Button>
             </div>
           </CardContent>
         </Card>
@@ -259,3 +357,47 @@ export function SettingsScreen() {
     </div>
   )
 }
+```
+
+- [ ] **Stap 2: TypeScript check**
+
+```bash
+cd frontend/Anna-remembers && npx tsc --noEmit
+```
+
+Verwacht: geen fouten.
+
+- [ ] **Stap 3: Handmatig testen**
+
+1. Open `http://localhost:3001/settings`
+2. Scroll naar de Stemsamples card — je ziet nu twee knoppen: "Audio uploaden" en "Opnemen"
+3. Klik "Opnemen" — browser vraagt microfoontoestemming, geef die
+4. Spreek iets in, wacht 5–10 seconden
+5. Klik "Stop (Ns)" — de knop toont kort "Uploaden..."
+6. Na upload staat een nieuw bestand in de lijst (bijv. `opname-1716500000000.wav`)
+7. Controleer dat het bestand in `./tts_voice/` staat:
+   ```bash
+   ls ./tts_voice/
+   ```
+8. Test dat de "Opnemen" knop disabled is tijdens bestandsupload en vice versa
+
+- [ ] **Stap 4: Commit**
+
+```bash
+git add frontend/Anna-remembers/components/settings/settings-screen.tsx
+git commit -m "feat: add microphone recording button to voice samples settings"
+```
+
+---
+
+## Scope check (self-review)
+
+- ✅ Hook beheert MediaRecorder lifecycle volledig (stream openen, chunks verzamelen, stream sluiten)
+- ✅ Firefox-compatibel: `.ogg` extensie als mimeType `audio/ogg` bevat, anders `.webm`
+- ✅ Foutmelding als microfoon niet beschikbaar (geen toestemming of hardware ontbreekt)
+- ✅ Timer toont hoeveel seconden opgenomen
+- ✅ "Stop"-knop toont seconden zodat gebruiker weet hoe lang de opname is
+- ✅ Upload-knop en opnemen-knop zijn wederzijds disabled via `busy` flag
+- ✅ Na succesvolle upload wordt de lijst ververst via `listVoiceSamples()`
+- ✅ Geen backend-wijzigingen nodig — `.webm` en `.ogg` staan al in `ALLOWED_EXTENSIONS`
+- ✅ `recorderError` wordt samen met `error` getoond via `displayError`

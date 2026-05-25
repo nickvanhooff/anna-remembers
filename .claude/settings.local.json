@@ -112,7 +112,17 @@
       "Bash(pip install *)",
       "Bash(python -m pytest tests/test_notification.py::TestSmsDisabledSetting -v)",
       "PowerShell(npx skills add https://github.com/softaworks/agent-toolkit --skill c4-architecture)",
-      "Bash(gh api *)"
+      "Bash(gh api *)",
+      "Bash(xargs grep *)",
+      "Bash(python -m pytest tests/test_voice_samples.py -v)",
+      "Bash(python -m pytest -v --tb=short)",
+      "Bash(python -m pytest tests/test_escalation_layers.py --collect-only)",
+      "Bash(python -m pytest --ignore=tests/test_escalation_layers.py -v)",
+      "Bash(python -m pytest tests/test_voice_samples.py tests/test_tts.py tests/test_notification.py tests/test_settings.py -v)",
+      "Bash(python -m pytest tests/test_notification.py::TestSendSmsNotification::test_uses_db_twilio_to_when_set tests/test_notification.py::TestSendSmsNotification::test_falls_back_to_env_when_db_twilio_to_empty -v)",
+      "Bash(python -m pytest backend/tests/test_notification.py::TestSendSmsNotification::test_uses_db_twilio_to_when_set backend/tests/test_notification.py::TestSendSmsNotification::test_falls_back_to_env_when_db_twilio_to_empty -v)",
+      "Bash(python *)",
+      "Bash(git show *)"
     ]
   }
 }

@@ -1,4 +1,4 @@
-"""Setting model — slaat app-instellingen op als key-value paren."""
+"""Setting model — stores application settings as key-value pairs."""
 
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
