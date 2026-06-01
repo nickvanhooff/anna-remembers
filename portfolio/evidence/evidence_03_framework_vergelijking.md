@@ -40,6 +40,24 @@ De App Router brengt `"use client"` verplichtingen mee voor componenten met `use
 
 Next.js 15 met App Router gekozen. Skelet opgezet met `create-next-app`, route group `(dashboard)` aangemaakt voor de gedeelde sidebar layout. Prototype met vier navigeerbare schermen was binnen 30 minuten werkend.
 
+### Vier werkende schermen
+
+**Patiëntbeheer** — CRUD voor patiënten, live gekoppeld aan FastAPI
+
+![Patiëntbeheer scherm](images/patientbeheer.png)
+
+**Chat met Anna** — gesprek starten per patiënt, volledige gesprekshistorie
+
+![Chat scherm](images/chat.png)
+
+**Symptoomtrends** — grafieken per patiënt (hardcoded data, klaar voor live koppeling met issue #13)
+
+![Symptoomtrends scherm](images/symptoomtrends(hardcoded%20data).png)
+
+**Escalatiebeheer** — overzicht van alle escalaties met urgentie en reden
+
+![Escalatiebeheer scherm](images/escalatiebeheer.png)
+
 ---
 
 ## Bronnen

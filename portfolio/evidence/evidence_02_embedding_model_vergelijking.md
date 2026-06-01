@@ -18,7 +18,7 @@ De twee bronnen die ik heb geraadpleegd:
 **1. MTEB BEIR-NL Leaderboard (Hugging Face) [1]**  
 MTEB (Massive Text Embedding Benchmark) is de gestandaardiseerde benchmark voor het vergelijken van embedding modellen. Het test modellen op een reeks taken, waarvan retrieval de meest relevante is voor RAG-toepassingen: geeft het model bij een zoekvraag de daadwerkelijk relevante documenten terug? BEIR-NL is de Nederlandstalige variant van die retrievalbenchmark — dezelfde methodiek, maar toegepast op Nederlandstalige datasets. Elk model krijgt een Retrieval-score, zodat je gericht kunt vergelijken op de taal die je project nodig heeft.
 
-![MTEB BEIR-NL Leaderboard — bge-m3 staat op positie 6](images/huggingface_mteb_leaderboard_BEIR-NL.png)
+![MTEB BEIR-NL Leaderboard — bge-m3 staat op positie 6](images/BEIR-NL_leaderboard.png)
 
 bge-m3 staat op **positie 6** op de BEIR-NL ranking. De vijf modellen erboven zijn om verschillende redenen geen optie:
 

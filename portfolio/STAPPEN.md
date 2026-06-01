@@ -1785,3 +1785,17 @@ Zorgverlener moet Twilio SMS kunnen in- en uitschakelen zonder Docker te herstar
 - `max-w-xs` class op input — beperkt breedte voor telefoonnummer (normaal 15-20 karakters)
 - Helper-text in muted-foreground — licht hint over format, niet storend
 
+## Stap 78 — Portfolio verbetering: evidence beter gekoppeld in DL2, DL3, DL4
+
+**Datum:** 2026-06-01
+
+**Wat:**
+- DL2: sectie 5 uitgebreid met expliciete BEIR-NL top-10 exclusietabel (verwijs naar evidence_02); sectie 6 succescriteria voorzien van directe evidence-links per criterium
+- DL3: succescriteria-tabel aangevuld met "Redenering achter de norm" kolom; evidence-links in sectie 3 en 5 verduidelijkt met wat de evidence toont; sectie 8 succescriteria-check voorzien van bewijs-kolom
+- DL4: §6a (kosten) en §6b (Langfuse-tracing) ingekort — kerngegevens bewaard, narratief verwijderd; dubbele burst-berichten alinea verwijderd
+
+**Waarom:**
+- Beoordelaar moet direct kunnen doorklikken van criterium naar bewijs
+- DL3 miste redenering achter de norm — nu uitgelegd waarom elk criterium telt voor dit project
+- DL4 was te lang voor een decision log; details horen in de evidence, niet in de log zelf
+

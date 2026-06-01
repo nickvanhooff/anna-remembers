@@ -201,6 +201,12 @@ ESCALATION_MODEL=qwen2.5:3b
 
 Hoofdvraag: hoeveel scheelt het in tokens dat Layer 1 lokaal draait i.p.v. via Groq/Anthropic?
 
+De onderstaande Langfuse-screenshots tonen de gemeten token-usage per trace-type over alle gesprekken:
+
+![Langfuse — input/output tokens per trace](images/Langfuse_input_output_tokens.png)
+
+![Langfuse — totaal tokens per trace-naam](images/Langfuse_total_tokens_of_traces_named_by_sort_of_trace.png)
+
 | Component | Tokens per Layer 1 call |
 |---|---|
 | System prompt (Engelse instructies + Nederlandse voorbeelden) | ~600 input |
@@ -252,6 +258,10 @@ escalation-layer1  (trace, propagate_attributes user_id + session_id)
       ├── output: raw JSON respons
       └── (latency automatisch gemeten door Langfuse)
 ```
+
+De claim "Laag 1 ~3–5 seconden" in DL4 §6a is af te lezen uit de latency per span:
+
+![Langfuse — trace latency per span](images/trace_latency.png)
 
 **Waarom dit waardevol is — vijf concrete redenen:**
 
