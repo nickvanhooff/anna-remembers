@@ -1,4 +1,7 @@
+import logging
 import os
+from contextlib import asynccontextmanager
+
 from fastmcp import FastMCP
 
 from services.embedding import get_embedding_provider
@@ -6,8 +9,21 @@ from tools.escalation import escalate_to_human as _escalate_to_human
 from tools.memory import recall_context as _recall_context
 from tools.memory import store_memory as _store_memory
 
-mcp = FastMCP("anna-remembers-mcp")
 _embed = get_embedding_provider()
+_log = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastMCP):
+    try:
+        await _embed.embed("warmup")
+        _log.info("bge-m3 warm en geladen in Ollama")
+    except Exception as e:
+        _log.warning("Warmup mislukt (Ollama nog niet gereed?): %s", e)
+    yield
+
+
+mcp = FastMCP("anna-remembers-mcp", lifespan=lifespan)
 
 
 @mcp.tool()

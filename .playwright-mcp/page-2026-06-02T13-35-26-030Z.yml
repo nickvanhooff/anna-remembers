@@ -1,0 +1,5 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - img "Langfuse Icon" [ref=e5]
+    - heading "Loading ..." [level=2] [ref=e6]
+  - alert [ref=e7]: /project/cmp4bvf770006ol07q4dnumfr/traces

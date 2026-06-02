@@ -21,7 +21,7 @@ over meerdere weken, en escaleert naar een zorgverlener wanneer dat nodig is.
 | MCP Server | fastmcp (Python, apart proces) | 8001 |
 | Relationele DB | PostgreSQL 16 | 5432 |
 | Vector DB | ChromaDB (RAG geheugen) | 8002 |
-| LLM | Ollama (gemma4:e2b) of cloud: Groq / Anthropic / OpenRouter | 11434 / cloud |
+| LLM | Ollama (qwen2.5:3b) of cloud: Groq / Anthropic / OpenRouter | 11434 / cloud |
 | Embeddings | bge-m3 via Ollama | 11434 |
 | TTS (snel) | Piper TTS nl_NL-ronnie via HTTP-bridge | 5005 / 10200 |
 | TTS (kwaliteit) | XTTS v2 (Coqui) — GPU, stemkloning | 5006 |
@@ -248,7 +248,7 @@ Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat v
 | MCP server positie | Los draaiend proces op poort 8001 | Nog te documenteren |
 | Vector database | ChromaDB lokaal in Docker (bewust, voor zichtbare RAG-pipeline) | `portfolio/decision-logs/DL1_vector_database_keuze.md` |
 | Relationele database | PostgreSQL 16 met JSONB | Nog te documenteren |
-| LLM provider | Ollama + gemma4:e4b (lokaal, GPU passthrough RTX 4050) | Nog te documenteren |
+| LLM provider | Ollama + qwen2.5:3b (lokaal, GPU passthrough RTX 4050) | Nog te documenteren |
 | Embedding model | bge-m3 via Ollama (meertalig, 1024-dim, 8192 context) | `docs/superpowers/specs/2026-05-08-embedding-model-design.md` |
 | Alembic vs init-script | Alembic (versie-gecontroleerde migraties, rollback mogelijk) | Nog te documenteren |
 | TTS provider | Piper (snel, offline) + XTTS v2 (GPU, stemkloning), instelbaar via settings page | `docs/superpowers/plans/2026-05-23-tts-provider-toggle.md` |
@@ -301,7 +301,7 @@ Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat v
 
 ### LLM-providers
 - **Groq** (aanbevolen voor demo): `LLM_PROVIDER=groq`, gratis tier, llama-3.3-70b-versatile, ~1-3s
-- **Ollama lokaal**: `LLM_PROVIDER=ollama`, gemma4:e2b past in 6 GiB VRAM, ~5-20s
+- **Ollama lokaal**: `LLM_PROVIDER=ollama`, qwen2.5:3b past in 6 GiB VRAM, ~4-8s
 - **Anthropic / OpenRouter**: beschikbaar, API key vereist
 
 ---

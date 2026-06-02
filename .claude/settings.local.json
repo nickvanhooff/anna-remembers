@@ -125,7 +125,8 @@
       "Bash(git show *)",
       "Bash(Get-Content \"C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\portfolio\\\\STAPPEN.md\")",
       "Bash(Select-Object -Last 30)",
-      "Bash(dir C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\usability test *)"
+      "Bash(dir C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\usability test *)",
+      "mcp__plugin_playwright_playwright__browser_snapshot"
     ]
   }
 }

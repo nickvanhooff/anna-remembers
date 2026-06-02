@@ -1,6 +1,5 @@
 """FastAPI route handlers for the chat endpoint."""
 
-import asyncio
 import uuid
 from datetime import datetime
 from typing import Annotated
@@ -36,6 +35,20 @@ from ._prompts import build_system_prompt
 from ._summary import _SUMMARY_INTERVAL, trigger_summary_update
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+async def _store_memory_bg(
+    mcp: MCPClient, content: str, patient_id: str, session_id: str
+) -> None:
+    try:
+        await mcp.store_memory(
+            content=content,
+            source="patient_stated",
+            patient_id=patient_id,
+            session_id=session_id,
+        )
+    except Exception:
+        pass
 
 _HISTORY_LIMIT = 6
 _RAG_LIMIT = 5
@@ -301,17 +314,11 @@ async def chat(
     db.add(user_message)
     db.commit()
 
-    # Store factual statements only — not questions
-    store_coro = (
-        mcp.store_memory(
-            content=body.content,
-            source="patient_stated",
-            patient_id=str(patient_id),
-            session_id=str(session.id),
+    # Store factual statements only — not questions, fire-and-forget after response
+    if not _is_question(body.content):
+        background_tasks.add_task(
+            _store_memory_bg, mcp, body.content, str(patient_id), str(session.id)
         )
-        if not _is_question(body.content)
-        else asyncio.sleep(0)
-    )
 
     langfuse = get_langfuse()
     with langfuse.start_as_current_observation(
@@ -326,19 +333,10 @@ async def chat(
             with langfuse.start_as_current_observation(
                 as_type="span", name="rag-retrieval", input=body.content
             ) as rag_span:
-                rag_result, store_result = await asyncio.gather(
-                    mcp.recall_context(
-                        query=body.content, patient_id=str(patient_id), limit=_RAG_LIMIT
-                    ),
-                    store_coro,
-                    return_exceptions=True,
+                rag_result = await mcp.recall_context(
+                    query=body.content, patient_id=str(patient_id), limit=_RAG_LIMIT
                 )
-                memories: list[dict] = (
-                    rag_result if isinstance(rag_result, list) else []
-                )
-                chroma_doc_id: str | None = (
-                    store_result if isinstance(store_result, str) else None
-                )
+                memories: list[dict] = rag_result if isinstance(rag_result, list) else []
                 rag_span.update(
                     output=[m.get("content", "") for m in memories],
                     metadata={"hit_count": len(memories)},
@@ -443,7 +441,7 @@ async def chat(
         rag_limit=_RAG_LIMIT,
         history_rows=recent,
         system_prompt=system_prompt,
-        chroma_document_id=chroma_doc_id or None,
+        chroma_document_id=None,
         summary_block_present=bool(patient.medical_summary),
     )
     return base.model_copy(update={"context_proof": proof})

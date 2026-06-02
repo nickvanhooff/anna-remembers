@@ -32,6 +32,7 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
     def __init__(self, model: str, base_url: str) -> None:
         self.model = model
         self.base_url = base_url.rstrip("/")
+        self._client = httpx.AsyncClient(timeout=120.0)
 
     async def embed(self, text: str) -> list[float]:
         """Request a vector from Ollama.
@@ -40,13 +41,12 @@ class OllamaEmbeddingProvider(EmbeddingProvider):
             EmbeddingUnavailableError: if Ollama is unreachable
         """
         try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(
-                    f"{self.base_url}/api/embed",
-                    json={"model": self.model, "input": text},
-                )
-                response.raise_for_status()
-                return response.json()["embeddings"][0]
+            response = await self._client.post(
+                f"{self.base_url}/api/embed",
+                json={"model": self.model, "input": text, "keep_alive": -1},
+            )
+            response.raise_for_status()
+            return response.json()["embeddings"][0]
         except httpx.RequestError as e:
             raise EmbeddingUnavailableError(
                 f"Ollama onbereikbaar bij embed-aanroep: {e}"
