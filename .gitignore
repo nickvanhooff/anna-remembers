@@ -41,3 +41,7 @@ chroma_data/
 # SQLite bestanden (lokale test-artefacten)
 *.db
 backend/Untitled
+portfolio/.obsidian/
+evidence_10_sms_notificaties_en_settings.pdf
+pdf/
+.obsidian/

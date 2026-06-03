@@ -69,7 +69,7 @@ Eerste implementatie (stap 62) via subagent: 290 regels met Levenshtein-matching
 
 Bug gevonden in stap 64: `qwen2.5:3b` plaatst de `[ANIM: x]` tag regelmatig midden in de response, niet op de eerste regel. De `^`-geankerde regex (een patroon dat alleen het begin van de tekst doorzoekt) sloeg dit over, waardoor de tag letterlijk in de tekst belandde die naar de XTTS-bridge ging — de TTS sprak `[ANIM: flexing_arm]` hardop uit.
 
-→ Iteraties gedocumenteerd in [evidence_11_animation_tag_iteraties.md](../evidence/evidence_11_animation_tag_iteraties.md)
+→ Iteraties gedocumenteerd in [evidence_11_animation_tag_iteraties.md](../evidence/evidence_11_animation_tag_iteraties.md) @evidence_11_animation_tag_iteraties
 
 ---
 
@@ -88,8 +88,8 @@ Bug gevonden in stap 64: `qwen2.5:3b` plaatst de `[ANIM: x]` tag regelmatig midd
 
 | Criterium | Doel | Gehaald? | Bewijs |
 |---|---|---|---|
-| **Correctheid** | Animatie sluit aan bij gesprek | ✅ Keywords geven directe correcte match; LLM-tag voor context zonder keyword | [evidence_11 — iteraties en testresultaten](../evidence/evidence_11_animation_tag_iteraties.md) |
-| **Robuustheid** | Onbekende output → default | ✅ Whitelist + default-fallback, nooit crash; mid-tekst bug gefixt in stap 64 | [evidence_11 — bugfix mid-tekst regex](../evidence/evidence_11_animation_tag_iteraties.md) |
+| **Correctheid** | Animatie sluit aan bij gesprek | ✅ Keywords geven directe correcte match; LLM-tag voor context zonder keyword | [evidence_11 — iteraties en testresultaten](../evidence/evidence_11_animation_tag_iteraties.md) @evidence_11_animation_tag_iteraties |
+| **Robuustheid** | Onbekende output → default | ✅ Whitelist + default-fallback, nooit crash; mid-tekst bug gefixt in stap 64 | [evidence_11 — bugfix mid-tekst regex](../evidence/evidence_11_animation_tag_iteraties.md) @evidence_11_animation_tag_iteraties |
 | **Eenvoud** | Één util-bestand, één publieke functie | ✅ 135 regels vs 290 regels in stap 62 — 54% reductie door herontwerp | Stap 63 in STAPPEN.md |
 
 ---
@@ -104,7 +104,7 @@ Bug gevonden in stap 64: `qwen2.5:3b` plaatst de `[ANIM: x]` tag regelmatig midd
 
 ### 8. Bronnen
 
-Geen externe bronnen geraadpleegd — het systeem is ontworpen op basis van eigen iteratie en field testing (stappen 62–64). De iteraties zijn gedocumenteerd in [evidence_11_animation_tag_iteraties.md](../evidence/evidence_11_animation_tag_iteraties.md).
+Geen externe bronnen geraadpleegd — het systeem is ontworpen op basis van eigen iteratie en field testing (stappen 62–64). De iteraties zijn gedocumenteerd in [evidence_11_animation_tag_iteraties.md](../evidence/evidence_11_animation_tag_iteraties.md) @evidence_11_animation_tag_iteraties.
 
 ---
 
@@ -115,7 +115,7 @@ Geen externe bronnen geraadpleegd — het systeem is ontworpen op basis van eige
 | Eerste opzet: mood-systeem via subagent | Stap 62 in STAPPEN.md |
 | Refactor: keyword-first, util-bestand, hernoeming mood → animation | Stap 63 in STAPPEN.md |
 | Bugfix: mid-tekst regex + TTS-lek | Stap 64 in STAPPEN.md — `re.sub` over volledige tekst in plaats van `^`-geankerde regex |
-| Iteraties gedocumenteerd | [evidence_11_animation_tag_iteraties.md](../evidence/evidence_11_animation_tag_iteraties.md) |
+| Iteraties gedocumenteerd | [evidence_11_animation_tag_iteraties.md](../evidence/evidence_11_animation_tag_iteraties.md) @evidence_11_animation_tag_iteraties |
 
 ---
 

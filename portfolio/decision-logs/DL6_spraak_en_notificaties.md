@@ -62,6 +62,8 @@ De browser-ingebouwde spraakherkenning, geen extra installatie nodig. Whisper (l
 **Notificaties: Twilio SMS**  
 Bij escalatie stuurt het systeem automatisch een SMS naar het ingestelde nummer via de Twilio API (een cloud-service voor het versturen van berichten).
 
+De volledige spraakpipeline (STT → chat → TTS → avatar) is uitgewerkt in een architectuuroverzicht: [VOICE_ARCHITECTURE.md](../evidence/VOICE_ARCHITECTURE.md) @VOICE_ARCHITECTURE.
+
 ---
 
 ### 4. Hoe ik dit heb onderzocht (DOT-framework)
@@ -69,7 +71,7 @@ Bij escalatie stuurt het systeem automatisch een SMS naar het ingestelde nummer 
 **Eigen ervaring (Field):**  
 Usability test uitgevoerd met een zorgmedewerker. Profiel aangemaakt, gesprek gevoerd via STT en TTS, escalaties gegenereerd, SMS-notificatie geprobeerd. Bevindingen gedocumenteerd.
 
-→ [evidence_12_usability_test.md](../evidence/evidence_12_usability_test.md)
+→ [evidence_12_usability_test.md](../evidence/evidence_12_usability_test.md) @evidence_12_usability_test
 
 **Beschikbaar product analyseren (Library):**  
 Piper en XTTS documentatie vergeleken op VRAM-gebruik en betrouwbaarheid. Twilio-documentatie gelezen voor SMS-limieten op gratis account.
@@ -115,9 +117,9 @@ Twee beperkingen gevonden op het gratis proefaccount:
 
 | Criterium | Doel | Gehaald? | Bewijs |
 |---|---|---|---|
-| **TTS werkt zonder crash** | Altijd audio | ⚠️ Piper altijd ✅; XTTS geeft VRAM-fout bij lange berichten | [evidence_12](../evidence/evidence_12_usability_test.md) |
-| **STT werkt zonder installatie** | Spreken via browser | ✅ Web Speech API werkt direct, geen installatie | [evidence_12](../evidence/evidence_12_usability_test.md) |
-| **Escalatie bereikt zorgverlener** | SMS aankomt | ⚠️ Werkt op geverifieerde nummers; gratis tier heeft beperkingen | [evidence_12 — Twilio foutlog](../evidence/evidence_12_usability_test.md) |
+| **TTS werkt zonder crash** | Altijd audio | ⚠️ Piper altijd ✅; XTTS geeft VRAM-fout bij lange berichten | [evidence_12](../evidence/evidence_12_usability_test.md) @evidence_12_usability_test |
+| **STT werkt zonder installatie** | Spreken via browser | ✅ Web Speech API werkt direct, geen installatie | [evidence_12](../evidence/evidence_12_usability_test.md) @evidence_12_usability_test |
+| **Escalatie bereikt zorgverlener** | SMS aankomt | ⚠️ Werkt op geverifieerde nummers; gratis tier heeft beperkingen | [evidence_12 — Twilio foutlog](../evidence/evidence_12_usability_test.md) @evidence_12_usability_test |
 | **Instelbaar per gebruiker** | TTS-provider wisselbaar | ✅ Settings page met Piper/XTTS keuze, opgeslagen in database | Commit `357ebe2` |
 
 ---
@@ -143,7 +145,8 @@ Geen externe bronnen geraadpleegd — bevindingen komen uit de usability test en
 | Piper + XTTS geïmplementeerd, instelbaar via settings | Stap 44 in STAPPEN.md |
 | Web Speech API + avatar + lip sync | Stap 45 in STAPPEN.md |
 | Twilio SMS bij escalatie | Stap 65–66 in STAPPEN.md |
-| Usability test uitgevoerd | [evidence_12_usability_test.md](../evidence/evidence_12_usability_test.md) |
+| Usability test uitgevoerd | [evidence_12_usability_test.md](../evidence/evidence_12_usability_test.md) @evidence_12_usability_test |
+| Architectuuroverzicht spraakpipeline | [VOICE_ARCHITECTURE.md](../evidence/VOICE_ARCHITECTURE.md) @VOICE_ARCHITECTURE |
 
 ---
 

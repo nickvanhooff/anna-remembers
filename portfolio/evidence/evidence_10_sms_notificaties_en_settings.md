@@ -80,6 +80,23 @@ C4Component
 | Instelling opslaan | Key-value `settings` tabel | Live aan/uit zonder herstart; uitbreidbaar |
 | Frontend toggle | Optimistic update | Directe feedback, rollback bij fout |
 
+### Configuratielaag: .env vs settings-tabel
+
+Het systeem heeft twee bewuste lagen van configuratie:
+
+**`.env` — infrastructuurconfiguratie (statisch)**
+Waarden die bij deployment vastliggen en een herstart vereisen om te wijzigen: database-URL, API keys (Twilio, Groq, Anthropic), Ollama-URL, poorten. Deze horen niet in de database — ze zijn nodig vóórdat de app opstart.
+
+**`settings`-tabel — runtime-gedrag (dynamisch)**
+Waarden die de zorgverlener live kan aanpassen zonder herstart: TTS-provider (`piper` of `xtts`), Twilio SMS aan/uit, SMS-ontvangernummer. Opgeslagen als key-value paren in PostgreSQL. De frontend leest en schrijft deze via `GET /settings` en `PUT /settings/{key}`.
+
+| Configuratie | Laag | Reden |
+|---|---|---|
+| `DATABASE_URL`, `GROQ_API_KEY`, `OLLAMA_URL` | `.env` | Infrastructuur — nodig bij opstart |
+| `tts_provider`, `twilio_sms_enabled`, `twilio_to_number` | `settings`-tabel | Runtime — live instelbaar door zorgverlener |
+
+Dit patroon is uitbreidbaar: een nieuwe instelling toevoegen = één rij in de database, geen schema-wijziging of herstart vereist.
+
 ---
 
 ## Testbewijs

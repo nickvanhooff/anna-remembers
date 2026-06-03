@@ -19,9 +19,9 @@
 **Project:** Anna Remembers — AI-gezondheidsassistent voor hartfalenpatiënten
 
 **Waarom dit nu belangrijk is:**  
-De MCP-server (Model Context Protocol-server — het aparte proces dat geheugen, trends en escalaties beheert op poort 8001) implementeert `store_memory` en `recall_context`. Beide tools draaien op semantische vector search in ChromaDB: inkomende patiënttekst wordt omgezet naar een embedding (numerieke vector die de betekenis van tekst vastlegt, zodat semantisch vergelijkbare teksten dicht bij elkaar liggen in de vector-ruimte) en opgeslagen; bij een volgende sessie zoekt het systeem naar semantisch vergelijkbare herinneringen. De keuze van het embedding model bepaalt de kwaliteit van die match — en dus of Anna eerder gemelde symptomen correct oppikt of niet.
+De MCP-server implementeert `store_memory` en `recall_context`. Beide tools zetten patiënttekst om naar een embedding (een numerieke vector die de betekenis van tekst vastlegt — semantisch vergelijkbare teksten liggen dicht bij elkaar in de vectorruimte) en slaan die op in ChromaDB. Bij een volgende sessie zoekt het systeem naar herinneringen die semantisch lijken op wat de patiënt nu zegt. Hoe goed dat werkt hangt volledig af van het embedding model.
 
-De keuze moest vóór de implementatie van issue #3 vastliggen, omdat ChromaDB één vaste vectordimensie per collectie heeft. Later wisselen betekent de collectie leegmaken.
+De keuze moest vóór issue #3 vastliggen: ChromaDB heeft één vaste vectordimensie per collectie. Later wisselen van model betekent de hele collectie leegmaken en opnieuw opbouwen.
 
 **Aangetoonde leeruitkomsten:**
 
@@ -31,18 +31,18 @@ De keuze moest vóór de implementatie van issue #3 vastliggen, omdat ChromaDB �
 - [x] LO4: Realiseren — model geïmplementeerd in MCP-server, 7 tests groen
 - [ ] LO5: Beheren & Controleren
 - [ ] LO6: Professioneel Leiderschap
-- [x] LO7: Professionele Standaard — DOT-methode expliciet benoemd, keuze onderbouwd met MTEB-benchmarkdata
+- [x] LO7: Professionele Standaard — DOT-methode toegepast, keuze onderbouwd met MTEB-benchmarkdata
 
 ---
 
 ### 2. Succescriteria
 
-| Criterium | Doel | Redenering achter de norm |
+| Criterium | Doel | Waarom deze norm |
 |---|---|---|
-| **Meertalige kwaliteit** | Hoogst gerankt beschikbaar model op BEIR-NL [1] dat volledig lokaal draait | Patiënten schrijven in het Nederlands. MTEB BEIR-NL (Massive Text Embedding Benchmark — de standaard voor het vergelijken van embedding modellen op retrievalkwaliteit; BEIR-NL is de Nederlandstalige sectie) meet hoe goed een model relevante documenten terugvindt in het Nederlands. De modellen die hoger staan zijn óf niet beschikbaar in Ollama, óf vereisen een externe API-sleutel, óf hebben een te korte contextlengte. bge-m3 staat op positie #6, maar is de beste optie binnen de overige constraints. |
-| **VRAM-gebruik** | ≤ 2 GB geladen | De RTX 4050 heeft 6 GB VRAM (Video RAM — geheugen op de grafische kaart, gebruikt voor het draaien van AI-modellen) [2]. Het chat-LLM gemma4:e4b vraagt ~4 GB bij aanroepen. Als het embedding model meer dan 2 GB vraagt, moeten ze tegelijk in VRAM — dat past niet. De grens van 2 GB laat voldoende marge voor model-swapping. |
-| **Contextlengte** | ≥ 512 tokens | Een sessiesamenvatting van ~250 woorden is ~350 tokens. Bij 512 tokens past één volledige samenvatting in één embed-aanroep zonder afknippen. |
-| **Beschikbaar via Ollama** | `ollama pull <model>` werkt, geen extra tooling | De Ollama-container draait al in docker-compose. Een model dat niet via Ollama beschikbaar is, vereist een nieuwe Docker-service en extra beheer. |
+| **Meertalige kwaliteit** | Hoogst gerankt lokaal model op BEIR-NL [1] | Patiënten schrijven in het Nederlands. Een model dat primair op Engels is getraind geeft slechtere semantische matches op termen als "kortademig" of "enkelvoetoedeem" |
+| **VRAM-gebruik** | ≤ 2 GB | De RTX 4050 heeft 6 GB VRAM (Video RAM — geheugen op de grafische kaart). Het chat-LLM gebruikt ~4 GB. Meer dan 2 GB voor embeddings past niet naast elkaar in VRAM |
+| **Contextlengte** | ≥ 512 tokens | Een sessiesamenvatting van ~250 woorden is ~350 tokens. Onder de 512 tokens worden langere herinneringen afgeknipt, wat de retrieval-kwaliteit verslechtert |
+| **Beschikbaar via Ollama** | `ollama pull <model>` werkt | De Ollama-container draait al. Een model buiten Ollama betekent een extra Docker-service |
 
 ---
 
@@ -50,26 +50,26 @@ De keuze moest vóór de implementatie van issue #3 vastliggen, omdat ChromaDB �
 
 **Gekozen: `bge-m3` via Ollama**
 
-bge-m3 is het enige van de drie kandidaten dat aan alle vier de criteria voldoet. De twee alternatieven vielen af op fundamentele punten:
+bge-m3 is de enige kandidaat die aan alle vier criteria voldoet:
 
-- **nomic-embed-text** staat niet in de top-10 van BEIR-NL [1]. Het is primair op Engels getraind, wat voor patiënttermen als "kortademig" of "enkelvoetoedeem" aantoonbaar minder relevante RAG-resultaten geeft.
-- **mxbai-embed-large** heeft een contextlimiet van 512 tokens — dit haalt de grens maar geeft geen marge. Langere herinneringen (sessiesamenvatting + symptoomnotitie in één blok) worden afgeknipt. Afknippen betekent dat de vector alleen de eerste helft van de tekst vertegenwoordigt, waardoor semantisch vergelijkbare herinneringen niet meer als vergelijkbaar worden herkend.
+- **nomic-embed-text** staat niet in de top-10 van BEIR-NL [1] en is primair op Engels getraind — voor Nederlandstalige medische termen geeft dat  minder relevante RAG-resultaten (vermoeden).
+- **mxbai-embed-large** heeft een contextlimiet van 512 tokens. Dat haalt net de grens, maar een sessiesamenvatting plus een symptoomnotitie in één geheugenblok gaat al over de limiet. Tekst die wordt afgeknipt embedt anders dan de volledige versie — dan herkent het systeem twee vergelijkbare herinneringen niet meer als vergelijkbaar.
 
-bge-m3 draait in de bestaande Ollama-container via **model-swapping** [2]: Ollama houdt nooit meer dan één model tegelijk in VRAM geladen. Als er een aanroep binnenkomt voor een ander model, wordt het huidige model uit VRAM verwijderd en het gevraagde model ingeladen. Dat betekent: tijdens een chatgesprek staat gemma4:e4b in VRAM; bij een embed-aanroep (store_memory/recall_context) wisselt Ollama naar bge-m3. Ze hoeven niet tegelijk in VRAM. Op projectschaal (~300 geheugenblokken voor 3 gesimuleerde patiënten — 3 patiënten × 10 sessies × ~10 herinneringen per sessie) zijn die wissels seconden — verwaarloosbaar ten opzichte van de LLM-aanroep die 1–3 seconden duurt.
+bge-m3 draait in de bestaande Ollama-container via **model-swapping** [2]: Ollama houdt nooit meer dan één model tegelijk in VRAM (Video RAM — geheugen op de grafische kaart). Bij een embed-aanroep wisselt het automatisch van het chat-LLM naar bge-m3. Op projectschaal (~300 geheugenblokken voor 3 patiënten) duurt dat wisselen een paar seconden — dat valt weg in de LLM-aanroeptijd van 1–3 seconden.
 
-Het provider-agnostische patroon (`EmbeddingProvider` ABC) zorgt dat wisselen van model later alleen `embedding.py` raakt — de rest van de MCP-server hoeft niet te veranderen. Een overstap naar een cloud provider (bijv. OpenAI text-embedding-3-small) is één nieuwe subklasse en één env var. **Kanttekening:** vectoren van verschillende providers zijn niet onderling vergelijkbaar. Bij een providerwissel moeten alle bestaande vectoren in ChromaDB opnieuw gegenereerd worden met het nieuwe model. Voor gesimuleerde patiënten is dat geen probleem — de sessies worden toch opnieuw gedraaid.
+Het provider-agnostische patroon (`EmbeddingProvider` ABC) zorgt dat wisselen van model later alleen `embedding.py` raakt. **Kanttekening:** vectoren van verschillende modellen zijn niet uitwisselbaar. Bij een modelwissel moeten alle bestaande vectoren opnieuw gegenereerd worden — voor gesimuleerde patiënten geen probleem, die sessies worden toch opnieuw gedraaid.
 
 ---
 
 ### 4. Hoe ik dit heb onderzocht (DOT-framework)
 
 **Beschikbaar product analyseren (Library):**  
-MTEB Multilingual BEIR leaderboard [1] geraadpleegd voor de drie kandidaten. MTEB is de standaard om embedding modellen te vergelijken op retrievalkwaliteit; de Multilingual BEIR-sectie filtert specifiek op niet-Engelse talen. bge-m3 staat consistent in de top-10, nomic-embed-text niet [1]. Specifiek gekeken naar Nederlandse retrieval-scores.
+MTEB BEIR-NL leaderboard [1] geraadpleegd. MTEB (Massive Text Embedding Benchmark — de standaard voor het vergelijken van embedding modellen op retrievalkwaliteit) heeft een aparte Nederlandstalige sectie. bge-m3 staat op positie #6; nomic-embed-text staat er niet in.
 
 **Beschikbaar product analyseren (Library):**  
-Ollama model library [2] geraadpleegd voor VRAM-gebruik per model. bge-m3: ~1.5 GB, mxbai-embed-large: ~670 MB, nomic-embed-text: ~270 MB. In combinatie met gemma4:e4b (~4 GB) passen alle drie via model-swapping: Ollama wisselt modellen automatisch als een aanroep een ander model vraagt dan wat er geladen is [2].
+Ollama model library [2] geraadpleegd voor VRAM-gebruik per model. In combinatie met het chat-LLM passen alle drie kandidaten via model-swapping.
 
-Details van het vergelijkingsonderzoek: → [evidence_02_embedding_model_vergelijking.md](../evidence/evidence_02_embedding_model_vergelijking.md)
+Details: → [evidence_02_embedding_model_vergelijking.md](../evidence/evidence_02_embedding_model_vergelijking.md)
 
 ---
 
@@ -81,7 +81,7 @@ Details van het vergelijkingsonderzoek: → [evidence_02_embedding_model_vergeli
 | mxbai-embed-large | Niet in top-10 ⚠️ | ~670 MB ✅ | 512 tokens ❌ | ✅ | ❌ context te kort |
 | nomic-embed-text | Niet in top-10 ❌ | ~270 MB ✅ | 2048 tokens ✅ | ✅ | ❌ niet meertalig |
 
-De vijf modellen die op BEIR-NL bóven bge-m3 staan (positie #1–#5) zijn ook onderzocht. Ze vallen elk af op een harde constraint: niet beschikbaar via Ollama, vereiste API-sleutel, afwijkende vectordimensies, of te korte context. Volledige exclusietabel: → [evidence_02 — BEIR-NL top-10 exclusies + VRAM-berekening](../evidence/evidence_02_embedding_model_vergelijking.md)
+De vijf modellen bóven bge-m3 (#1–#5) zijn ook onderzocht en vallen elk af op een harde constraint: niet beschikbaar via Ollama, vereiste API-sleutel, afwijkende vectordimensies of te korte context. Volledige exclusietabel: → [evidence_02](../evidence/evidence_02_embedding_model_vergelijking.md)
 
 ---
 
@@ -90,7 +90,7 @@ De vijf modellen die op BEIR-NL bóven bge-m3 staan (positie #1–#5) zijn ook o
 | Criterium | Doel | Gehaald? | Bewijs |
 |---|---|---|---|
 | **Meertalige kwaliteit** | Hoogst gerankt lokaal model op BEIR-NL [1] | ✅ positie #6; #1–#5 vallen af op harde constraints | [evidence_02 — exclusietabel #1–#5](../evidence/evidence_02_embedding_model_vergelijking.md) |
-| **VRAM-gebruik** | ≤ 2 GB | ✅ ~1.5 GB geladen [2] | [evidence_02 — VRAM-berekening + model-swapping](../evidence/evidence_02_embedding_model_vergelijking.md) |
+| **VRAM-gebruik** | ≤ 2 GB | ✅ ~1.5 GB geladen [2] | [evidence_02 — VRAM-berekening](../evidence/evidence_02_embedding_model_vergelijking.md) |
 | **Contextlengte** | ≥ 512 tokens | ✅ 8192 tokens — 16× de minimumvereiste [3] | [evidence_02 — vergelijkingstabel](../evidence/evidence_02_embedding_model_vergelijking.md) |
 | **Beschikbaar via Ollama** | `ollama pull` werkt | ✅ `ollama pull bge-m3` | [Commit `3b5c047`](https://github.com/nickvanhooff/anna-remembers/commit/3b5c047) — ollama-init in docker-compose |
 
@@ -98,8 +98,8 @@ De vijf modellen die op BEIR-NL bóven bge-m3 staan (positie #1–#5) zijn ook o
 
 ### 7. Aannames
 
-- Ollama model-swapping [2] werkt snel genoeg op projectschaal. Bij hogere load (simultane embed- en chat-aanroepen) kan wisselen een bottleneck worden. Voor 3 gesimuleerde patiënten is dit niet verwacht — er is nooit meer dan één actieve chat tegelijk.
-- MTEB-scores [1] zijn gemeten op benchmark-datasets, niet op zorgdomein-Nederlands. De werkelijke kwaliteit op patiënttermen kan iets afwijken — maar bge-m3 is het beste beschikbare alternatief binnen het VRAM-budget.
+- Ollama model-swapping werkt snel genoeg op projectschaal. Bij gelijktijdige embed- en chat-aanroepen kan wisselen een bottleneck worden — voor 3 gesimuleerde patiënten is dat niet verwacht.
+- MTEB-scores zijn gemeten op benchmark-datasets, niet op zorgdomein-Nederlands. De werkelijke kwaliteit op patiënttermen kan iets afwijken, maar bge-m3 is het beste beschikbare alternatief binnen het VRAM-budget.
 
 ---
 
@@ -134,6 +134,4 @@ Technische specificaties bge-m3: architectuur, trainingdata, meertaligheid, cont
 
 ### 10. Wat dit oplevert
 
-**Volgende LO-fase:** Realiseren — issue #3 vervolg
-
-Nu het embedding model vastligt en `store_memory` + `recall_context` werken, kan de rest van issue #3 gebouwd worden: `get_symptom_trends` (PostgreSQL) en `escalate_to_human` (email/Slack stub). Daarna kan de backend chat-router worden gewired met echte MCP-context.
+Nu het embedding model vastligt en `store_memory` + `recall_context` werken, kan de rest van issue #3 gebouwd worden: `get_symptom_trends` en `escalate_to_human`. Daarna kan de backend chat-router worden gekoppeld aan echte MCP-context.

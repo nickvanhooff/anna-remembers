@@ -68,7 +68,7 @@ Schatting projectschaal: 3 gesimuleerde patiënten × 10 sessies × ~15 herinner
 **Lab — implementatie en observatie:**  
 ChromaDB geïmplementeerd in `mcp-server/tools/memory.py`. Tijdens de bouw bleek in de praktijk dat elke RAG-stap een aparte, aanraakbare plek heeft in de code. Bij pgvector zou stap 3 opgaan in één SQL-query — de pipeline-logica verdwijnt achter een database-operator. Dat is minder verdedigbaar voor LO1 en LO4.
 
-→ Vergelijkingsdetails: [evidence_01b_chromadb_vs_pgvector.md](../evidence/evidence_01b_chromadb_vs_pgvector.md)
+→ Vergelijkingsdetails: [evidence_01b_chromadb_vs_pgvector.md](../evidence/evidence_01b_chromadb_vs_pgvector.md) @evidence_01b_chromadb_vs_pgvector
 
 ---
 
@@ -79,7 +79,7 @@ ChromaDB geïmplementeerd in `mcp-server/tools/memory.py`. Tijdens de bouw bleek
 | **ChromaDB (gekozen)** | ✅ Vier aparte stappen in code | ✅ Identiek aan pgvector bij HNSW [1] | +1 Docker container | ✅ |
 | pgvector | ❌ Verdwijnt achter `<=>` operator | ✅ Identiek bij HNSW | Geen — al in PostgreSQL | ❌ pipeline niet zichtbaar |
 
-Volledige vergelijking: → [evidence_01b_chromadb_vs_pgvector.md](../evidence/evidence_01b_chromadb_vs_pgvector.md)
+Volledige vergelijking: → [evidence_01b_chromadb_vs_pgvector.md](../evidence/evidence_01b_chromadb_vs_pgvector.md) @evidence_01b_chromadb_vs_pgvector
 
 ---
 
@@ -88,7 +88,7 @@ Volledige vergelijking: → [evidence_01b_chromadb_vs_pgvector.md](../evidence/e
 | Criterium | Doel | Gehaald? | Bewijs |
 |---|---|---|---|
 | **RAG-pipeline zichtbaar** | Vier aparte stappen in code | ✅ embed → add → query → inject elk apart implementeerbaar en testbaar | [Commit `d6b6763`](https://github.com/nickvanhooff/anna-remembers/commit/d6b6763763cb850c9a760c3fccc2deb1a22be9c4) — `tools/memory.py` + 99 regels tests |
-| **Verdedigbare keuze op schaal** | Onderbouwd voor werkelijke projectschaal (~450 vectoren) | ✅ Prestatieverschil verwaarloosbaar op deze schaal; keuze drijft op leervoordeel | [evidence_01b](../evidence/evidence_01b_chromadb_vs_pgvector.md) |
+| **Verdedigbare keuze op schaal** | Onderbouwd voor werkelijke projectschaal (~450 vectoren) | ✅ Prestatieverschil verwaarloosbaar op deze schaal; keuze drijft op leervoordeel | [evidence_01b](../evidence/evidence_01b_chromadb_vs_pgvector.md) @evidence_01b_chromadb_vs_pgvector |
 | **Extra tooling acceptabel** | Max. één extra container | ✅ Eén ChromaDB service in docker-compose | [Commit `8a1ce68`](https://github.com/nickvanhooff/anna-remembers/commit/8a1ce68d6f5439f772ca292c30c621a2c1b53025) |
 
 ---
@@ -127,5 +127,5 @@ Kernbestand: `mcp-server/tools/memory.py` — RAG-pipeline expliciet in vier sta
 ### 10. Wat dit oplevert
 
 - Implementatie van `store_memory()` en `recall_context()` in MCP-server (issue #3) ✅
-- Evidence: [evidence_01b_chromadb_vs_pgvector.md](../evidence/evidence_01b_chromadb_vs_pgvector.md)
+- Evidence: [evidence_01b_chromadb_vs_pgvector.md](../evidence/evidence_01b_chromadb_vs_pgvector.md) @evidence_01b_chromadb_vs_pgvector
 - Volgende vraag: welk embedding model gebruiken voor de vectoren? → DL2

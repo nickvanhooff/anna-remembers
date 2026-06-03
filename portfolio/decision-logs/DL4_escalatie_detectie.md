@@ -85,7 +85,7 @@ Voor burst-berichten (meerdere berichten snel achter elkaar van dezelfde patiën
 **Eigen ervaring (Field):**  
 Eerste implementatie als system prompt-signaal (`[ESCALATE:high:reden]` in Anna's antwoord). Getest met echte gesprekken. Bevinding: het model miste escalaties consequent bij berichten als *"ik val steeds flauw"* en *"pijn op de borst"*. De oorzaak is dat format-instructies voor LLMs lager prioriteit hebben dan conversationele output — zeker bij kleinere modellen.
 
-→ Implementatie-iteraties en testresultaten: [evidence_08_escalatie_implementatie.md](../evidence/evidence_08_escalatie_implementatie.md)
+→ Implementatie-iteraties en testresultaten: [evidence_08_escalatie_implementatie.md](../evidence/evidence_08_escalatie_implementatie.md) @evidence_08_escalatie_implementatie
 
 **Beschikbaar product analyseren (Library):**  
 Onderzocht hoe guardrails en intent classification in productiesystemen worden ingezet. Bevinding: de standaardaanpak is een dedicated classificatie-LLM met een eigen beknopte prompt, los van de conversatie-LLM [1]. Bron: NeMo Guardrails (NVIDIA) [1].
@@ -98,7 +98,7 @@ Drie aanpakken uitgewerkt en vergeleken:
 
 Beslissingsmatrix uitgewerkt op betrouwbaarheid, latency, kosten en complexiteit.
 
-→ C3/C4 architectuurdiagrammen van de geïmplementeerde pipeline: [evidence_07_c3_c4_chat_pipeline.md](../evidence/evidence_07_c3_c4_chat_pipeline.md)
+→ C3/C4 architectuurdiagrammen van de geïmplementeerde pipeline: [evidence_07_c3_c4_chat_pipeline.md](../evidence/evidence_07_c3_c4_chat_pipeline.md) @evidence_07_c3_c4_chat_pipeline
 
 ---
 
@@ -182,8 +182,8 @@ Architectuurpatroon: classificatie en conversatie als losse componenten — apar
 |---|---|
 | Eerste poging: system prompt-signaal | [Stap 37 in STAPPEN.md](../STAPPEN.md) — `[ESCALATE:high:reden]` geïmplementeerd en getest |
 | Implementatie gelaagde detectie | Commits `5aef9ce`, `6efeb85` — Laag 0 keywords + Laag 1 qwen2.5:3b als BackgroundTask |
-| Iteraties: modelswitch, prompt fix, timeout | [evidence_08_escalatie_implementatie.md](../evidence/evidence_08_escalatie_implementatie.md) — 5 iteraties gedocumenteerd |
-| Architectuurdiagrammen (C3/C4) | [evidence_07_c3_c4_chat_pipeline.md](../evidence/evidence_07_c3_c4_chat_pipeline.md) — componentdiagram + sequentiediagram |
+| Iteraties: modelswitch, prompt fix, timeout | [evidence_08_escalatie_implementatie.md](../evidence/evidence_08_escalatie_implementatie.md) @evidence_08_escalatie_implementatie — 5 iteraties gedocumenteerd |
+| Architectuurdiagrammen (C3/C4) | [evidence_07_c3_c4_chat_pipeline.md](../evidence/evidence_07_c3_c4_chat_pipeline.md) @evidence_07_c3_c4_chat_pipeline — componentdiagram + sequentiediagram |
 | Refactor `chat.py` → `chat/` package | [Stap 42 in STAPPEN.md](../STAPPEN.md) — 794 regels opgesplitst in 4 modules |
 
 ---

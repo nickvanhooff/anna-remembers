@@ -64,7 +64,7 @@ SSR (Server-Side Rendering — HTML op de server genereren zodat de browser dire
 
 De App Router brengt `"use client"` verplichtingen mee voor componenten met state of event handlers. Dat kostte gewenning, maar is de richting die Next.js aanbeveelt voor nieuwe projecten [2].
 
-→ [evidence_03 — vergelijkingstabel Next.js / Vite / CRA](../evidence/evidence_03_framework_vergelijking.md): Next.js groen op alle criteria; CRA afgevallen wegens deprecated (niet meer onderhouden) status; Vite vereist handmatige shadcn-setup.
+→ [evidence_03 — vergelijkingstabel Next.js / Vite / CRA](../evidence/evidence_03_framework_vergelijking.md) @evidence_03_framework_vergelijking: Next.js groen op alle criteria; CRA afgevallen wegens deprecated (niet meer onderhouden) status; Vite vereist handmatige shadcn-setup.
 
 #### shadcn/ui boven MUI en Ant Design
 
@@ -76,7 +76,7 @@ Technisch viel MUI af omdat de theming conflicteert met Tailwind. Je hebt `creat
 
 Voor de vier zorginhoudelijke statussen (`success`, `warning`, `urgent`, `info`) heb ik een losse `StatusBadge` component gebouwd met directe CSS variabelen. De standaard shadcn Badge-varianten dekken deze niet.
 
-→ [evidence_04 — vergelijkingstabel shadcn / MUI / Ant Design + StatusBadge-overweging](../evidence/evidence_04_ui_library_en_design_system.md): MUI afgevallen wegens Tailwind-conflicten (`createTheme()` vs CSS variabelen); shadcn broncode-eigenaarschap als doorslaggevend criterium.
+→ [evidence_04 — vergelijkingstabel shadcn / MUI / Ant Design + StatusBadge-overweging](../evidence/evidence_04_ui_library_en_design_system.md) @evidence_04_ui_library_en_design_system: MUI afgevallen wegens Tailwind-conflicten (`createTheme()` vs CSS variabelen); shadcn broncode-eigenaarschap als doorslaggevend criterium.
 
 #### Design system via Claude Design
 
@@ -97,7 +97,7 @@ Elke feature heeft een eigen map onder `components/`. De `page.tsx` files zijn t
 ### 4. Hoe ik dit heb onderzocht (DOT-framework)
 
 **Beschikbaar product analyseren (Library):**  
-Documentatie van Next.js, shadcn/ui, MUI en Ant Design vergeleken. State of JS 2024 [3] geraadpleegd voor populariteitstrends in de Nederlandse werkomgeving. → [evidence_03](../evidence/evidence_03_framework_vergelijking.md), [evidence_04](../evidence/evidence_04_ui_library_en_design_system.md)
+Documentatie van Next.js, shadcn/ui, MUI en Ant Design vergeleken. State of JS 2024 [3] geraadpleegd voor populariteitstrends in de Nederlandse werkomgeving. → [evidence_03](../evidence/evidence_03_framework_vergelijking.md) @evidence_03_framework_vergelijking, [evidence_04](../evidence/evidence_04_ui_library_en_design_system.md) @evidence_04_ui_library_en_design_system
 
 **Prototypen (Workshop):**  
 Direct een werkend skelet gebouwd met `create-next-app` en `npx shadcn@latest init`. Navigeerbaar prototype met vier schermen was binnen 30 minuten beschikbaar — een snelle manier om te valideren dat de technische setup klopt vóórdat er echte schermen worden gebouwd.
@@ -108,8 +108,8 @@ Direct een werkend skelet gebouwd met `create-next-app` en `npx shadcn@latest in
 
 | Keuze | Optie A (gekozen) | Optie B | Reden voorkeur A | Bewijs |
 |---|---|---|---|---|
-| Framework | Next.js 15 | Vite + React SPA | File-based routing, shadcn automatisch geconfigureerd | [evidence_03](../evidence/evidence_03_framework_vergelijking.md) |
-| UI-library | shadcn/ui | MUI | Broncode eigenaarschap, geen Tailwind-conflict | [evidence_04](../evidence/evidence_04_ui_library_en_design_system.md) |
+| Framework | Next.js 15 | Vite + React SPA | File-based routing, shadcn automatisch geconfigureerd | [evidence_03](../evidence/evidence_03_framework_vergelijking.md) @evidence_03_framework_vergelijking |
+| UI-library | shadcn/ui | MUI | Broncode eigenaarschap, geen Tailwind-conflict | [evidence_04](../evidence/evidence_04_ui_library_en_design_system.md) @evidence_04_ui_library_en_design_system |
 | API-koppeling | Mock data + API wrapper | Directe fetch per component | Schermen bouwen onafhankelijk van backend | Commit `e8123a4` |
 | Componentstructuur | Feature-based | Per type (pages/, components/) | Eén scherm = één map, geen cross-impact | Commits `9960be6`, `df8e4ec` |
 
@@ -132,8 +132,8 @@ Direct een werkend skelet gebouwd met `create-next-app` en `npx shadcn@latest in
 |---|---|---|---|
 | **Vier werkende schermen** | Volledig navigeerbaar | ✅ Alle vier gebouwd en navigeerbaar | [Commit `e8123a4`](https://github.com/nickvanhooff/anna-remembers/commit/e8123a4) |
 | **Koppelbaar aan backend** | Mock vervangbaar zonder structuurwijziging | ✅ Patiëntbeheer al live, overige schermen klaar voor koppeling | Stap 17 in STAPPEN.md |
-| **Consistent design** | Zelfde component- en kleurtaal | ✅ shadcn + CSS variabelen door alle schermen | [evidence_04 — design token aanpak](../evidence/evidence_04_ui_library_en_design_system.md) |
-| **Onderhoudbaar** | Nieuw scherm = één map + één page.tsx | ✅ Patroon bewezen bij alle vier schermen | [evidence_03 — feature-based structuur](../evidence/evidence_03_framework_vergelijking.md) |
+| **Consistent design** | Zelfde component- en kleurtaal | ✅ shadcn + CSS variabelen door alle schermen | [evidence_04 — design token aanpak](../evidence/evidence_04_ui_library_en_design_system.md) @evidence_04_ui_library_en_design_system |
+| **Onderhoudbaar** | Nieuw scherm = één map + één page.tsx | ✅ Patroon bewezen bij alle vier schermen | [evidence_03 — feature-based structuur](../evidence/evidence_03_framework_vergelijking.md) @evidence_03_framework_vergelijking |
 
 ---
 
@@ -169,8 +169,8 @@ Zie evidence-bestanden voor verdere bronnen per deelkeuze.
 | shadcn componenten geïnstalleerd | Commits `9960be6`, `27ce596`, `df8e4ec` |
 | Vier schermen gebouwd (mock data) | [Commit `e8123a4`](https://github.com/nickvanhooff/anna-remembers/commit/e8123a4) — add next js with shadcn frontend |
 | Patiëntbeheer live gekoppeld aan FastAPI | Stap 17 in STAPPEN.md |
-| Framework-vergelijking | [evidence_03_framework_vergelijking.md](../evidence/evidence_03_framework_vergelijking.md) |
-| UI-library en design system vergelijking | [evidence_04_ui_library_en_design_system.md](../evidence/evidence_04_ui_library_en_design_system.md) |
+| Framework-vergelijking | [evidence_03_framework_vergelijking.md](../evidence/evidence_03_framework_vergelijking.md) @evidence_03_framework_vergelijking |
+| UI-library en design system vergelijking | [evidence_04_ui_library_en_design_system.md](../evidence/evidence_04_ui_library_en_design_system.md) @evidence_04_ui_library_en_design_system |
 
 **Stap in STAPPEN.md:** Stap 13–16
 
