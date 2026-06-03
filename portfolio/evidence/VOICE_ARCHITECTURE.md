@@ -187,7 +187,7 @@ TTS is een pure I/O-operatie (tekst → audio bytes) zonder geheugen of patiënt
 
 ## ⚠️ Licentie-implicatie
 
-XTTS v2 valt onder de **[Coqui Public Model License (CPML)](https://coqui.ai/cpml)** — uitsluitend **niet-commercieel** gebruik (onderzoek, educatie, persoonlijke projecten).
+XTTS v2 valt onder de **Coqui Public Model License (CPML)** — uitsluitend **niet-commercieel** gebruik (onderzoek, educatie, persoonlijke projecten). Licentietekst (model weights): [huggingface.co/coqui/XTTS-v2 — LICENSE.txt](https://huggingface.co/coqui/XTTS-v2/blob/main/LICENSE.txt)
 
 Voor het Anna Remembers schoolproject is dit acceptabel (educatieve context, Fontys Semester 4). Voor een productie-deployment:
 - **Terugvallen op Piper TTS** (MIT, volledig vrij), of

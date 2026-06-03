@@ -71,6 +71,12 @@ Ollama model library [2] geraadpleegd voor VRAM-gebruik per model. In combinatie
 
 Details: → [evidence_02_embedding_model_vergelijking.md](../evidence/evidence_02_embedding_model_vergelijking.md)
 
+**Prototyping (Workshop):**  
+`EmbeddingProvider` ABC + `OllamaEmbeddingProvider` gebouwd. Tijdens de bouw bleek het provider-agnostische patroon in de praktijk te werken: wisselen van model raakt alleen `embedding.py`.
+
+**Unit test (Lab):**  
+Implementatie gevalideerd met 7 tests groen — zie sectie 9.
+
 ---
 
 ### 5. Wat ik heb gevonden
@@ -120,13 +126,17 @@ Technische specificaties bge-m3: architectuur, trainingdata, meertaligheid, cont
 
 ### 9. Implementatiebewijs
 
-| Wat | Bewijs |
-|---|---|
-| EmbeddingProvider ABC + OllamaEmbeddingProvider | [Commit `a33ca43`](https://github.com/nickvanhooff/anna-remembers/commit/a33ca43) — `services/embedding.py` + 4 tests |
-| store_memory + recall_context tools | [Commit `d6b6763`](https://github.com/nickvanhooff/anna-remembers/commit/d6b6763) — `tools/memory.py` + 3 tests |
-| MCP tools geregistreerd in main.py | [Commit `63a14d7`](https://github.com/nickvanhooff/anna-remembers/commit/63a14d7) |
-| ollama-init service in docker-compose | [Commit `3b5c047`](https://github.com/nickvanhooff/anna-remembers/commit/3b5c047) — `ollama pull bge-m3` bij eerste opstart |
-| Vergelijkingsonderzoek kandidaten | [evidence_02_embedding_model_vergelijking.md](../evidence/evidence_02_embedding_model_vergelijking.md) |
+| Wat                                             | Bewijs                                                                                                                      |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| EmbeddingProvider ABC + OllamaEmbeddingProvider | [Commit `a33ca43`](https://github.com/nickvanhooff/anna-remembers/commit/a33ca43) — `services/embedding.py` + 4 tests       |
+| store_memory + recall_context tools             | [Commit `d6b6763`](https://github.com/nickvanhooff/anna-remembers/commit/d6b6763) — `tools/memory.py` + 3 tests             |
+| MCP tools geregistreerd in main.py              | [Commit `63a14d7`](https://github.com/nickvanhooff/anna-remembers/commit/63a14d7)                                           |
+| ollama-init service in docker-compose           | [Commit `3b5c047`](https://github.com/nickvanhooff/anna-remembers/commit/3b5c047) — `ollama pull bge-m3` bij eerste opstart |
+| Vergelijkingsonderzoek kandidaten               | [evidence_02_embedding_model_vergelijking.md](../evidence/evidence_02_embedding_model_vergelijking.md)                      |
+
+**Testresultaten — 7 van 11 tests direct gerelateerd aan embedding en memory (4× test_embedding + 3× test_memory):**
+
+![Pytest resultaten — 11 passed](../evidence/images/passed_tests.png)
 
 **Stap in STAPPEN.md:** Stap 10
 

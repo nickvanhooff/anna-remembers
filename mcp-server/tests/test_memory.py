@@ -14,7 +14,7 @@ class FakeEmbedder(EmbeddingProvider):
 
 @pytest.mark.asyncio
 async def test_store_memory_adds_to_chromadb():
-    """store_memory embeds content and calls collection.add()."""
+    """store_memory embeds content and calls collection.upsert()."""
     mock_collection = MagicMock()
 
     with patch("tools.memory.get_collection", return_value=mock_collection):
@@ -26,13 +26,13 @@ async def test_store_memory_adds_to_chromadb():
             embed=FakeEmbedder(),
         )
 
-    mock_collection.add.assert_called_once()
-    call_kwargs = mock_collection.add.call_args
+    mock_collection.upsert.assert_called_once()
+    call_kwargs = mock_collection.upsert.call_args
     assert call_kwargs.kwargs["embeddings"] == [[0.42] * 1024]
     assert call_kwargs.kwargs["documents"] == ["Ik voel me kortademig na traplopen."]
     assert call_kwargs.kwargs["metadatas"][0]["patient_id"] == "patient-1"
     assert call_kwargs.kwargs["metadatas"][0]["source"] == "patient_stated"
-    assert isinstance(doc_id, str) and len(doc_id) == 36  # UUID4
+    assert isinstance(doc_id, str) and len(doc_id) == 32  # SHA256 hex digest (first 32 chars)
 
 
 @pytest.mark.asyncio
