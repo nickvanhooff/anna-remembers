@@ -1,0 +1,83 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-lock.yaml
+.next
+.nuxt
+dist
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache
+.coverage
+htmlcov/
+.env
+.venv
+env/
+venv/
+
+# IDEs & Editors
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+.env.local
+.env.*.local
+
+# Testing
+coverage
+.nyc_output
+jest-coverage
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.circleci
+
+# Documentation
+docs
+README.md
+*.pdf
+
+# Archives
+*.zip
+*.tar.gz
+
+# Development
+.obsidian
+.pytest_cache
+.agents
+.claude
+.devcontainer
+usability test
+portfolio
+portfolio (2).zip
+portfolio.zip
+VOICE_ARCHITECTURE.pdf
