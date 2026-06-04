@@ -13,6 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      # Dummy values to suppress docker compose interpolation warnings
+      POSTGRES_DB: test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      LLM_PROVIDER: none
+      OLLAMA_MODEL: none
+      EMBEDDING_MODEL: none
 
     steps:
       - name: Checkout code
@@ -27,4 +34,6 @@ jobs:
             -e DATABASE_URL=sqlite:// \
             -e LANGFUSE_PUBLIC_KEY= \
             -e LANGFUSE_SECRET_KEY= \
+            -e LANGFUSE_BASE_URL=http://localhost:0 \
+            -e OTEL_SDK_DISABLED=true \
             backend pytest tests/ -v

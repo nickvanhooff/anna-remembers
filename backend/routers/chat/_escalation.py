@@ -10,7 +10,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from langfuse import get_client as get_langfuse, propagate_attributes
@@ -161,7 +161,7 @@ async def layer1_classify(
             db = SessionLocal()
             try:
                 from models.escalation import Escalation as EscalationModel
-                cutoff = datetime.utcnow() - timedelta(minutes=_ESCALATION_COOLDOWN_MINUTES)
+                cutoff = datetime.now(timezone.utc) - timedelta(minutes=_ESCALATION_COOLDOWN_MINUTES)
                 recent_esc = (
                     db.query(EscalationModel)
                     .filter(
