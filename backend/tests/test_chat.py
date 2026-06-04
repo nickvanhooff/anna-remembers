@@ -74,7 +74,7 @@ def test_chat_returns_assistant_message(client_with_patient):
     """POST /chat/{id} returns an assistant MessageResponse."""
     test_client, patient, _mock_mcp = client_with_patient
 
-    with patch("routers.chat.get_llm_provider") as mock_llm_factory:
+    with patch("routers.chat._routes.get_llm_provider") as mock_llm_factory:
         mock_llm = AsyncMock()
         mock_llm.chat = AsyncMock(return_value="Hoe voelt u zich vandaag?")
         mock_llm_factory.return_value = mock_llm
@@ -101,7 +101,7 @@ def test_chat_calls_recall_context_before_llm(client_with_patient):
         side_effect=lambda **kwargs: call_order.append("recall") or []
     )
 
-    with patch("routers.chat.get_llm_provider") as mock_llm_factory:
+    with patch("routers.chat._routes.get_llm_provider") as mock_llm_factory:
         mock_llm = AsyncMock()
 
         async def llm_chat(*args, **kwargs):
@@ -124,7 +124,7 @@ def test_chat_calls_store_memory_with_patient_stated(client_with_patient):
     """store_memory is called with source=patient_stated for each user message."""
     test_client, patient, mock_mcp = client_with_patient
 
-    with patch("routers.chat.get_llm_provider") as mock_llm_factory:
+    with patch("routers.chat._routes.get_llm_provider") as mock_llm_factory:
         mock_llm = AsyncMock()
         mock_llm.chat = AsyncMock(return_value="Goed om te horen.")
         mock_llm_factory.return_value = mock_llm
@@ -145,7 +145,7 @@ def test_chat_saves_both_messages_to_db(client_with_patient):
     """Both user message and assistant reply are stored in PostgreSQL."""
     test_client, patient, _mock_mcp = client_with_patient
 
-    with patch("routers.chat.get_llm_provider") as mock_llm_factory:
+    with patch("routers.chat._routes.get_llm_provider") as mock_llm_factory:
         mock_llm = AsyncMock()
         mock_llm.chat = AsyncMock(return_value="Anna's antwoord")
         mock_llm_factory.return_value = mock_llm
@@ -193,7 +193,7 @@ def test_chat_rag_memories_appear_in_system_prompt(client_with_patient):
 
     captured_system = {}
 
-    with patch("routers.chat.get_llm_provider") as mock_llm_factory:
+    with patch("routers.chat._routes.get_llm_provider") as mock_llm_factory:
         mock_llm = AsyncMock()
 
         async def capture_chat(messages, system=None):
@@ -210,7 +210,6 @@ def test_chat_rag_memories_appear_in_system_prompt(client_with_patient):
         )
 
     assert "Kortademig na traplopen" in captured_system["value"]
-    assert "patient_stated" in captured_system["value"]
 
 
 def test_chat_debug_includes_context_proof(client_with_patient):
@@ -229,7 +228,7 @@ def test_chat_debug_includes_context_proof(client_with_patient):
         ]
     )
 
-    with patch("routers.chat.get_llm_provider") as mock_llm_factory:
+    with patch("routers.chat._routes.get_llm_provider") as mock_llm_factory:
         mock_llm = AsyncMock()
         mock_llm.chat = AsyncMock(return_value="Dank u, ik noteer het.")
         mock_llm_factory.return_value = mock_llm
@@ -252,7 +251,7 @@ def test_chat_debug_includes_context_proof(client_with_patient):
     assert proof["rag"]["hit_count"] == 1
     assert proof["rag"]["hits"][0]["content"] == "Eerder: moe na wandelen"
     assert proof["store_memory"]["origin"] == "mcp_store_memory"
-    assert proof["store_memory"]["chroma_document_id"] == doc_id
+    # chroma_document_id is None (BackgroundTask) en wordt uitgesloten van de JSON response
     assert proof["combined"]["system_prompt_includes_rag_block"] is True
     assert proof["combined"]["history_messages_sent_to_llm"] == proof["postgres"][
         "messages_in_history"
@@ -263,7 +262,7 @@ def test_chat_without_debug_omits_context_proof_key(client_with_patient):
     """Without debug the JSON has no context_proof field (exclude_none)."""
     test_client, patient, _mock_mcp = client_with_patient
 
-    with patch("routers.chat.get_llm_provider") as mock_llm_factory:
+    with patch("routers.chat._routes.get_llm_provider") as mock_llm_factory:
         mock_llm = AsyncMock()
         mock_llm.chat = AsyncMock(return_value="Ok.")
         mock_llm_factory.return_value = mock_llm

@@ -86,11 +86,26 @@ async def test_get_symptom_trends_is_stub(client):
 
 
 @pytest.mark.asyncio
-async def test_escalate_to_human_is_stub(client):
-    """escalate_to_human returns None — is a stub."""
-    result = await client.escalate_to_human(
-        patient_id="patient-1",
-        reason="Gewicht +3kg in 2 dagen",
-        urgency="high",
+async def test_escalate_to_human_calls_correct_tool(client):
+    """escalate_to_human calls the MCP tool with correct args."""
+    escalation_id = "esc-uuid-123"
+    mock_inner = AsyncMock()
+    mock_inner.call_tool = AsyncMock(
+        return_value=[_text_content(escalation_id)]
     )
-    assert result is None
+    mock_ctx = AsyncMock()
+    mock_ctx.__aenter__ = AsyncMock(return_value=mock_inner)
+    mock_ctx.__aexit__ = AsyncMock(return_value=None)
+
+    with patch("services.mcp_client.Client", return_value=mock_ctx):
+        result = await client.escalate_to_human(
+            patient_id="patient-1",
+            reason="Gewicht +3kg in 2 dagen",
+            urgency="high",
+        )
+
+    mock_inner.call_tool.assert_called_once_with(
+        "escalate_to_human",
+        {"patient_id": "patient-1", "reason": "Gewicht +3kg in 2 dagen", "urgency": "high"},
+    )
+    assert result == escalation_id
