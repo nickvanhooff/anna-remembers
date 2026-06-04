@@ -22,4 +22,9 @@ jobs:
         run: docker compose build
 
       - name: Run tests
-        run: docker compose run --no-deps --rm backend pytest tests/ -v
+        run: |
+          docker compose run --no-deps --rm \
+            -e DATABASE_URL=sqlite:// \
+            -e LANGFUSE_PUBLIC_KEY= \
+            -e LANGFUSE_SECRET_KEY= \
+            backend pytest tests/ -v
