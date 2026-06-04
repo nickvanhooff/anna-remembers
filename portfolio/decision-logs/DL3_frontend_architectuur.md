@@ -29,7 +29,7 @@ Issue #4 vereist vier dashboard-schermen: patiëntbeheer, chat met Anna, symptoo
 
 **Aangetoonde leeruitkomsten:**
 
-- [ ] LO1: Analyseren
+- [x] LO1: Analyseren — drie frameworks vergeleken op zes criteria (Next.js, Vite, CRA)
 - [x] LO2: Adviseren — keuze onderbouwd met vergelijkingstabellen en eigen overwegingen
 - [x] LO3: Ontwerpen — componentstructuur en API wrapper patroon ontworpen
 - [x] LO4: Realiseren — vier schermen gebouwd, patiëntbeheer live gekoppeld aan FastAPI

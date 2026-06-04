@@ -42,7 +42,7 @@ Het probleem met een aparte cloud-classificatieaanroep is dat het per bericht ex
 - [x] LO2: Adviseren — onderbouwde keuze voor gelaagde aanpak op basis van onderzoek
 - [x] LO3: Ontwerpen — gelaagde detectiearchitectuur ontworpen (keywords → lokaal model)
 - [x] LO4: Realiseren — geïmplementeerd in `backend/routers/chat.py` en `services/mcp_client.py`
-- [ ] LO5: Beheren & Controleren
+- [x] LO5: Beheren & Controleren — observeerbaarheid via Langfuse als succescriterium; volledige trace-structuur per escalatiebeslissing (§6b)
 - [ ] LO6: Professioneel Leiderschap
 - [x] LO7: Professionele Standaard — DOT-methode toegepast, professionele guardrail-patronen onderzocht [1]
 

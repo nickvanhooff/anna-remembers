@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -18,8 +18,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build backend image
-        run: docker build ./backend
+      - name: Build images
+        run: docker compose build
 
-      - name: Build mcp-server image
-        run: docker build ./mcp-server
+      - name: Run tests
+        run: docker compose run --no-deps --rm backend pytest tests/ -v

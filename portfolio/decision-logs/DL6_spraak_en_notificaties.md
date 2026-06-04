@@ -31,10 +31,10 @@ Een usability test met een zorgmedewerker (moeder van de student, werkzaam in ee
 **Aangetoonde leeruitkomsten:**
 
 - [x] LO1: Analyseren — opties vergeleken voor TTS, STT en notificaties
-- [ ] LO2: Adviseren
+- [x] LO2: Adviseren — productiebevindingen en aanbevelingen op basis van usability test (lokale STT, betaald Twilio-account)
 - [x] LO3: Ontwerpen — instelbare TTS via settings page, STT via browser
 - [x] LO4: Realiseren — Piper, XTTS, Web Speech API en Twilio SMS geïmplementeerd
-- [ ] LO5: Beheren & Controleren
+- [x] LO5: Beheren & Controleren — usability test evalueerde systeemgedrag, beperkingen zichtbaar gemaakt en teruggekoppeld
 - [ ] LO6: Professioneel Leiderschap
 - [x] LO7: Professionele Standaard — usability test uitgevoerd met echte gebruiker uit de doelgroep
 
@@ -68,7 +68,7 @@ De volledige spraakpipeline (STT → chat → TTS → avatar) is uitgewerkt in e
 
 ### 4. Hoe ik dit heb onderzocht (DOT-framework)
 
-**Eigen ervaring (Field):**  
+**Usability testing (Field):**  
 Usability test uitgevoerd met een zorgmedewerker. Profiel aangemaakt, gesprek gevoerd via STT en TTS, escalaties gegenereerd, SMS-notificatie geprobeerd. Bevindingen gedocumenteerd.
 
 → [evidence_12_usability_test.md](../evidence/evidence_12_usability_test.md) @evidence_12_usability_test

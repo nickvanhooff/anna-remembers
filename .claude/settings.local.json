@@ -129,7 +129,10 @@
       "mcp__plugin_playwright_playwright__browser_snapshot",
       "WebSearch",
       "Bash(powershell -Command \"\\(Get-Content 'portfolio\\\\evidence_decriptions.md'\\) -replace 'LO7 S4 Professional Standard', 'S4 Professional Standard' -replace 'LO6 S4 Personal Leadership', 'S4 Personal Leadership' -replace \\\\\"LO's: LO7\\\\\", \\\\\"LO's: S4 Professional Standard\\\\\" -replace \\\\\"LO's: LO6\\\\\", \\\\\"LO's: S4 Personal Leadership\\\\\" | Set-Content 'portfolio\\\\evidence_decriptions.md'\")",
-      "Bash(powershell -Command \"\\(Get-Content 'portfolio\\\\evidence_decriptions.md'\\) -replace 'LO7', 'S4 Professional Standard' -replace 'LO6', 'S4 Personal Leadership' | Set-Content 'portfolio\\\\evidence_decriptions.md'\")"
+      "Bash(powershell -Command \"\\(Get-Content 'portfolio\\\\evidence_decriptions.md'\\) -replace 'LO7', 'S4 Professional Standard' -replace 'LO6', 'S4 Personal Leadership' | Set-Content 'portfolio\\\\evidence_decriptions.md'\")",
+      "PowerShell(Copy-Item *)",
+      "Bash(start *)",
+      "mcp__plugin_claude-mem_mcp-search__get_observations"
     ]
   }
 }

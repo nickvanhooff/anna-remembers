@@ -31,7 +31,7 @@ In de eerste opzet (stap 62) werd een subagent ingezet die een mood-systeem bouw
 - [x] LO3: Ontwerpen — resolutie-volgorde bewust gekozen en onderbouwd
 - [x] LO4: Realiseren — drie iteraties geïmplementeerd, bug gefixt
 - [ ] LO5: Beheren & Controleren
-- [x] LO6: Professionele Standaard — overengineering herkend en gecorrigeerd
+- [x] LO6: Persoonlijk Leiderschap — overengineering herkend en gecorrigeerd (290 → 135 regels)
 - [ ] LO7: Persoonlijk Leiderschap
 
 ---
