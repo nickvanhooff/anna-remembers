@@ -3,61 +3,53 @@
 **Type:** CI-configuratie / testresultaat
 **Datum:** 2026-06-04
 **Hoort bij:** Managing & Controlling — geautomatiseerde kwaliteitsbewaking
-**Commit:** e903544
+**Commits:** e903544, e9abd2d, f17bef4, d7b125f
 
 ---
 
-## Situatie
+## Wat het probleem was
 
-De CI pipeline draaide alleen `docker compose build` — er werden geen tests uitgevoerd. Regressies konden ongemerkt naar `main` worden gepushed.
+De CI pipeline bouwde alleen de Docker images — er werden geen tests gedraaid. Dat betekende dat een kapotte wijziging gewoon door kon gaan naar `main` zonder dat iemand het doorhad.
 
-## Wijziging
+## Wat ik gedaan heb
 
-`.github/workflows/ci.yml` uitgebreid zodat bij elke push en pull request naar `main`:
+Ik heb de CI uitgebreid zodat bij elke push naar `main` automatisch de tests draaien, voordat de images gebouwd worden. De tests draaien in dezelfde Docker container als de applicatie, zonder dat de echte database of Ollama opgestart hoeft te worden.
 
-1. De backend image gebouwd wordt via `docker compose build`
-2. De volledige pytest-suite gedraaid wordt in de backend container via `docker compose run --no-deps --rm backend pytest tests/ -v`
-3. De build van de mcp-server image daarna volgt
+Tijdens het opzetten liep ik tegen drie fouten aan die ik stuk voor stuk heb opgelost:
 
-`--no-deps` voorkomt dat postgres, ollama en chromadb opgestart worden — de tests gebruiken SQLite in-memory en mocks, dus externe services zijn niet nodig.
+**1. De container kon de database niet bereiken**
+De container probeerde verbinding te maken met `postgres`, maar die service draait niet mee in de test-omgeving. Oplossing: de database-URL overschrijven naar een tijdelijke SQLite database in het geheugen.
 
-```yaml
-- name: Build images
-  run: docker compose build
+**2. De `escalations` tabel bestond niet**
+Een achtergrondtaak (de escalatiedetectie die na elk bericht loopt) deed een query op een tabel die in de testomgeving niet aangemaakt was. Ik heb het testmodel geïmporteerd zodat de tabel wel aangemaakt wordt, en ervoor gezorgd dat de achtergrondtaak dezelfde testdatabase gebruikt als de rest van de test.
 
-- name: Run tests
-  run: docker compose run --no-deps --rm backend pytest tests/ -v
-```
+**3. Drie tests verwezen naar functies die hernoemd waren**
+Na een eerdere refactor waren een aantal functies verplaatst en hernoemd. De tests wisten dat nog niet. Die imports heb ik gecorrigeerd.
 
-`pytest` en `pytest-asyncio` zijn toegevoegd aan `backend/requirements.txt` zodat ze beschikbaar zijn in de container.
+Verder heb ik een verouderd stuk code in de escalatiemodule aangepast (`datetime.utcnow()` is afgeraden in Python 3.12+).
 
 ---
 
-## Testresultaat (lokaal geverifieerd)
+## Resultaat
 
-```
-52 passed in 19.59s
-```
+**52 tests geslaagd in 2.37 seconden** — geen fouten, geen waarschuwingen.
 
-| Testbestand | Wat het test |
-|---|---|
-| `test_escalation_layers.py` | Layer-0 keyword detection, JSON-parse voor escalatie |
-| `test_chat.py` | Chat-endpoint: RAG-injectie, Postgres opslag, debug context proof |
-| `test_mcp_client.py` | MCP-tool aanroepen: recall, store, escalate |
-| `test_notification.py` | Twilio SMS: opbouw, verzending, foutafhandeling |
-| `test_settings.py` | Settings CRUD via API |
-| `test_tts.py` | TTS provider routing (Piper / XTTS) |
-| `test_audio_converter.py` | Audio-conversie (ffmpeg wrapper) |
-| `test_voice_samples.py` | Voice sample upload, path traversal beveiliging |
+![GitHub Actions — CI en CD runs groen](images/github-ci-cd-actions-overview.png)
 
-Screenshot van groene CI run op GitHub Actions:
+![Pytest output — 52 passed](images/ci-tests.png)
 
-![CI pipeline — 52 tests groen](images/ci_tests_groen.png)
+De actiehistory laat zien dat het niet in één keer werkte: vier runs nodig, elke keer een andere fout gevonden en opgelost. De uiteindelijke groene run staat bovenaan.
 
 ---
 
-## Waarom dit Managing & Controlling aantoont
+## Wat de tests wel en niet controleren
 
-Tests draaien automatisch bij elke push — niet als ik eraan denk. Als een wijziging een regressie introduceert, stopt de pipeline vóór de Docker build en wordt de fout zichtbaar via GitHub. Dit is een permanente controlemaatregel die kwaliteit bewaakt zonder handmatige actie van de engineer.
+De applicatiecode draait echt — escalatiedetectie, chat-route, database-operaties. Wat vervangen is: de verbindingen naar externe diensten (LLM, MCP-server, Twilio), omdat die in CI niet beschikbaar zijn.
 
-Tijdens het opzetten bleek dat drie tests verouderd waren (functies hernoemd na refactor, `store_memory` verplaatst naar BackgroundTask). Die zijn direct gecorrigeerd — de CI dwong me om de tests actueel te houden.
+Of de LLM goede medische antwoorden geeft, of ChromaDB de juiste herinneringen teruggeeft — dat controleer ik door de volledige applicatie te draaien met gesimuleerde patiënten.
+
+---
+
+## Waarom dit relevant is voor Managing & Controlling
+
+Vanaf nu vangt de CI automatisch op als een wijziging iets breekt. Ik hoef dat niet zelf bij te houden — GitHub doet het bij elke push. Dat is precies wat je als engineer doet: je bouwt iets, en daarna zorg je dat je het niet per ongeluk weer kapot maakt.
