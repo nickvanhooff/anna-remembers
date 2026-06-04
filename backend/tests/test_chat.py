@@ -10,6 +10,7 @@ from sqlalchemy.pool import StaticPool
 
 from main import app
 from models.base import Base
+from models.escalation import Escalation  # noqa: F401 — registers table with Base
 from models.message import Message
 from models.patient import Patient
 from services.database import get_db
@@ -63,8 +64,11 @@ def client_with_patient():
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_mcp_client] = lambda: mock_mcp
 
-    test_client = TestClient(app)
-    yield test_client, patient, mock_mcp
+    # Patch SessionLocal so BackgroundTasks (layer1_classify) also use the test engine
+    with patch("services.database.SessionLocal", TestingSessionLocal):
+        with patch("routers.chat._escalation.SessionLocal", TestingSessionLocal):
+            test_client = TestClient(app)
+            yield test_client, patient, mock_mcp
 
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=engine)
