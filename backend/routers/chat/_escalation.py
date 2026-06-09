@@ -150,13 +150,13 @@ def _parse_classify_json(raw: str) -> dict | None:
     return None
 
 
-async def _classify_ollama(patient_message: str) -> str:
+async def _classify_ollama(patient_message: str, model: str) -> str:
     """Call local Ollama for escalation classification."""
     async with httpx.AsyncClient(timeout=90.0) as client:
         response = await client.post(
             f"{_OLLAMA_BASE_URL}/api/chat",
             json={
-                "model": _ESCALATION_MODEL,
+                "model": model,
                 "messages": [
                     {"role": "system", "content": _CLASSIFY_SYSTEM},
                     {"role": "user", "content": f"Patient message: {patient_message}"},
@@ -170,13 +170,13 @@ async def _classify_ollama(patient_message: str) -> str:
         return response.json()["message"]["content"]
 
 
-async def _classify_openai_compat(patient_message: str) -> str:
+async def _classify_openai_compat(patient_message: str, model: str) -> str:
     """Call any OpenAI-compatible API for escalation classification (DeepSeek, etc.)."""
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(api_key=_ESCALATION_API_KEY, base_url=_ESCALATION_BASE_URL)
     response = await client.chat.completions.create(
-        model=_ESCALATION_MODEL,
+        model=model,
         messages=[
             {"role": "system", "content": _CLASSIFY_SYSTEM},
             {"role": "user", "content": f"Patient message: {patient_message}"},
@@ -188,18 +188,18 @@ async def _classify_openai_compat(patient_message: str) -> str:
     return response.choices[0].message.content or "{}"
 
 
-async def _classify_portkey(patient_message: str) -> str:
+async def _classify_portkey(patient_message: str, model: str) -> str:
     """Classify via the Portkey gateway (routes to a deployed catalog model).
 
     Gebruikt dezelfde Portkey API-key als de hoofd-LLM. Het model is een
-    catalog-slug, bv. '@azure-openai/gpt-5.4-nano'. Zo werkt Laag 1 in de cloud
+    catalog-slug, bv. 'DeepSeek-V4-Flash'. Zo werkt Laag 1 in de cloud
     zonder een aparte provider-key.
     """
     from portkey_ai import AsyncPortkey
 
     client = AsyncPortkey(api_key=_PORTKEY_API_KEY, config=_ESCALATION_PORTKEY_CONFIG)
     response = await client.chat.completions.create(
-        model=_ESCALATION_MODEL,
+        model=model,
         messages=[
             {"role": "system", "content": _CLASSIFY_SYSTEM},
             {"role": "user", "content": f"Patient message: {patient_message}"},
@@ -241,6 +241,15 @@ async def layer1_classify(
             finally:
                 db.close()
 
+        # Read escalation model from DB settings; fall back to env var default.
+        db_model = SessionLocal()
+        try:
+            from models.setting import Setting
+            model_setting = db_model.query(Setting).filter(Setting.key == "escalation_llm_model").first()
+            escalation_model = model_setting.value if model_setting else _ESCALATION_MODEL
+        finally:
+            db_model.close()
+
         langfuse = get_langfuse()
         try:
             user_prompt = f"Patient message: {patient_message}"
@@ -252,20 +261,24 @@ async def layer1_classify(
                 with langfuse.start_as_current_observation(
                     as_type="generation",
                     name="escalation-layer1-classify",
-                    model=_ESCALATION_MODEL,
+                    model=escalation_model,
                     input=user_prompt,
+                    metadata={
+                        "llm_provider": _ESCALATION_PROVIDER,
+                        "llm_model": escalation_model,
+                    },
                 ) as gen_span:
                     if _ESCALATION_PROVIDER == "portkey":
-                        raw = await _classify_portkey(patient_message)
+                        raw = await _classify_portkey(patient_message, escalation_model)
                     elif _ESCALATION_PROVIDER == "openai_compat":
-                        raw = await _classify_openai_compat(patient_message)
+                        raw = await _classify_openai_compat(patient_message, escalation_model)
                     else:
-                        raw = await _classify_ollama(patient_message)
+                        raw = await _classify_ollama(patient_message, escalation_model)
                     gen_span.update(output=raw)
 
             result = _parse_classify_json(raw)
             if not result:
-                logger.warning("Layer 1: could not parse JSON from %s: %r", _ESCALATION_MODEL, raw[:200])
+                logger.warning("Layer 1: could not parse JSON from %s: %r", escalation_model, raw[:200])
                 return
 
             if result.get("escalate"):
@@ -278,7 +291,7 @@ async def layer1_classify(
                 await mcp.escalate_to_human(
                     patient_id=str(patient_id),
                     reason=format_escalation_reason(
-                        layer_label=f"Laag 1 ({_ESCALATION_MODEL})",
+                        layer_label=f"Laag 1 ({escalation_model})",
                         patient_message=patient_message,
                         detail=model_reason,
                     ),

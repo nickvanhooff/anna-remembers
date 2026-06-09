@@ -2079,3 +2079,22 @@ Het plan `docs/superpowers/plans/2026-06-09-portkey-embedding-switch.md` was uit
 
 **Evidence-waardig?** Overweeg 1 evidence met probe-resultatentabel (allowlist vs deployment) als bewijs voor Portkey-integratiekeuze — max 1 vandaag als je dat wilt.
 
+---
+
+## Stap 86 — 2026-06-09 — Modelconfiguratie per functie instelbaar + zichtbaar in Langfuse
+
+**Wat:**
+Alle LLM-aanroepen (chat, samenvatting, escalatie) gebruiken nu een apart, DB-instelbaar model. Drie wijzigingen:
+
+1. **Alembic migratie 0008** — seeds `summary_llm_model` en `escalation_llm_model` met standaard `DeepSeek-V4-Flash` in de `settings`-tabel.
+
+2. **`_summary.py`** — leest `summary_llm_model` uit DB (via `Setting`-model); maakt een `PortkeyProvider` aan als er een model-waarde is, anders `get_llm_provider()` als fallback. Model én provider worden gelogd in de Langfuse span metadata (`llm_provider`, `llm_model`).
+
+3. **`_escalation.py`** — `layer1_classify()` opent een eigen DB-sessie en leest `escalation_llm_model` uit de `settings`-tabel. De module-level `_ESCALATION_MODEL` env var dient alleen nog als fallback. Model doorgegeven als parameter aan `_classify_ollama()`, `_classify_openai_compat()` en `_classify_portkey()`. Langfuse generation span bevat nu `model=escalation_model` en `metadata.llm_model`.
+
+4. **`settings-screen.tsx`** — nieuwe card "Modelconfiguratie" toegevoegd met twee rijen (Samenvatting en Escalatie classificatie), elk met een tekstveld + opslaanknop. State geladen vanuit `getSettings()` op basis van `summary_llm_model` en `escalation_llm_model` keys. `Settings` type uitgebreid met beide nieuwe velden.
+
+**Waarom:** Overzicht nodig van welk model welke functie gebruikt, zonder hardcoded env vars. Zichtbaar in Langfuse-traces én aanpasbaar vanuit de UI zonder herstart.
+
+**Beslissing:** Samenvatting en escalatie altijd via Portkey als er een DB-model is; chat LLM via de bestaande `llm_provider` setting (kan ook non-Portkey zijn).
+

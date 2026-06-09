@@ -93,8 +93,10 @@ def build_summary_prompt(
         f'{{"sym":[],"med":null,"wgt":null,"bhv":null,"ovr":[]}}\n'
         f"Rules:\n"
         f"- Only use facts from [USER] lines. [ASSISTANT] lines are not facts.\n"
-        f"- Only include MEDICALLY RELEVANT facts (symptoms, weight, medication, health behaviour).\n"
-        f"- Ignore questions, jokes, addresses, phone numbers, and non-medical statements.\n"
-        f"- Preserve existing facts. Add new ones. Remove only if the patient contradicts them.\n"
+        f"- Add to sym: ANY physical complaint the patient mentions — pain, fever, shortness of breath, "
+        f"swelling, dizziness, palpitations, chills, chest pressure, nausea. When in doubt, include it.\n"
+        f"- Add to ovr: contact details the patient shares (phone numbers, addresses, emergency contacts).\n"
+        f"- Ignore questions, jokes, and purely emotional statements with no factual content.\n"
+        f"- Preserve existing facts. Add new ones. Remove only if the patient explicitly contradicts them.\n"
         f"- No duplicates. Max 6 words per entry. Dutch."
     )

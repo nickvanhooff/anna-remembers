@@ -28,6 +28,11 @@ export function SettingsScreen() {
   const [llmModel, setLlmModel] = useState<string>("gpt-5.4")
   const [llmSaving, setLlmSaving] = useState(false)
 
+  const [summaryModel, setSummaryModel] = useState<string>("DeepSeek-V4-Flash")
+  const [summarySaving, setSummarySaving] = useState(false)
+  const [escalationModel, setEscalationModel] = useState<string>("DeepSeek-V4-Flash")
+  const [escalationSaving, setEscalationSaving] = useState(false)
+
   const { state: recorderState, seconds, error: recorderError, startRecording, stopRecording } =
     useAudioRecorder(async () => {
       setSamples(await listVoiceSamples())
@@ -41,6 +46,8 @@ export function SettingsScreen() {
         setEmbeddingProvider(s.embedding_provider ?? "ollama")
         setLlmProvider(s.llm_provider ?? "portkey")
         setLlmModel(s.llm_model ?? "gpt-5.4")
+        setSummaryModel(s.summary_llm_model ?? "DeepSeek-V4-Flash")
+        setEscalationModel(s.escalation_llm_model ?? "DeepSeek-V4-Flash")
       })
       .catch(() => setError("Instellingen konden niet worden geladen"))
     listVoiceSamples()
@@ -149,6 +156,28 @@ export function SettingsScreen() {
   function handleLlmProviderChange(newProvider: string) {
     setLlmProvider(newProvider)
     setLlmModel(DEFAULT_MODELS[newProvider] ?? "")
+  }
+
+  async function handleSummarySave() {
+    setSummarySaving(true)
+    try {
+      await updateSetting("summary_llm_model", summaryModel)
+    } catch (err) {
+      console.error("Summary model opslaan mislukt:", err)
+    } finally {
+      setSummarySaving(false)
+    }
+  }
+
+  async function handleEscalationSave() {
+    setEscalationSaving(true)
+    try {
+      await updateSetting("escalation_llm_model", escalationModel)
+    } catch (err) {
+      console.error("Escalation model opslaan mislukt:", err)
+    } finally {
+      setEscalationSaving(false)
+    }
   }
 
   const busy = uploading || recorderState !== "idle"
@@ -337,6 +366,54 @@ export function SettingsScreen() {
               >
                 {llmSaving ? "Opslaan..." : "Opslaan"}
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Modelconfiguratie</CardTitle>
+            <CardDescription>
+              Overzicht van welk model elke functie gebruikt. Samenvatting en escalatie draaien via Portkey.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-medium">Samenvatting</p>
+                <p className="text-xs text-muted-foreground">Medisch dossier bijhouden na gesprekken</p>
+              </div>
+              <div className="flex gap-2 items-center">
+                <Input
+                  className="w-44"
+                  value={summaryModel}
+                  onChange={(e) => setSummaryModel(e.target.value)}
+                  disabled={settings === null}
+                  placeholder="model naam"
+                />
+                <Button size="sm" variant="outline" onClick={handleSummarySave} disabled={summarySaving || settings === null}>
+                  {summarySaving ? "..." : "Opslaan"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-medium">Escalatie classificatie</p>
+                <p className="text-xs text-muted-foreground">Laag 1 triage na elk bericht</p>
+              </div>
+              <div className="flex gap-2 items-center">
+                <Input
+                  className="w-44"
+                  value={escalationModel}
+                  onChange={(e) => setEscalationModel(e.target.value)}
+                  disabled={settings === null}
+                  placeholder="model naam"
+                />
+                <Button size="sm" variant="outline" onClick={handleEscalationSave} disabled={escalationSaving || settings === null}>
+                  {escalationSaving ? "..." : "Opslaan"}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
