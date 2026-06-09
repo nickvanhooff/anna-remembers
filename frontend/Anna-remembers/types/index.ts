@@ -81,4 +81,5 @@ export interface Settings {
   twilio_sms_enabled: "true" | "false"
   tts_provider: "piper" | "xtts"
   twilio_to: string
+  embedding_provider?: "ollama" | "openai"
 }

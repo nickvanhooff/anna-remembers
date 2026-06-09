@@ -90,6 +90,12 @@ services:
       LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-http://host.docker.internal:3000}
       MCP_URL: http://mcp-server:8001
       ESCALATION_MODEL: ${ESCALATION_MODEL:-qwen2.5:0.5b}
+      ESCALATION_PROVIDER: ${ESCALATION_PROVIDER:-ollama}
+      ESCALATION_API_KEY: ${ESCALATION_API_KEY:-}
+      ESCALATION_BASE_URL: ${ESCALATION_BASE_URL:-https://api.deepseek.com/v1}
+      PORTKEY_API_KEY: ${PORTKEY_API_KEY:-}
+      PORTKEY_MODEL: ${PORTKEY_MODEL:-gpt-4.1}
+      PORTKEY_CONFIG: ${PORTKEY_CONFIG:-}
       ESCALATION_COOLDOWN_MINUTES: ${ESCALATION_COOLDOWN_MINUTES:-5}
       PIPER_URL: ${PIPER_URL:-http://piper-http-bridge:5000}
       XTTS_URL: ${XTTS_URL:-http://xtts-bridge:5000}
@@ -121,6 +127,11 @@ services:
       MCP_PORT: 8001
       OLLAMA_BASE_URL: http://ollama:11434
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3:latest}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      PORTKEY_API_KEY: ${PORTKEY_API_KEY:-}
+      PORTKEY_CONFIG: ${PORTKEY_CONFIG:-}
       BACKEND_URL: http://backend:8000
     depends_on:
       postgres:

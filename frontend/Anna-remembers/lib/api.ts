@@ -421,3 +421,15 @@ export async function deleteVoiceSample(filename: string): Promise<void> {
   )
   if (!res.ok) throw new Error(`API ${res.status} /tts/voice-samples/${filename}`)
 }
+
+export async function migrateEmbeddings(
+  targetProvider: string
+): Promise<{ source_provider: string; target_provider: string; migrated: number; errors: number }> {
+  const res = await fetch(`${BASE}/settings/migrate-embeddings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target_provider: targetProvider }),
+  })
+  if (!res.ok) throw new Error(`API ${res.status} /settings/migrate-embeddings`)
+  return res.json()
+}

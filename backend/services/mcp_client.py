@@ -111,6 +111,27 @@ class MCPClient:
             )
         return _unwrap_tool_result(result)
 
+    async def migrate_all_memories(self, source_provider: str, target_provider: str) -> dict:
+        """Trigger embedding migration from source to target collection."""
+        async with Client(self._url) as client:
+            result = await client.call_tool(
+                "migrate_all_memories",
+                {"source_provider": source_provider, "target_provider": target_provider},
+            )
+        value = _unwrap_tool_result(result)
+        if isinstance(value, str):
+            return json.loads(value)
+        return value if isinstance(value, dict) else {}
+
+    async def switch_embedding_provider(self, provider: str) -> str:
+        """Hot-swap the active embedding provider in the MCP server."""
+        async with Client(self._url) as client:
+            result = await client.call_tool(
+                "switch_embedding_provider",
+                {"provider": provider},
+            )
+        return _unwrap_tool_result(result)
+
 
 def get_mcp_client() -> MCPClient:
     """FastAPI Depends() factory — reads MCP_URL from the environment."""

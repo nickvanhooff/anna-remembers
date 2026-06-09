@@ -132,7 +132,11 @@
       "Bash(powershell -Command \"\\(Get-Content 'portfolio\\\\evidence_decriptions.md'\\) -replace 'LO7', 'S4 Professional Standard' -replace 'LO6', 'S4 Personal Leadership' | Set-Content 'portfolio\\\\evidence_decriptions.md'\")",
       "PowerShell(Copy-Item *)",
       "Bash(start *)",
-      "mcp__plugin_claude-mem_mcp-search__get_observations"
+      "mcp__plugin_claude-mem_mcp-search__get_observations",
+      "PowerShell(head *)",
+      "Bash(dir C:fontyssemester_4anna_remembersbackendservices *)",
+      "PowerShell(ls \"C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\backend\\\\services\" | ForEach-Object { $_.Name })",
+      "PowerShell(ls \"C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\mcp-server\" | ForEach-Object { $_.Name })"
     ]
   }
 }

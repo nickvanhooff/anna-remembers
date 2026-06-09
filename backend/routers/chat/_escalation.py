@@ -63,6 +63,9 @@ def _get_semaphore(patient_id: uuid.UUID) -> asyncio.Semaphore:
 _ESCALATION_COOLDOWN_MINUTES = int(os.getenv("ESCALATION_COOLDOWN_MINUTES", "0"))
 _OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
 _ESCALATION_MODEL = os.getenv("ESCALATION_MODEL", "qwen2.5:0.5b")
+_ESCALATION_PROVIDER = os.getenv("ESCALATION_PROVIDER", "ollama")  # ollama | openai_compat
+_ESCALATION_BASE_URL = os.getenv("ESCALATION_BASE_URL", "https://api.deepseek.com/v1")
+_ESCALATION_API_KEY = os.getenv("ESCALATION_API_KEY", "")
 
 _CLASSIFY_SYSTEM = (
     "You are a medical triage assistant for heart failure patients. "
@@ -145,6 +148,44 @@ def _parse_classify_json(raw: str) -> dict | None:
     return None
 
 
+async def _classify_ollama(patient_message: str) -> str:
+    """Call local Ollama for escalation classification."""
+    async with httpx.AsyncClient(timeout=90.0) as client:
+        response = await client.post(
+            f"{_OLLAMA_BASE_URL}/api/chat",
+            json={
+                "model": _ESCALATION_MODEL,
+                "messages": [
+                    {"role": "system", "content": _CLASSIFY_SYSTEM},
+                    {"role": "user", "content": f"Patient message: {patient_message}"},
+                ],
+                "stream": False,
+                "format": "json",
+                "options": {"num_predict": 128},
+            },
+        )
+        response.raise_for_status()
+        return response.json()["message"]["content"]
+
+
+async def _classify_openai_compat(patient_message: str) -> str:
+    """Call any OpenAI-compatible API for escalation classification (DeepSeek, etc.)."""
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(api_key=_ESCALATION_API_KEY, base_url=_ESCALATION_BASE_URL)
+    response = await client.chat.completions.create(
+        model=_ESCALATION_MODEL,
+        messages=[
+            {"role": "system", "content": _CLASSIFY_SYSTEM},
+            {"role": "user", "content": f"Patient message: {patient_message}"},
+        ],
+        max_tokens=128,
+        response_format={"type": "json_object"},
+        timeout=90.0,
+    )
+    return response.choices[0].message.content or "{}"
+
+
 async def layer1_classify(
     patient_id: uuid.UUID,
     patient_message: str,
@@ -179,34 +220,22 @@ async def layer1_classify(
         langfuse = get_langfuse()
         try:
             user_prompt = f"Patient message: {patient_message}"
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                with propagate_attributes(
-                    user_id=str(patient_id),
-                    session_id=str(session_id),
-                    trace_name="escalation-layer1",
-                ):
-                    with langfuse.start_as_current_observation(
-                        as_type="generation",
-                        name="escalation-layer1-classify",
-                        model=_ESCALATION_MODEL,
-                        input=user_prompt,
-                    ) as gen_span:
-                        response = await client.post(
-                            f"{_OLLAMA_BASE_URL}/api/chat",
-                            json={
-                                "model": _ESCALATION_MODEL,
-                                "messages": [
-                                    {"role": "system", "content": _CLASSIFY_SYSTEM},
-                                    {"role": "user", "content": user_prompt},
-                                ],
-                                "stream": False,
-                                "format": "json",
-                                "options": {"num_predict": 128},
-                            },
-                        )
-                        response.raise_for_status()
-                        raw = response.json()["message"]["content"]
-                        gen_span.update(output=raw)
+            with propagate_attributes(
+                user_id=str(patient_id),
+                session_id=str(session_id),
+                trace_name="escalation-layer1",
+            ):
+                with langfuse.start_as_current_observation(
+                    as_type="generation",
+                    name="escalation-layer1-classify",
+                    model=_ESCALATION_MODEL,
+                    input=user_prompt,
+                ) as gen_span:
+                    if _ESCALATION_PROVIDER == "openai_compat":
+                        raw = await _classify_openai_compat(patient_message)
+                    else:
+                        raw = await _classify_ollama(patient_message)
+                    gen_span.update(output=raw)
 
             result = _parse_classify_json(raw)
             if not result:

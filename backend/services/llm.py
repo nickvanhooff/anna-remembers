@@ -204,6 +204,55 @@ class OllamaProvider(LLMProvider):
         return result
 
 
+class PortkeyProvider(LLMProvider):
+    """LLM provider via Portkey AI gateway (portkey_ai SDK, same pattern as r-huijts/portkeytester).
+
+    Portkey routes to the configured virtual key target (OpenAI, Anthropic, etc.)
+    based on the config set in the Portkey dashboard.
+    """
+
+    def __init__(self, api_key: str, model: str, config: str | None = None) -> None:
+        self.api_key = api_key
+        self.model = model
+        self.config = config  # optional Portkey config ID or virtual key slug
+
+    async def chat(
+        self,
+        messages: list[dict[str, str]],
+        system: str | None = None,
+    ) -> str:
+        from portkey_ai import AsyncPortkey
+
+        client = AsyncPortkey(api_key=self.api_key, config=self.config)
+
+        all_messages = []
+        if system:
+            all_messages.append({"role": "system", "content": system})
+        all_messages.extend(messages)
+
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="llm-generation",
+            model=self.model,
+            input=all_messages,
+        ) as gen:
+            response = await client.chat.completions.create(
+                model=self.model,
+                messages=all_messages,
+                max_tokens=1024,
+            )
+            result = response.choices[0].message.content or ""
+            gen.update(
+                output=result,
+                usage_details={
+                    "input": response.usage.prompt_tokens,
+                    "output": response.usage.completion_tokens,
+                },
+            )
+        return result
+
+
 def get_llm_provider() -> LLMProvider:
     """Factory — reads the desired provider from the environment.
 
@@ -211,6 +260,7 @@ def get_llm_provider() -> LLMProvider:
     LLM_PROVIDER=anthropic    →  AnthropicProvider (Claude Haiku)
     LLM_PROVIDER=openrouter   →  OpenRouterProvider (OpenAI-compatible, many models)
     LLM_PROVIDER=groq         →  GroqProvider (fast LPU inference, free tier)
+    LLM_PROVIDER=portkey       →  PortkeyProvider (Portkey AI gateway → OpenAI, etc.)
     """
     provider = os.getenv("LLM_PROVIDER", "ollama")
 
@@ -247,4 +297,14 @@ def get_llm_provider() -> LLMProvider:
             api_key=api_key,
         )
 
-    raise ValueError(f"Onbekende LLM provider: '{provider}'. Kies uit: ollama, anthropic, openrouter, groq")
+    if provider == "portkey":
+        api_key = os.getenv("PORTKEY_API_KEY", "")
+        if not api_key:
+            raise ValueError("PORTKEY_API_KEY is niet ingesteld in de omgeving.")
+        return PortkeyProvider(
+            api_key=api_key,
+            model=os.getenv("PORTKEY_MODEL", "gpt-4.1"),
+            config=os.getenv("PORTKEY_CONFIG", None),
+        )
+
+    raise ValueError(f"Onbekende LLM provider: '{provider}'. Kies uit: ollama, anthropic, openrouter, groq, portkey")

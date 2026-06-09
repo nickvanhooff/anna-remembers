@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getSettings, updateSetting, listVoiceSamples, uploadVoiceSample, deleteVoiceSample } from "@/lib/api"
+import { getSettings, updateSetting, listVoiceSamples, uploadVoiceSample, deleteVoiceSample, migrateEmbeddings } from "@/lib/api"
 import { useAudioRecorder } from "@/hooks/useAudioRecorder"
 import type { Settings } from "@/types"
 
@@ -20,6 +20,10 @@ export function SettingsScreen() {
   const [twilioToSaving, setTwilioToSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const [embeddingProvider, setEmbeddingProvider] = useState<string>("ollama")
+  const [migrating, setMigrating] = useState(false)
+  const [migrationResult, setMigrationResult] = useState<{ migrated: number; errors: number } | null>(null)
+
   const { state: recorderState, seconds, error: recorderError, startRecording, stopRecording } =
     useAudioRecorder(async () => {
       setSamples(await listVoiceSamples())
@@ -30,6 +34,7 @@ export function SettingsScreen() {
       .then((s) => {
         setSettings(s)
         setTwilioTo(s.twilio_to ?? "")
+        setEmbeddingProvider(s.embedding_provider ?? "ollama")
       })
       .catch(() => setError("Instellingen konden niet worden geladen"))
     listVoiceSamples()
@@ -96,6 +101,22 @@ export function SettingsScreen() {
       setError("Telefoonnummer kon niet worden opgeslagen")
     } finally {
       setTwilioToSaving(false)
+    }
+  }
+
+  async function handleEmbeddingProviderChange(newProvider: string) {
+    if (newProvider === embeddingProvider) return
+    setMigrating(true)
+    setMigrationResult(null)
+    try {
+      const data = await migrateEmbeddings(newProvider)
+      setEmbeddingProvider(newProvider)
+      setMigrationResult({ migrated: data.migrated, errors: data.errors })
+    } catch (err) {
+      console.error("Migratie mislukt:", err)
+      setMigrationResult({ migrated: 0, errors: -1 })
+    } finally {
+      setMigrating(false)
     }
   }
 
@@ -185,6 +206,48 @@ export function SettingsScreen() {
                 </SelectContent>
               </Select>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Geheugen (Embeddings)</CardTitle>
+            <CardDescription>Wisselen migreert alle herinneringen naar de nieuwe collectie. Dit kan even duren.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-sm font-medium">Embedding Provider</p>
+                <p className="text-xs text-muted-foreground">
+                  Ollama: lokaal, offline &nbsp;·&nbsp; OpenAI: cloud, hogere kwaliteit
+                </p>
+              </div>
+              <Select
+                value={embeddingProvider}
+                onValueChange={handleEmbeddingProviderChange}
+                disabled={migrating || settings === null}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ollama">Lokaal — bge-m3</SelectItem>
+                  <SelectItem value="portkey">Portkey — text-embedding-3-large</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {migrating && (
+              <p className="text-xs text-blue-600 mt-2">Migratie bezig... even geduld.</p>
+            )}
+            {migrationResult && migrationResult.errors >= 0 && !migrating && (
+              <p className="text-xs text-green-600 mt-2">
+                Migratie klaar: {migrationResult.migrated} herinneringen overgezet
+                {migrationResult.errors > 0 ? `, ${migrationResult.errors} fouten` : ""}.
+              </p>
+            )}
+            {migrationResult && migrationResult.errors === -1 && !migrating && (
+              <p className="text-xs text-destructive mt-2">Migratie mislukt. Controleer de logs.</p>
+            )}
           </CardContent>
         </Card>
 

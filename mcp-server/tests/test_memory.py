@@ -24,6 +24,7 @@ async def test_store_memory_adds_to_chromadb():
             patient_id="patient-1",
             session_id="session-42",
             embed=FakeEmbedder(),
+            provider="ollama",
         )
 
     mock_collection.upsert.assert_called_once()
@@ -51,6 +52,7 @@ async def test_store_memory_propagates_embedding_error():
             patient_id="p1",
             session_id="s1",
             embed=FailingEmbedder(),
+            provider="ollama",
         )
 
 
@@ -85,6 +87,7 @@ async def test_recall_context_returns_sorted_memories():
             patient_id="patient-1",
             limit=2,
             embed=FakeEmbedder(),
+            provider="ollama",
         )
 
     mock_collection.query.assert_called_once_with(
@@ -97,3 +100,31 @@ async def test_recall_context_returns_sorted_memories():
     assert results[0]["source"] == "patient_stated"
     assert results[0]["distance"] == pytest.approx(0.12)
     assert results[1]["session_id"] == "s-2"
+
+
+def test_get_collection_returns_different_collections_per_provider():
+    """Two different providers must return two different named collections."""
+    from unittest.mock import MagicMock, patch
+
+    mock_chroma = MagicMock()
+    bge_collection = MagicMock()
+    openai_collection = MagicMock()
+
+    def fake_get_or_create(name, metadata):
+        if "bge" in name:
+            return bge_collection
+        return openai_collection
+
+    mock_chroma.get_or_create_collection.side_effect = fake_get_or_create
+
+    with patch("chromadb.HttpClient", return_value=mock_chroma):
+        import importlib
+        import tools.memory as mem_mod
+        importlib.reload(mem_mod)
+
+        col_ollama = mem_mod.get_collection("ollama")
+        col_openai = mem_mod.get_collection("openai")
+
+        assert col_ollama is bge_collection
+        assert col_openai is openai_collection
+        assert col_ollama is not col_openai

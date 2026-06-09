@@ -1785,6 +1785,82 @@ Zorgverlener moet Twilio SMS kunnen in- en uitschakelen zonder Docker te herstar
 - `max-w-xs` class op input — beperkt breedte voor telefoonnummer (normaal 15-20 karakters)
 - Helper-text in muted-foreground — licht hint over format, niet storend
 
+## Stap 79 — PortkeyProvider toegevoegd aan backend LLM service
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- `PortkeyProvider` klasse toegevoegd aan `backend/services/llm.py` (na `OllamaProvider`, vóór `get_llm_provider()`)
+- Gebruikt `portkey_ai.AsyncPortkey` SDK; stuurt calls door via Portkey AI gateway naar onderliggende provider (bijv. OpenAI)
+- `get_llm_provider()` uitgebreid: case `portkey` leest `PORTKEY_API_KEY`, `PORTKEY_MODEL` (default `gpt-4.1`) en `PORTKEY_CONFIG` uit omgeving
+- Docstring van `get_llm_provider()` bijgewerkt met de nieuwe provider-optie
+- `ValueError` tekst uitgebreid met `portkey` als geldige keuze
+- Testbestand aangemaakt: `backend/tests/test_llm.py` met async unit-test voor `PortkeyProvider`
+
+**Waarom:**
+- Portkey maakt het mogelijk om embedding-calls en LLM-calls te routeren via één gateway, met observability en caching zonder code-aanpassingen per provider
+- Sluit aan op het plan `docs/superpowers/plans/2026-06-09-portkey-embedding-switch.md`
+
+**Beslissing:**
+- Lazy import van `portkey_ai` binnenin `chat()` — hoeft niet globaal geïnstalleerd te zijn als de provider niet actief is (zelfde patroon als `anthropic` en `openai`)
+
+## Stap 79 — DeepSeek/OpenAI-compatible branch toegevoegd aan escalation guardrail
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- Drie nieuwe module-level constanten toegevoegd aan `backend/routers/chat/_escalation.py`: `_ESCALATION_PROVIDER`, `_ESCALATION_BASE_URL`, `_ESCALATION_API_KEY`
+- Twee helper-functies gesplitst uit de inline Ollama-logica: `_classify_ollama()` en `_classify_openai_compat()`
+- `layer1_classify` ontdaan van de `async with httpx.AsyncClient` wrapper; roept nu de juiste helper aan op basis van `_ESCALATION_PROVIDER`
+- Nieuwe pytest toegevoegd aan `backend/tests/test_escalation_layers.py` die verifieert dat `_classify_openai_compat` de OpenAI SDK gebruikt met het juiste `base_url`
+
+**Waarom:**
+- Schakelbaar houden van de escalation-provider (Ollama lokaal vs. DeepSeek cloud) via `.env`, zonder code te wijzigen — zelfde patroon als `LLM_PROVIDER` in `llm.py`
+- `openai_compat` branch gebruikt de officiële `openai` Python-SDK met `base_url` override, wat werkt met DeepSeek, Groq, OpenRouter, etc.
+
+**Beslissing:**
+- Lazy import van `openai.AsyncOpenAI` binnenin `_classify_openai_compat()` — hoeft niet beschikbaar te zijn als provider Ollama is
+
+## Stap 79 — OpenAIEmbeddingProvider toegevoegd aan mcp-server
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- `mcp-server/services/embedding.py`: nieuw `OpenAIEmbeddingProvider` class toegevoegd (lazy import van `openai.AsyncOpenAI`)
+- `get_embedding_provider()` factory uitgebreid: env-var `EMBEDDING_PROVIDER=openai` stuurt naar OpenAI `text-embedding-3-small`; ontbrekende `OPENAI_API_KEY` gooit een duidelijke `ValueError`
+- `mcp-server/tests/test_embedding.py`: twee nieuwe tests toegevoegd — mock-test voor `OpenAIEmbeddingProvider.embed()` en factory-test voor `EMBEDDING_PROVIDER=openai`
+
+**Beslissing:**
+- Lazy import van `openai` binnenin `embed()` — hoeft niet geïnstalleerd te zijn als de provider Ollama is
+- `EMBEDDING_PROVIDER` env-var als schakelaar (ipv aanpassen van code), consistent met het LLM-provider patroon in `backend/services/llm.py`
+
+---
+
+## Stap 79 — MCPClient uitgebreid + migratie-endpoint toegevoegd aan settings router
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- `backend/services/mcp_client.py`: twee nieuwe methoden toegevoegd aan `MCPClient`:
+  - `migrate_all_memories(source_provider, target_provider)` — roept MCP-tool aan om ChromaDB-herinneringen van de ene embedding-collectie naar de andere te kopiëren
+  - `switch_embedding_provider(provider)` — hot-swap van de actieve embedding-provider in de MCP-server zonder herstart
+- `backend/routers/settings.py`: nieuw POST-endpoint `POST /settings/migrate-embeddings` toegevoegd dat:
+  1. De huidige embedding-provider leest uit de DB (fallback op `EMBEDDING_PROVIDER` env-var)
+  2. Migratie triggert via `migrate_all_memories`
+  3. Actieve provider wisselt via `switch_embedding_provider`
+  4. Nieuwe provider opslaat in de `settings`-tabel
+
+**Waarom:**
+- Onderdeel van de Portkey/embedding-switch feature (zie `docs/superpowers/plans/2026-06-09-portkey-embedding-switch.md`)
+- Maakt het mogelijk om zonder downtime van Ollama-embeddings naar OpenAI-embeddings te migreren
+- Het endpoint volgt hetzelfde patroon als bestaande settings-routes (DB-driven, geen hardcoded provider)
+
+**Beslissingen:**
+- `import os` en `from pydantic import BaseModel` naar de imports-sectie bovenaan het bestand — niet inline — conform codeerstijl
+- Validatie op `target_provider` in het endpoint zelf (HTTP 400) i.p.v. in de MCP-server, zodat de fout vroeg en duidelijk terugkomt
+
+---
+
 ## Stap 78 — Portfolio verbetering: evidence beter gekoppeld in DL2, DL3, DL4
 
 **Datum:** 2026-06-01
@@ -1798,4 +1874,52 @@ Zorgverlener moet Twilio SMS kunnen in- en uitschakelen zonder Docker te herstar
 - Beoordelaar moet direct kunnen doorklikken van criterium naar bewijs
 - DL3 miste redenering achter de norm — nu uitgelegd waarom elk criterium telt voor dit project
 - DL4 was te lang voor een decision log; details horen in de evidence, niet in de log zelf
+
+---
+
+## Stap 79 — MCP-server: embedding-migratie + hot-swap provider tools
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- Nieuw bestand `mcp-server/tools/migration.py` met `migrate_embeddings()` en `get_embedding_provider_by_name()`
+- `mcp-server/main.py` volledig herschreven: `_EmbedHolder` klasse voor mutable provider state, twee nieuwe MCP-tools `switch_embedding_provider` en `migrate_all_memories`
+- Nieuw testbestand `mcp-server/tests/test_migration.py` met asyncio-test voor de migratielogica
+
+**Beslissingen:**
+- `_EmbedHolder` wrapper ipv module-level variabele zodat de actieve provider in-memory gewisseld kan worden zonder herstart
+- `get_embedding_provider_by_name()` gebruikt tijdelijke env-var override — consistent met bestaand patroon maar geïsoleerd zodat de global state niet permanent verschuift
+- Migratie is idempotent via `upsert()` — veilig om meerdere keren uit te voeren
+- `switch_embedding_provider` valideert expliciet op `ollama` | `openai` om typfouten vroeg te vangen
+
+---
+
+## Stap 80 — Portkey gateway, DeepSeek guardrail, OpenAI embeddings + dual ChromaDB collections
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- `PortkeyProvider` toegevoegd aan `backend/services/llm.py` — routeert via Portkey AI gateway naar OpenAI GPT-4.1 of andere cloud modellen. Zelfde patroon als bestaande providers (Langfuse tracing, factory case).
+- DeepSeek guardrail branch toegevoegd aan `backend/routers/chat/_escalation.py` — `ESCALATION_PROVIDER=openai_compat` stuurt escalatie-classificatie naar DeepSeek v4 (of elke OpenAI-compatible API) in plaats van lokale Ollama.
+- `OpenAIEmbeddingProvider` toegevoegd aan `mcp-server/services/embedding.py` — directe OpenAI text-embedding-3-small API, geen Portkey tussenlaag. Factory leest `EMBEDDING_PROVIDER` env var.
+- `mcp-server/tools/memory.py` herschreven met dual ChromaDB collections: `memories_bge_m3` (ollama) en `memories_openai_3small` (openai). `store_memory` en `recall_context` krijgen `provider: str` parameter.
+- `mcp-server/tools/migration.py` aangemaakt — migratie-tool die alle documenten vanuit source-collectie re-embedt naar target-collectie. Idempotent (upsert).
+- `mcp-server/main.py` herschreven — `_EmbedHolder` class voor hot-swap, twee nieuwe MCP tools: `switch_embedding_provider` en `migrate_all_memories`.
+- `backend/services/mcp_client.py` uitgebreid — `migrate_all_memories()` en `switch_embedding_provider()` methods.
+- `backend/routers/settings.py` uitgebreid — `POST /settings/migrate-embeddings` endpoint orchestreert migratie + provider switch + DB persistentie.
+- `docker-compose.yml` bijgewerkt — Portkey, DeepSeek, en OpenAI embedding env vars.
+- `.env.example` bijgewerkt — nieuwe variabelen gedocumenteerd.
+- Frontend `settings-screen.tsx` uitgebreid — "Geheugen (Embeddings)" card met provider Select + migratiestatus.
+
+**Beslissingen:**
+- Portkey SDK (`portkey_ai`) gebruikt ipv directe OpenAI SDK voor LLM — consistent met r-huijts/portkeytester patroon
+- OpenAI embeddings gaan DIRECT naar OpenAI API (niet via Portkey) — embeddings zijn geen generatieve aanroepen, Portkey biedt hier geen meerwaarde
+- Twee aparte ChromaDB collecties ipv één — bge-m3 en OpenAI vectors zijn incompatibele dimensies (1024 vs 1536), kunnen niet in dezelfde collection
+- Migratie is idempotent via upsert — veilig om meerdere keren uit te voeren
+- `_EmbedHolder` klasse voor hot-swap — mutable wrapper zodat MCP server geen herstart nodig heeft bij provider switch
+
+**Waarom:**
+- Portkey geeft observability, fallback routing en rate limiting voor LLM aanroepen
+- DeepSeek v4 is goedkoper en sneller dan Ollama-lokaal voor escalatie-classificatie
+- OpenAI embeddings geven hogere semantische kwaliteit voor RAG dan bge-m3
 
