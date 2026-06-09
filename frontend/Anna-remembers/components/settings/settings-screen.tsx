@@ -32,6 +32,7 @@ export function SettingsScreen() {
   const [summarySaving, setSummarySaving] = useState(false)
   const [escalationModel, setEscalationModel] = useState<string>("DeepSeek-V4-Flash")
   const [escalationSaving, setEscalationSaving] = useState(false)
+  const [presetSaving, setPresetSaving] = useState(false)
 
   const { state: recorderState, seconds, error: recorderError, startRecording, stopRecording } =
     useAudioRecorder(async () => {
@@ -133,6 +134,47 @@ export function SettingsScreen() {
     }
   }
 
+  const PRESETS = {
+    local: {
+      llm_provider: "ollama",
+      llm_model: "qwen2.5:3b",
+      summary_llm_model: "qwen2.5:3b",
+      escalation_llm_model: "qwen2.5:0.5b",
+      embedding_provider: "ollama",
+    },
+    cloud: {
+      llm_provider: "portkey",
+      llm_model: "gpt-5.4",
+      summary_llm_model: "DeepSeek-V4-Flash",
+      escalation_llm_model: "DeepSeek-V4-Flash",
+      embedding_provider: "portkey",
+    },
+  } as const
+
+  async function applyPreset(preset: keyof typeof PRESETS) {
+    setPresetSaving(true)
+    const p = PRESETS[preset]
+    try {
+      await Promise.all([
+        updateSetting("llm_provider", p.llm_provider),
+        updateSetting("llm_model", p.llm_model),
+        updateSetting("summary_llm_model", p.summary_llm_model),
+        updateSetting("escalation_llm_model", p.escalation_llm_model),
+        updateSetting("embedding_provider", p.embedding_provider),
+      ])
+      setLlmProvider(p.llm_provider)
+      setLlmModel(p.llm_model)
+      setSummaryModel(p.summary_llm_model)
+      setEscalationModel(p.escalation_llm_model)
+      setEmbeddingProvider(p.embedding_provider)
+    } catch (err) {
+      console.error("Preset opslaan mislukt:", err)
+      setError("Preset kon niet worden toegepast")
+    } finally {
+      setPresetSaving(false)
+    }
+  }
+
   const DEFAULT_MODELS: Record<string, string> = {
     portkey: "gpt-5.4",
     groq: "llama-3.3-70b-versatile",
@@ -195,6 +237,34 @@ export function SettingsScreen() {
       )}
 
       <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Snelkeuze — Stack</CardTitle>
+            <CardDescription>
+              Stel in één klik alle modellen en providers in voor lokaal of cloud gebruik.
+              Embeddings worden niet gemigreerd — doe dat apart via de Geheugen-kaart.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={presetSaving || settings === null}
+              onClick={() => applyPreset("local")}
+            >
+              Lokaal (Ollama)
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={presetSaving || settings === null}
+              onClick={() => applyPreset("cloud")}
+            >
+              {presetSaving ? "Opslaan..." : "Cloud (Portkey)"}
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Notificaties</CardTitle>

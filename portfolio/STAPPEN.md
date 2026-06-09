@@ -2098,3 +2098,26 @@ Alle LLM-aanroepen (chat, samenvatting, escalatie) gebruiken nu een apart, DB-in
 
 **Beslissing:** Samenvatting en escalatie altijd via Portkey als er een DB-model is; chat LLM via de bestaande `llm_provider` setting (kan ook non-Portkey zijn).
 
+---
+
+## Stap 87 — 2026-06-09 — Stack-presets in settings UI (Lokaal / Cloud)
+
+**Wat:**
+Nieuwe "Snelkeuze — Stack" card toegevoegd bovenaan de settings pagina met twee knoppen: **Lokaal (Ollama)** en **Cloud (Portkey)**. Één klik past alle vijf model- en provider-instellingen tegelijk aan.
+
+Presets:
+
+| Instelling | Lokaal | Cloud |
+|---|---|---|
+| `llm_provider` | ollama | portkey |
+| `llm_model` | qwen2.5:3b | gpt-5.4 |
+| `summary_llm_model` | qwen2.5:3b | DeepSeek-V4-Flash |
+| `escalation_llm_model` | qwen2.5:0.5b | DeepSeek-V4-Flash |
+| `embedding_provider` | ollama | portkey |
+
+`applyPreset()` stuurt alle vijf `updateSetting`-aanroepen parallel via `Promise.all`. State wordt daarna lokaal bijgewerkt zodat de velden in de LLM- en Modelconfiguratie-cards direct de nieuwe waarden tonen.
+
+Opmerking: embeddings worden niet automatisch gemigreerd bij een preset-wissel — dat doet de gebruiker apart via de Geheugen-card.
+
+**Waarom:** Snel wisselen tussen lokale demo-omgeving (Ollama, geen kosten) en cloud (Portkey/DeepSeek) zonder elke instelling apart aan te passen.
+
