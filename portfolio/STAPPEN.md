@@ -1923,3 +1923,159 @@ Zorgverlener moet Twilio SMS kunnen in- en uitschakelen zonder Docker te herstar
 - DeepSeek v4 is goedkoper en sneller dan Ollama-lokaal voor escalatie-classificatie
 - OpenAI embeddings geven hogere semantische kwaliteit voor RAG dan bge-m3
 
+---
+
+## Stap 81 — 2026-06-09 — Frontend LLM provider & model instelling
+
+**Wat is er gedaan:**
+- Alembic migratie `0007_add_llm_settings.py` toegevoegd: seeded `llm_provider=portkey` en `llm_model=gpt-5.4` in de settings tabel
+- `backend/services/llm.py`: `get_llm_provider()` uitgebreid met optionele `provider` en `model` parameters — DB-waarden overschrijven env vars
+- `backend/routers/chat/_routes.py`: leest `llm_provider` en `llm_model` settings uit DB bij elke chat request en geeft ze door aan de factory
+- `frontend/types/index.ts`: `llm_provider` en `llm_model` toegevoegd aan de `Settings` interface
+- `frontend/components/settings/settings-screen.tsx`: nieuwe "Taalmodel (LLM)" card met provider Select en model Input veld; opslaan via bestaande `updateSetting()` API
+
+**Beslissing:**
+- DB-driven instelling volgt hetzelfde patroon als `tts_provider` — geen herstart nodig bij wisselen van provider
+- Model wordt automatisch op een zinvolle default gezet wanneer de provider wijzigt
+- Providers: Portkey, Groq, Ollama, OpenRouter, Anthropic — alle al geïmplementeerd in `llm.py`
+
+---
+
+## Stap 82 — 2026-06-09 — Portkey embeddings werkend zonder dashboard-toegang
+
+**Probleem:**
+- Embeddings via Portkey faalden met een verhulde `JSONDecodeError: Expecting value`
+- Diagnose via directe HTTP-probes: de default Portkey-config (gekoppeld aan de API-key) forceert `override_params: model=gpt-5.4` op élke request → embeddings onmogelijk (gpt-5.4 kan niet embedden)
+- Geen dashboard-toegang om een aparte embedding-config aan te maken
+
+**Oplossing (puur code):**
+- Portkey model-catalog slug `@azure-openai/text-embedding-3-large` adresseert de Azure-integratie direct en omzeilt de default-config-routing
+- Geverifieerd via `/v1/models` (321 modellen, text-embedding-3-large is GA + embeddings-capable) en directe embed-call (3072-dim vector)
+- `OPENAI_EMBEDDING_MODEL=@azure-openai/text-embedding-3-large` + `EMBEDDING_PROVIDER=portkey` in `.env`
+- `PORTKEY_EMBEDDING_CONFIG` env var toegevoegd als optionele aparte config-slug (`mcp-server/services/embedding.py`, `docker-compose.yml`)
+
+**Overige fixes in deze sessie:**
+- `PortkeyProvider` (LLM): `max_tokens` → `max_completion_tokens` (gpt-5.4 weigert de oude parameter)
+- MCP server lifespan: warmup als background task i.p.v. blokkerend (server accepteert direct verbindingen)
+- `docker-compose.yml`: healthcheck op mcp-server + `backend depends_on mcp-server condition: service_healthy` tegen race-condition bij opstart
+- De "CORS-fout" in de browser was een symptoom van de 500-crash, geen echt CORS-probleem
+
+---
+
+## Stap 83 — 2026-06-09 — Escalatie Laag 1 via Portkey (gpt-5.4-nano)
+
+**Probleem:**
+- Laag 1 escaleerde niet meer; `.env` had `ESCALATION_PROVIDER=ollama` met `ESCALATION_MODEL=DeepSeek-V4-Flash`
+- DeepSeek-V4-Flash is een cloud-model, niet lokaal in Ollama → `_classify_ollama` kreeg een `404 Not Found` op `http://ollama:11434/api/chat`
+
+**Diagnose:**
+- Probe op de Portkey chat-completions endpoint: DeepSeek-slugs (`@azure-ai/...`, `DeepSeek-V4-Flash`) geven allemaal een fout ("deployment deepseek-v4-flash does not exist")
+- De `/v1/models`-lijst toont de hele Azure-catalog, maar alleen daadwerkelijk gedeployede modellen werken → DeepSeek is bij deze integratie niet gedeployed
+- Wel gedeployed en getest: `@azure-openai/gpt-5.4-nano`, `gpt-5.4-mini`, `gpt-4o-mini` (allemaal status 200)
+
+**Oplossing:**
+- Nieuw `portkey`-pad in `backend/routers/chat/_escalation.py`: `_classify_portkey()` via de `AsyncPortkey` SDK (zelfde patroon als de LLM-`PortkeyProvider`), met `response_format=json_object` en `max_completion_tokens`
+- Dispatch in `layer1_classify` uitgebreid: `portkey` | `openai_compat` | `ollama`
+- `.env`: `ESCALATION_PROVIDER=portkey`, `ESCALATION_MODEL=@azure-openai/gpt-5.4-nano`; dubbele `ESCALATION_MODEL`-regel opgeruimd
+- `ESCALATION_PORTKEY_CONFIG` env var toegevoegd (`.env`, `.env.example`, `docker-compose.yml`)
+
+**Beslissing:**
+- DeepSeek kan niet via deze Portkey-key (geen deployment). `gpt-5.4-nano` is snel + goedkoop en prima voor een guardrail-classifier; hergebruikt de bestaande `PORTKEY_API_KEY`, geen aparte provider-key nodig
+- Voor een directe DeepSeek API blijft `openai_compat` met eigen `ESCALATION_API_KEY` beschikbaar
+
+**Geverifieerd:**
+- "ja ik krijg geen lucht meer en ben duizelig en zie zwart voor men ogen" → `{"escalate":true,"urgency":"high"}`
+- "hoi Anna, hoe gaat het met je" → `{"escalate":false,"urgency":"low"}`
+
+---
+
+## Stap 84 — 2026-06-09 — Portkey model-verificatie: allowlist vs deployment
+
+**Context:**
+- Vraag: hoe controleer je of een model via Portkey werkt?
+- API-key metadata toont toegestane slugs: `gpt-5.4`, `text-embedding-3-large`, `DeepSeek-V4-Flash` (verloopt 6/7/2026)
+
+**Wat is er gedaan:**
+- HTTP-probes uitgevoerd tegen `https://api.portkey.ai/v1/chat/completions` en `/v1/embeddings` met de live `PORTKEY_API_KEY`
+- `/v1/models` is **niet** betrouwbaar als enige check — toont de hele Azure-catalog, niet per se gedeployede deployments
+
+**Resultaten probe (allowlist-slugs):**
+
+| Slug | Endpoint | Resultaat |
+|---|---|---|
+| `gpt-5.4` | chat | ✅ 200 |
+| `@azure-openai/gpt-5.4` | chat | ✅ 200 |
+| `@azure-openai/gpt-5.4-nano` | chat | ✅ 200 |
+| `DeepSeek-V4-Flash` | chat | ❌ 404 deployment bestaat niet |
+| `@azure-openai/DeepSeek-V4-Flash` | chat | ❌ 404 resource not found |
+| `text-embedding-3-large` | embeddings | ❌ lege response (config override) |
+| `@azure-openai/text-embedding-3-large` | embeddings | ✅ 200, 3072 dim |
+
+**Beslissing:**
+- **Allowlist ≠ deployment**: de key mag DeepSeek gebruiken, maar Azure heeft geen actieve deployment → admin moet deployen voordat het werkt
+- Betrouwbare check: minimale echte API-call met de exacte slug die je in `.env` zet, niet alleen `/v1/models` lezen
+- Voor embeddings altijd catalog-slug `@azure-openai/<model>` gebruiken (omzeilt default LLM-config die `gpt-5.4` forceert)
+- Huidige werkende configuratie bevestigd: LLM `gpt-5.4`, embeddings `@azure-openai/text-embedding-3-large`, escalatie `@azure-openai/gpt-5.4-nano`
+
+**Evidence-waardig?** Nee — dit is diagnostiek/kennis, geen aparte evidence nodig. Past bij Stap 83 en de Portkey-plan-implementatie.
+
+---
+
+## Stap 85 — 2026-06-09 — Sessiesamenvatting: na uitvoering Portkey-plan (troubleshooting + hardening)
+
+**Context:**
+Het plan `docs/superpowers/plans/2026-06-09-portkey-embedding-switch.md` was uitgevoerd (Stap 79–80). Daarna volgde een langere debug-/integratiesessie om alles end-to-end werkend te krijgen in Docker met de echte Portkey API-key (zonder dashboard-toegang).
+
+**Wat er na het plan is veranderd:**
+
+### Frontend
+- `types/index.ts`: `embedding_provider`, `llm_provider`, `llm_model` toegevoegd aan `Settings` (fix TypeScript build)
+- `lib/api.ts`: `migrateEmbeddings()` helper — fix 404 op `undefined/settings/migrate-embeddings`
+- `settings-screen.tsx`: LLM provider + model card (Portkey/Groq/Ollama/OpenRouter/Anthropic); embedding provider toggle + migratieknop
+
+### Backend
+- `llm.py`: `get_llm_provider(provider, model)` met DB-override; `max_tokens` → `max_completion_tokens` voor Portkey/gpt-5.4
+- `chat/_routes.py`: leest `llm_provider` + `llm_model` uit DB per chat request
+- `chat/_escalation.py`: `_classify_portkey()` toegevoegd; dispatch `portkey | openai_compat | ollama`
+- `routers/settings.py`: `"portkey"` als geldige `target_provider` bij embedding-migratie
+- Alembic `0007_add_llm_settings.py`: seed `llm_provider=portkey`, `llm_model=gpt-5.4`
+
+### MCP-server
+- `services/embedding.py`: `PortkeyEmbeddingProvider` + `PORTKEY_EMBEDDING_CONFIG` (embeddings via Portkey i.p.v. directe OpenAI key)
+- `main.py`: embedding warmup als background task (blokkeerde startup ~64s → race condition met backend)
+
+### Infra / config
+- `docker-compose.yml`: `PORTKEY_EMBEDDING_CONFIG`, `ESCALATION_PORTKEY_CONFIG`; mcp-server healthcheck; backend wacht op `mcp-server: service_healthy`
+- `.env` / `.env.example`: Portkey-slugs gedocumenteerd; embeddings `@azure-openai/text-embedding-3-large`; escalatie `@azure-openai/gpt-5.4-nano`
+
+**Problemen opgelost (chronologisch):**
+
+| # | Symptoom | Oorzaak | Fix |
+|---|---|---|---|
+| 1 | Frontend build faalt | Ontbrekende TS types | Types uitgebreid |
+| 2 | migrate-embeddings 404 | Verkeerde API base URL | `lib/api.ts` helper |
+| 3 | switch provider ToolError OPENAI_API_KEY | Embeddings gingen direct naar OpenAI | `PortkeyEmbeddingProvider` |
+| 4 | migrate-embeddings 400 | `portkey` niet gevalideerd | Backend validatie uitgebreid |
+| 5 | Chat 500 + "CORS" in browser | Portkey embeddings lege response (config forceert gpt-5.4) | Catalog-slug `@azure-openai/...` |
+| 6 | MCP connection failed na rebuild | Warmup blokkeerde poort 8001 | Background warmup + healthcheck |
+| 7 | Chat 500 (LLM) | gpt-5.4 weigert `max_tokens` | `max_completion_tokens` |
+| 8 | Escalatie triggert niet | Ollama + DeepSeek-V4-Flash (404 lokaal) | Portkey + gpt-5.4-nano |
+| 9 | DeepSeek op allowlist maar werkt niet | Allowlist ≠ Azure deployment | Diagnose + fallback naar nano |
+
+**Beslissingen t.o.v. origineel plan:**
+- Embeddings gaan wél via Portkey (plan zei direct OpenAI) — nodig omdat er geen `OPENAI_API_KEY` is, alleen Portkey
+- DeepSeek guardrail via `openai_compat` is geïmplementeerd maar **niet bruikbaar** zonder deployment of aparte DeepSeek key → fallback `gpt-5.4-nano` via Portkey
+- Catalog-slug `@azure-openai/<model>` is het patroon om default Portkey-config overrides te omzeilen (embeddings én toekomstige modellen)
+
+**Eindstatus (werkend):**
+- Chat LLM: Portkey → `gpt-5.4` (instelbaar via settings UI)
+- Embeddings: Portkey → `@azure-openai/text-embedding-3-large`
+- Escalatie Laag 1: Portkey → `@azure-openai/gpt-5.4-nano`
+- Laag 0 (keywords): ongewijzigd, synchroon vóór LLM
+
+**Nog open:**
+- DeepSeek-V4-Flash: op allowlist maar niet gedeployed — admin-actie nodig in Azure/Portkey
+- Optioneel: `scripts/probe-portkey-model.py` helper voor model-checks
+
+**Evidence-waardig?** Overweeg 1 evidence met probe-resultatentabel (allowlist vs deployment) als bewijs voor Portkey-integratiekeuze — max 1 vandaag als je dat wilt.
+

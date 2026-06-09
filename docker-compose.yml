@@ -93,6 +93,7 @@ services:
       ESCALATION_PROVIDER: ${ESCALATION_PROVIDER:-ollama}
       ESCALATION_API_KEY: ${ESCALATION_API_KEY:-}
       ESCALATION_BASE_URL: ${ESCALATION_BASE_URL:-https://api.deepseek.com/v1}
+      ESCALATION_PORTKEY_CONFIG: ${ESCALATION_PORTKEY_CONFIG:-}
       PORTKEY_API_KEY: ${PORTKEY_API_KEY:-}
       PORTKEY_MODEL: ${PORTKEY_MODEL:-gpt-4.1}
       PORTKEY_CONFIG: ${PORTKEY_CONFIG:-}
@@ -109,6 +110,8 @@ services:
         condition: service_healthy
       ollama:
         condition: service_started
+      mcp-server:
+        condition: service_healthy
 
   # --- MCP Server (fastmcp) ---
 
@@ -132,6 +135,7 @@ services:
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
       PORTKEY_API_KEY: ${PORTKEY_API_KEY:-}
       PORTKEY_CONFIG: ${PORTKEY_CONFIG:-}
+      PORTKEY_EMBEDDING_CONFIG: ${PORTKEY_EMBEDDING_CONFIG:-}
       BACKEND_URL: http://backend:8000
     depends_on:
       postgres:
@@ -140,6 +144,12 @@ services:
         condition: service_started
       ollama:
         condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost', 8001)); s.close()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
 
   # --- Ollama model init (eenmalig bij opstart) ---
 

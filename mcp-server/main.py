@@ -27,11 +27,17 @@ _holder = _EmbedHolder()
 
 @asynccontextmanager
 async def lifespan(app: FastMCP):
-    try:
-        await _holder.instance.embed("warmup")
-        _log.info("Embedding provider '%s' warm en geladen", _holder.provider_name)
-    except Exception as e:
-        _log.warning("Warmup mislukt: %s", e)
+    import asyncio
+
+    async def _warmup() -> None:
+        try:
+            await _holder.instance.embed("warmup")
+            _log.info("Embedding provider '%s' warm en geladen", _holder.provider_name)
+        except Exception as e:
+            _log.warning("Warmup mislukt: %s", e)
+
+    # Start warmup in background so the server accepts connections immediately.
+    asyncio.create_task(_warmup())
     yield
 
 

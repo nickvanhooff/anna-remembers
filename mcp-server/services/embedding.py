@@ -117,10 +117,15 @@ def get_embedding_provider() -> EmbeddingProvider:
         api_key = os.getenv("PORTKEY_API_KEY", "")
         if not api_key:
             raise ValueError("PORTKEY_API_KEY is niet ingesteld voor Portkey embeddings.")
+        # Embeddings hebben een eigen Portkey-config nodig: de standaard LLM-config
+        # forceert vaak een chat-model (bijv. gpt-5.4) dat niet kan embedden.
+        # Maak in het Portkey-dashboard een aparte config die naar een
+        # embedding-deployment routeert en zet de slug in PORTKEY_EMBEDDING_CONFIG.
+        embed_config = os.getenv("PORTKEY_EMBEDDING_CONFIG") or os.getenv("PORTKEY_CONFIG") or None
         return PortkeyEmbeddingProvider(
             api_key=api_key,
             model=os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large"),
-            config=os.getenv("PORTKEY_CONFIG", None),
+            config=embed_config,
         )
 
     return OllamaEmbeddingProvider(

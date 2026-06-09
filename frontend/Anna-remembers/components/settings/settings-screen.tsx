@@ -24,6 +24,10 @@ export function SettingsScreen() {
   const [migrating, setMigrating] = useState(false)
   const [migrationResult, setMigrationResult] = useState<{ migrated: number; errors: number } | null>(null)
 
+  const [llmProvider, setLlmProvider] = useState<string>("portkey")
+  const [llmModel, setLlmModel] = useState<string>("gpt-5.4")
+  const [llmSaving, setLlmSaving] = useState(false)
+
   const { state: recorderState, seconds, error: recorderError, startRecording, stopRecording } =
     useAudioRecorder(async () => {
       setSamples(await listVoiceSamples())
@@ -35,6 +39,8 @@ export function SettingsScreen() {
         setSettings(s)
         setTwilioTo(s.twilio_to ?? "")
         setEmbeddingProvider(s.embedding_provider ?? "ollama")
+        setLlmProvider(s.llm_provider ?? "portkey")
+        setLlmModel(s.llm_model ?? "gpt-5.4")
       })
       .catch(() => setError("Instellingen konden niet worden geladen"))
     listVoiceSamples()
@@ -118,6 +124,31 @@ export function SettingsScreen() {
     } finally {
       setMigrating(false)
     }
+  }
+
+  const DEFAULT_MODELS: Record<string, string> = {
+    portkey: "gpt-5.4",
+    groq: "llama-3.3-70b-versatile",
+    ollama: "qwen2.5:3b",
+    openrouter: "anthropic/claude-haiku-4-5",
+    anthropic: "claude-haiku-4-5-20251001",
+  }
+
+  async function handleLlmSave() {
+    setLlmSaving(true)
+    try {
+      await updateSetting("llm_provider", llmProvider)
+      await updateSetting("llm_model", llmModel)
+    } catch (err) {
+      console.error("LLM instelling opslaan mislukt:", err)
+    } finally {
+      setLlmSaving(false)
+    }
+  }
+
+  function handleLlmProviderChange(newProvider: string) {
+    setLlmProvider(newProvider)
+    setLlmModel(DEFAULT_MODELS[newProvider] ?? "")
   }
 
   const busy = uploading || recorderState !== "idle"
@@ -248,6 +279,65 @@ export function SettingsScreen() {
             {migrationResult && migrationResult.errors === -1 && !migrating && (
               <p className="text-xs text-destructive mt-2">Migratie mislukt. Controleer de logs.</p>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Taalmodel (LLM)</CardTitle>
+            <CardDescription>Kies welke AI provider en model Anna gebruikt voor gesprekken.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-medium">Provider</p>
+                <p className="text-xs text-muted-foreground">
+                  Portkey: gateway naar OpenAI &nbsp;·&nbsp; Groq: snel &nbsp;·&nbsp; Ollama: lokaal
+                </p>
+              </div>
+              <Select
+                value={llmProvider}
+                onValueChange={handleLlmProviderChange}
+                disabled={settings === null}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="portkey">Portkey</SelectItem>
+                  <SelectItem value="groq">Groq</SelectItem>
+                  <SelectItem value="ollama">Ollama (lokaal)</SelectItem>
+                  <SelectItem value="openrouter">OpenRouter</SelectItem>
+                  <SelectItem value="anthropic">Anthropic</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-medium">Model</p>
+                <p className="text-xs text-muted-foreground">
+                  Bijv. gpt-5.4, llama-3.3-70b-versatile, qwen2.5:3b
+                </p>
+              </div>
+              <Input
+                className="w-44"
+                value={llmModel}
+                onChange={(e) => setLlmModel(e.target.value)}
+                disabled={settings === null}
+                placeholder="model naam"
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={handleLlmSave}
+                disabled={llmSaving || settings === null}
+              >
+                {llmSaving ? "Opslaan..." : "Opslaan"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

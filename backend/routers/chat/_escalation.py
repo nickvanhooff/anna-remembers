@@ -63,9 +63,11 @@ def _get_semaphore(patient_id: uuid.UUID) -> asyncio.Semaphore:
 _ESCALATION_COOLDOWN_MINUTES = int(os.getenv("ESCALATION_COOLDOWN_MINUTES", "0"))
 _OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
 _ESCALATION_MODEL = os.getenv("ESCALATION_MODEL", "qwen2.5:0.5b")
-_ESCALATION_PROVIDER = os.getenv("ESCALATION_PROVIDER", "ollama")  # ollama | openai_compat
+_ESCALATION_PROVIDER = os.getenv("ESCALATION_PROVIDER", "ollama")  # ollama | openai_compat | portkey
 _ESCALATION_BASE_URL = os.getenv("ESCALATION_BASE_URL", "https://api.deepseek.com/v1")
 _ESCALATION_API_KEY = os.getenv("ESCALATION_API_KEY", "")
+_PORTKEY_API_KEY = os.getenv("PORTKEY_API_KEY", "")
+_ESCALATION_PORTKEY_CONFIG = os.getenv("ESCALATION_PORTKEY_CONFIG") or None
 
 _CLASSIFY_SYSTEM = (
     "You are a medical triage assistant for heart failure patients. "
@@ -186,6 +188,28 @@ async def _classify_openai_compat(patient_message: str) -> str:
     return response.choices[0].message.content or "{}"
 
 
+async def _classify_portkey(patient_message: str) -> str:
+    """Classify via the Portkey gateway (routes to a deployed catalog model).
+
+    Gebruikt dezelfde Portkey API-key als de hoofd-LLM. Het model is een
+    catalog-slug, bv. '@azure-openai/gpt-5.4-nano'. Zo werkt Laag 1 in de cloud
+    zonder een aparte provider-key.
+    """
+    from portkey_ai import AsyncPortkey
+
+    client = AsyncPortkey(api_key=_PORTKEY_API_KEY, config=_ESCALATION_PORTKEY_CONFIG)
+    response = await client.chat.completions.create(
+        model=_ESCALATION_MODEL,
+        messages=[
+            {"role": "system", "content": _CLASSIFY_SYSTEM},
+            {"role": "user", "content": f"Patient message: {patient_message}"},
+        ],
+        max_completion_tokens=128,
+        response_format={"type": "json_object"},
+    )
+    return response.choices[0].message.content or "{}"
+
+
 async def layer1_classify(
     patient_id: uuid.UUID,
     patient_message: str,
@@ -231,7 +255,9 @@ async def layer1_classify(
                     model=_ESCALATION_MODEL,
                     input=user_prompt,
                 ) as gen_span:
-                    if _ESCALATION_PROVIDER == "openai_compat":
+                    if _ESCALATION_PROVIDER == "portkey":
+                        raw = await _classify_portkey(patient_message)
+                    elif _ESCALATION_PROVIDER == "openai_compat":
                         raw = await _classify_openai_compat(patient_message)
                     else:
                         raw = await _classify_ollama(patient_message)
