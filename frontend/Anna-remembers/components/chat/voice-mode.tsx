@@ -127,19 +127,19 @@ export function VoiceMode({
       ) : (
         <div
           className={`flex h-[180px] w-full flex-col items-center justify-center gap-3 rounded-lg transition-colors ${
-            isSpeaking ? "bg-blue-50" : "bg-gray-50"
+            isSpeaking ? "bg-primary/10" : "bg-muted"
           }`}
         >
           <div
             className={`flex h-16 w-16 items-center justify-center rounded-full text-3xl ${
               isSpeaking
-                ? "animate-pulse bg-blue-500 text-white"
-                : "bg-gray-300 text-gray-600"
+                ? "animate-pulse bg-primary text-primary-foreground"
+                : "bg-muted-foreground/20 text-muted-foreground"
             }`}
           >
             🩺
           </div>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             {isSpeaking ? "Anna is aan het woord…" : "Wacht op uw antwoord"}
           </p>
         </div>
@@ -147,8 +147,8 @@ export function VoiceMode({
 
       {/* Error message */}
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-800">{error}</p>
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+          <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
@@ -157,12 +157,12 @@ export function VoiceMode({
         <button
           onClick={isListening ? stop : start}
           disabled={isSpeaking}
-          className={`rounded-lg px-6 py-3 font-medium text-white transition-all ${
+          className={`rounded-lg px-6 py-3 font-medium transition-all ${
             isSpeaking
-              ? "cursor-not-allowed bg-gray-400"
+              ? "cursor-not-allowed bg-muted text-muted-foreground"
               : isListening
-                ? "bg-red-500 hover:bg-red-600"
-                : "bg-blue-500 hover:bg-blue-600"
+                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
           }`}
         >
           {isSpeaking
@@ -174,16 +174,16 @@ export function VoiceMode({
 
         {isListening && (
           <div className="flex items-center gap-2">
-            <div className="h-3 w-3 animate-pulse rounded-full bg-red-500"></div>
-            <span className="text-sm text-gray-600">Luisteren...</span>
+            <div className="bg-destructive h-3 w-3 animate-pulse rounded-full"></div>
+            <span className="text-sm text-muted-foreground">Luisteren...</span>
           </div>
         )}
       </div>
 
       {/* Transcript display */}
       {transcript && (
-        <div className="max-h-28 overflow-y-auto rounded-lg border border-blue-200 bg-blue-50 p-3 break-words">
-          <p className="text-sm text-blue-900">U zei: {transcript}</p>
+        <div className="max-h-28 overflow-y-auto rounded-lg border bg-muted p-3 break-words">
+          <p className="text-sm text-muted-foreground">U zei: {transcript}</p>
         </div>
       )}
     </div>
