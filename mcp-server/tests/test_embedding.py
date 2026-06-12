@@ -49,3 +49,39 @@ def test_get_embedding_provider_returns_ollama(monkeypatch):
     provider = get_embedding_provider()
     assert isinstance(provider, OllamaEmbeddingProvider)
     assert provider.model == "bge-m3"
+
+
+@pytest.mark.asyncio
+async def test_openai_embedding_provider_returns_vector():
+    from unittest.mock import AsyncMock, patch, MagicMock
+
+    mock_response = MagicMock()
+    mock_response.data = [MagicMock()]
+    mock_response.data[0].embedding = [0.1, 0.2, 0.3]
+
+    with patch("openai.AsyncOpenAI") as mock_openai_class:
+        mock_client = AsyncMock()
+        mock_client.embeddings.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        from services.embedding import OpenAIEmbeddingProvider
+        provider = OpenAIEmbeddingProvider(api_key="test-key", model="text-embedding-3-small")
+        result = await provider.embed("test text")
+
+        assert result == [0.1, 0.2, 0.3]
+        mock_client.embeddings.create.assert_called_once_with(
+            input="test text", model="text-embedding-3-small"
+        )
+
+
+def test_get_embedding_provider_returns_openai_when_configured(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "openai")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+
+    import importlib
+    import services.embedding as emb_mod
+    importlib.reload(emb_mod)
+
+    from services.embedding import OpenAIEmbeddingProvider
+    provider = emb_mod.get_embedding_provider()
+    assert isinstance(provider, OpenAIEmbeddingProvider)

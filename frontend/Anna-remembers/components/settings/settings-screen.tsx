@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Mic, Settings2, Square, Trash2, Upload } from "lucide-react"
+import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getSettings, updateSetting, listVoiceSamples, uploadVoiceSample, deleteVoiceSample } from "@/lib/api"
+import { getSettings, updateSetting, listVoiceSamples, uploadVoiceSample, deleteVoiceSample, migrateEmbeddings } from "@/lib/api"
 import { useAudioRecorder } from "@/hooks/useAudioRecorder"
 import type { Settings } from "@/types"
 
@@ -20,6 +22,20 @@ export function SettingsScreen() {
   const [twilioToSaving, setTwilioToSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const [embeddingProvider, setEmbeddingProvider] = useState<string>("ollama")
+  const [migrating, setMigrating] = useState(false)
+  const [migrationResult, setMigrationResult] = useState<{ migrated: number; errors: number } | null>(null)
+
+  const [llmProvider, setLlmProvider] = useState<string>("portkey")
+  const [llmModel, setLlmModel] = useState<string>("gpt-5.4")
+  const [llmSaving, setLlmSaving] = useState(false)
+
+  const [summaryModel, setSummaryModel] = useState<string>("DeepSeek-V4-Flash")
+  const [summarySaving, setSummarySaving] = useState(false)
+  const [escalationModel, setEscalationModel] = useState<string>("DeepSeek-V4-Flash")
+  const [escalationSaving, setEscalationSaving] = useState(false)
+  const [presetSaving, setPresetSaving] = useState(false)
+
   const { state: recorderState, seconds, error: recorderError, startRecording, stopRecording } =
     useAudioRecorder(async () => {
       setSamples(await listVoiceSamples())
@@ -30,6 +46,11 @@ export function SettingsScreen() {
       .then((s) => {
         setSettings(s)
         setTwilioTo(s.twilio_to ?? "")
+        setEmbeddingProvider(s.embedding_provider ?? "ollama")
+        setLlmProvider(s.llm_provider ?? "portkey")
+        setLlmModel(s.llm_model ?? "gpt-5.4")
+        setSummaryModel(s.summary_llm_model ?? "DeepSeek-V4-Flash")
+        setEscalationModel(s.escalation_llm_model ?? "DeepSeek-V4-Flash")
       })
       .catch(() => setError("Instellingen konden niet worden geladen"))
     listVoiceSamples()
@@ -99,21 +120,163 @@ export function SettingsScreen() {
     }
   }
 
+  async function handleEmbeddingProviderChange(newProvider: string) {
+    if (newProvider === embeddingProvider) return
+    setMigrating(true)
+    setMigrationResult(null)
+    try {
+      const data = await migrateEmbeddings(newProvider)
+      setEmbeddingProvider(newProvider)
+      setMigrationResult({ migrated: data.migrated, errors: data.errors })
+    } catch (err) {
+      console.error("Migratie mislukt:", err)
+      setMigrationResult({ migrated: 0, errors: -1 })
+    } finally {
+      setMigrating(false)
+    }
+  }
+
+  const PRESETS = {
+    local: {
+      llm_provider: "ollama",
+      llm_model: "qwen2.5:3b",
+      summary_llm_model: "qwen2.5:3b",
+      escalation_llm_model: "qwen2.5:0.5b",
+      embedding_provider: "ollama",
+    },
+    cloud: {
+      llm_provider: "portkey",
+      llm_model: "gpt-5.4",
+      summary_llm_model: "DeepSeek-V4-Flash",
+      escalation_llm_model: "DeepSeek-V4-Flash",
+      embedding_provider: "portkey",
+    },
+  } as const
+
+  async function applyPreset(preset: keyof typeof PRESETS) {
+    setPresetSaving(true)
+    const p = PRESETS[preset]
+    try {
+      await Promise.all([
+        updateSetting("llm_provider", p.llm_provider),
+        updateSetting("llm_model", p.llm_model),
+        updateSetting("summary_llm_model", p.summary_llm_model),
+        updateSetting("escalation_llm_model", p.escalation_llm_model),
+        updateSetting("embedding_provider", p.embedding_provider),
+      ])
+      setLlmProvider(p.llm_provider)
+      setLlmModel(p.llm_model)
+      setSummaryModel(p.summary_llm_model)
+      setEscalationModel(p.escalation_llm_model)
+      setEmbeddingProvider(p.embedding_provider)
+    } catch (err) {
+      console.error("Preset opslaan mislukt:", err)
+      setError("Preset kon niet worden toegepast")
+    } finally {
+      setPresetSaving(false)
+    }
+  }
+
+  const DEFAULT_MODELS: Record<string, string> = {
+    portkey: "gpt-5.4",
+    groq: "llama-3.3-70b-versatile",
+    ollama: "qwen2.5:3b",
+    openrouter: "anthropic/claude-haiku-4-5",
+    anthropic: "claude-haiku-4-5-20251001",
+  }
+
+  async function handleLlmSave() {
+    setLlmSaving(true)
+    try {
+      await updateSetting("llm_provider", llmProvider)
+      await updateSetting("llm_model", llmModel)
+    } catch (err) {
+      console.error("LLM instelling opslaan mislukt:", err)
+    } finally {
+      setLlmSaving(false)
+    }
+  }
+
+  function handleLlmProviderChange(newProvider: string) {
+    setLlmProvider(newProvider)
+    setLlmModel(DEFAULT_MODELS[newProvider] ?? "")
+  }
+
+  async function handleSummarySave() {
+    setSummarySaving(true)
+    try {
+      await updateSetting("summary_llm_model", summaryModel)
+    } catch (err) {
+      console.error("Summary model opslaan mislukt:", err)
+    } finally {
+      setSummarySaving(false)
+    }
+  }
+
+  async function handleEscalationSave() {
+    setEscalationSaving(true)
+    try {
+      await updateSetting("escalation_llm_model", escalationModel)
+    } catch (err) {
+      console.error("Escalation model opslaan mislukt:", err)
+    } finally {
+      setEscalationSaving(false)
+    }
+  }
+
   const busy = uploading || recorderState !== "idle"
   const displayError = error ?? recorderError
 
   return (
-    <div className="p-6 max-w-2xl">
-      <div className="flex items-center gap-2.5 mb-6">
-        <Settings2 className="size-5 text-muted-foreground" />
-        <h1 className="text-xl font-semibold">Instellingen</h1>
-      </div>
+    <div className="flex h-full flex-col overflow-hidden">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-6">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="h-4" />
+        <span className="text-[13px] text-muted-foreground">
+          Dashboard / <b className="font-medium text-foreground">Instellingen</b>
+        </span>
+      </header>
 
-      {displayError && (
-        <p className="text-sm text-destructive mb-4">{displayError}</p>
-      )}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="max-w-2xl">
+          <div className="flex items-center gap-2.5 mb-6">
+            <Settings2 className="size-5 text-muted-foreground" />
+            <h1 className="text-xl font-semibold">Instellingen</h1>
+          </div>
 
-      <div className="flex flex-col gap-4">
+          {displayError && (
+            <p className="text-sm text-destructive mb-4">{displayError}</p>
+          )}
+
+          <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Snelkeuze — Stack</CardTitle>
+            <CardDescription>
+              Stel in één klik alle modellen en providers in voor lokaal of cloud gebruik.
+              Embeddings worden niet gemigreerd — doe dat apart via de Geheugen-kaart.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex gap-3">
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={presetSaving || settings === null}
+              onClick={() => applyPreset("local")}
+            >
+              Lokaal (Ollama)
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={presetSaving || settings === null}
+              onClick={() => applyPreset("cloud")}
+            >
+              {presetSaving ? "Opslaan..." : "Cloud (Portkey)"}
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Notificaties</CardTitle>
@@ -190,6 +353,155 @@ export function SettingsScreen() {
 
         <Card>
           <CardHeader>
+            <CardTitle className="text-base">Geheugen (Embeddings)</CardTitle>
+            <CardDescription>Wisselen migreert alle herinneringen naar de nieuwe collectie. Dit kan even duren.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between py-2">
+              <div>
+                <p className="text-sm font-medium">Embedding Provider</p>
+                <p className="text-xs text-muted-foreground">
+                  Ollama: lokaal, offline &nbsp;·&nbsp; OpenAI: cloud, hogere kwaliteit
+                </p>
+              </div>
+              <Select
+                value={embeddingProvider}
+                onValueChange={handleEmbeddingProviderChange}
+                disabled={migrating || settings === null}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ollama">Lokaal — bge-m3</SelectItem>
+                  <SelectItem value="portkey">Portkey — text-embedding-3-large</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {migrating && (
+              <p className="text-xs text-blue-600 mt-2">Migratie bezig... even geduld.</p>
+            )}
+            {migrationResult && migrationResult.errors >= 0 && !migrating && (
+              <p className="text-xs text-green-600 mt-2">
+                Migratie klaar: {migrationResult.migrated} herinneringen overgezet
+                {migrationResult.errors > 0 ? `, ${migrationResult.errors} fouten` : ""}.
+              </p>
+            )}
+            {migrationResult && migrationResult.errors === -1 && !migrating && (
+              <p className="text-xs text-destructive mt-2">Migratie mislukt. Controleer de logs.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Taalmodel (LLM)</CardTitle>
+            <CardDescription>Kies welke AI provider en model Anna gebruikt voor gesprekken.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-medium">Provider</p>
+                <p className="text-xs text-muted-foreground">
+                  Portkey: gateway naar OpenAI &nbsp;·&nbsp; Groq: snel &nbsp;·&nbsp; Ollama: lokaal
+                </p>
+              </div>
+              <Select
+                value={llmProvider}
+                onValueChange={handleLlmProviderChange}
+                disabled={settings === null}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="portkey">Portkey</SelectItem>
+                  <SelectItem value="groq">Groq</SelectItem>
+                  <SelectItem value="ollama">Ollama (lokaal)</SelectItem>
+                  <SelectItem value="openrouter">OpenRouter</SelectItem>
+                  <SelectItem value="anthropic">Anthropic</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-medium">Model</p>
+                <p className="text-xs text-muted-foreground">
+                  Bijv. gpt-5.4, llama-3.3-70b-versatile, qwen2.5:3b
+                </p>
+              </div>
+              <Input
+                className="w-44"
+                value={llmModel}
+                onChange={(e) => setLlmModel(e.target.value)}
+                disabled={settings === null}
+                placeholder="model naam"
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={handleLlmSave}
+                disabled={llmSaving || settings === null}
+              >
+                {llmSaving ? "Opslaan..." : "Opslaan"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Modelconfiguratie</CardTitle>
+            <CardDescription>
+              Overzicht van welk model elke functie gebruikt. Samenvatting en escalatie draaien via Portkey.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-medium">Samenvatting</p>
+                <p className="text-xs text-muted-foreground">Medisch dossier bijhouden na gesprekken</p>
+              </div>
+              <div className="flex gap-2 items-center">
+                <Input
+                  className="w-44"
+                  value={summaryModel}
+                  onChange={(e) => setSummaryModel(e.target.value)}
+                  disabled={settings === null}
+                  placeholder="model naam"
+                />
+                <Button size="sm" variant="outline" onClick={handleSummarySave} disabled={summarySaving || settings === null}>
+                  {summarySaving ? "..." : "Opslaan"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-medium">Escalatie classificatie</p>
+                <p className="text-xs text-muted-foreground">Laag 1 triage na elk bericht</p>
+              </div>
+              <div className="flex gap-2 items-center">
+                <Input
+                  className="w-44"
+                  value={escalationModel}
+                  onChange={(e) => setEscalationModel(e.target.value)}
+                  disabled={settings === null}
+                  placeholder="model naam"
+                />
+                <Button size="sm" variant="outline" onClick={handleEscalationSave} disabled={escalationSaving || settings === null}>
+                  {escalationSaving ? "..." : "Opslaan"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base">Stemsamples (XTTS)</CardTitle>
             <CardDescription>
               WAV-bestanden in deze lijst worden gebruikt als stemreferentie door XTTS v2.
@@ -255,6 +567,8 @@ export function SettingsScreen() {
             </div>
           </CardContent>
         </Card>
+          </div>
+        </div>
       </div>
     </div>
   )

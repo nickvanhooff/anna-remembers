@@ -32,8 +32,10 @@ export function VoiceMode({
       },
     })
 
-  // Track the last message we played so we don't replay on re-renders
-  const lastPlayedRef = useRef<string | null>(null)
+  // Track the last message we played so we don't replay on re-renders.
+  // Initialised to the current messageText so opening voice mode mid-conversation
+  // does not immediately replay Anna's last message before the patient has spoken.
+  const lastPlayedRef = useRef<string | null>(messageText ?? null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   // Auto-play assistant speech when messageText changes

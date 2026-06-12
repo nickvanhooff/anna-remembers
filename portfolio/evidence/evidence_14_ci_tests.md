@@ -1,9 +1,16 @@
-# Evidence 14 — Geautomatiseerde tests in CI pipeline
+	# Evidence 14 — Geautomatiseerde tests in CI pipeline
 
 **Type:** CI-configuratie / testresultaat
 **Datum:** 2026-06-04
 **Hoort bij:** Managing & Controlling — geautomatiseerde kwaliteitsbewaking
-**Commits:** e903544, e9abd2d, f17bef4, d7b125f
+**Commits:**
+
+| Hash | Wat er gedaan is |
+|---|---|
+| [e903544](https://github.com/nickvanhooff/anna-remembers/commit/e903544) | pytest toegevoegd aan CI — tests draaien in Docker voor de build |
+| [e9abd2d](https://github.com/nickvanhooff/anna-remembers/commit/e9abd2d) | DATABASE_URL en Langfuse keys overschreven zodat de container geen externe services nodig heeft |
+| [f17bef4](https://github.com/nickvanhooff/anna-remembers/commit/f17bef4) | Testfixture gefixt — escalatietabel aangemaakt en achtergrondtaak gebruikt nu de testdatabase |
+| [d7b125f](https://github.com/nickvanhooff/anna-remembers/commit/d7b125f) | CI-waarschuwingen opgeruimd, `datetime.utcnow()` vervangen door timezone-aware variant |
 
 ---
 

@@ -1785,6 +1785,82 @@ Zorgverlener moet Twilio SMS kunnen in- en uitschakelen zonder Docker te herstar
 - `max-w-xs` class op input — beperkt breedte voor telefoonnummer (normaal 15-20 karakters)
 - Helper-text in muted-foreground — licht hint over format, niet storend
 
+## Stap 79 — PortkeyProvider toegevoegd aan backend LLM service
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- `PortkeyProvider` klasse toegevoegd aan `backend/services/llm.py` (na `OllamaProvider`, vóór `get_llm_provider()`)
+- Gebruikt `portkey_ai.AsyncPortkey` SDK; stuurt calls door via Portkey AI gateway naar onderliggende provider (bijv. OpenAI)
+- `get_llm_provider()` uitgebreid: case `portkey` leest `PORTKEY_API_KEY`, `PORTKEY_MODEL` (default `gpt-4.1`) en `PORTKEY_CONFIG` uit omgeving
+- Docstring van `get_llm_provider()` bijgewerkt met de nieuwe provider-optie
+- `ValueError` tekst uitgebreid met `portkey` als geldige keuze
+- Testbestand aangemaakt: `backend/tests/test_llm.py` met async unit-test voor `PortkeyProvider`
+
+**Waarom:**
+- Portkey maakt het mogelijk om embedding-calls en LLM-calls te routeren via één gateway, met observability en caching zonder code-aanpassingen per provider
+- Sluit aan op het plan `docs/superpowers/plans/2026-06-09-portkey-embedding-switch.md`
+
+**Beslissing:**
+- Lazy import van `portkey_ai` binnenin `chat()` — hoeft niet globaal geïnstalleerd te zijn als de provider niet actief is (zelfde patroon als `anthropic` en `openai`)
+
+## Stap 79 — DeepSeek/OpenAI-compatible branch toegevoegd aan escalation guardrail
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- Drie nieuwe module-level constanten toegevoegd aan `backend/routers/chat/_escalation.py`: `_ESCALATION_PROVIDER`, `_ESCALATION_BASE_URL`, `_ESCALATION_API_KEY`
+- Twee helper-functies gesplitst uit de inline Ollama-logica: `_classify_ollama()` en `_classify_openai_compat()`
+- `layer1_classify` ontdaan van de `async with httpx.AsyncClient` wrapper; roept nu de juiste helper aan op basis van `_ESCALATION_PROVIDER`
+- Nieuwe pytest toegevoegd aan `backend/tests/test_escalation_layers.py` die verifieert dat `_classify_openai_compat` de OpenAI SDK gebruikt met het juiste `base_url`
+
+**Waarom:**
+- Schakelbaar houden van de escalation-provider (Ollama lokaal vs. DeepSeek cloud) via `.env`, zonder code te wijzigen — zelfde patroon als `LLM_PROVIDER` in `llm.py`
+- `openai_compat` branch gebruikt de officiële `openai` Python-SDK met `base_url` override, wat werkt met DeepSeek, Groq, OpenRouter, etc.
+
+**Beslissing:**
+- Lazy import van `openai.AsyncOpenAI` binnenin `_classify_openai_compat()` — hoeft niet beschikbaar te zijn als provider Ollama is
+
+## Stap 79 — OpenAIEmbeddingProvider toegevoegd aan mcp-server
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- `mcp-server/services/embedding.py`: nieuw `OpenAIEmbeddingProvider` class toegevoegd (lazy import van `openai.AsyncOpenAI`)
+- `get_embedding_provider()` factory uitgebreid: env-var `EMBEDDING_PROVIDER=openai` stuurt naar OpenAI `text-embedding-3-small`; ontbrekende `OPENAI_API_KEY` gooit een duidelijke `ValueError`
+- `mcp-server/tests/test_embedding.py`: twee nieuwe tests toegevoegd — mock-test voor `OpenAIEmbeddingProvider.embed()` en factory-test voor `EMBEDDING_PROVIDER=openai`
+
+**Beslissing:**
+- Lazy import van `openai` binnenin `embed()` — hoeft niet geïnstalleerd te zijn als de provider Ollama is
+- `EMBEDDING_PROVIDER` env-var als schakelaar (ipv aanpassen van code), consistent met het LLM-provider patroon in `backend/services/llm.py`
+
+---
+
+## Stap 79 — MCPClient uitgebreid + migratie-endpoint toegevoegd aan settings router
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- `backend/services/mcp_client.py`: twee nieuwe methoden toegevoegd aan `MCPClient`:
+  - `migrate_all_memories(source_provider, target_provider)` — roept MCP-tool aan om ChromaDB-herinneringen van de ene embedding-collectie naar de andere te kopiëren
+  - `switch_embedding_provider(provider)` — hot-swap van de actieve embedding-provider in de MCP-server zonder herstart
+- `backend/routers/settings.py`: nieuw POST-endpoint `POST /settings/migrate-embeddings` toegevoegd dat:
+  1. De huidige embedding-provider leest uit de DB (fallback op `EMBEDDING_PROVIDER` env-var)
+  2. Migratie triggert via `migrate_all_memories`
+  3. Actieve provider wisselt via `switch_embedding_provider`
+  4. Nieuwe provider opslaat in de `settings`-tabel
+
+**Waarom:**
+- Onderdeel van de Portkey/embedding-switch feature (zie `docs/superpowers/plans/2026-06-09-portkey-embedding-switch.md`)
+- Maakt het mogelijk om zonder downtime van Ollama-embeddings naar OpenAI-embeddings te migreren
+- Het endpoint volgt hetzelfde patroon als bestaande settings-routes (DB-driven, geen hardcoded provider)
+
+**Beslissingen:**
+- `import os` en `from pydantic import BaseModel` naar de imports-sectie bovenaan het bestand — niet inline — conform codeerstijl
+- Validatie op `target_provider` in het endpoint zelf (HTTP 400) i.p.v. in de MCP-server, zodat de fout vroeg en duidelijk terugkomt
+
+---
+
 ## Stap 78 — Portfolio verbetering: evidence beter gekoppeld in DL2, DL3, DL4
 
 **Datum:** 2026-06-01
@@ -1798,4 +1874,323 @@ Zorgverlener moet Twilio SMS kunnen in- en uitschakelen zonder Docker te herstar
 - Beoordelaar moet direct kunnen doorklikken van criterium naar bewijs
 - DL3 miste redenering achter de norm — nu uitgelegd waarom elk criterium telt voor dit project
 - DL4 was te lang voor een decision log; details horen in de evidence, niet in de log zelf
+
+---
+
+## Stap 79 — MCP-server: embedding-migratie + hot-swap provider tools
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- Nieuw bestand `mcp-server/tools/migration.py` met `migrate_embeddings()` en `get_embedding_provider_by_name()`
+- `mcp-server/main.py` volledig herschreven: `_EmbedHolder` klasse voor mutable provider state, twee nieuwe MCP-tools `switch_embedding_provider` en `migrate_all_memories`
+- Nieuw testbestand `mcp-server/tests/test_migration.py` met asyncio-test voor de migratielogica
+
+**Beslissingen:**
+- `_EmbedHolder` wrapper ipv module-level variabele zodat de actieve provider in-memory gewisseld kan worden zonder herstart
+- `get_embedding_provider_by_name()` gebruikt tijdelijke env-var override — consistent met bestaand patroon maar geïsoleerd zodat de global state niet permanent verschuift
+- Migratie is idempotent via `upsert()` — veilig om meerdere keren uit te voeren
+- `switch_embedding_provider` valideert expliciet op `ollama` | `openai` om typfouten vroeg te vangen
+
+---
+
+## Stap 80 — Portkey gateway, DeepSeek guardrail, OpenAI embeddings + dual ChromaDB collections
+
+**Datum:** 2026-06-09
+
+**Wat:**
+- `PortkeyProvider` toegevoegd aan `backend/services/llm.py` — routeert via Portkey AI gateway naar OpenAI GPT-4.1 of andere cloud modellen. Zelfde patroon als bestaande providers (Langfuse tracing, factory case).
+- DeepSeek guardrail branch toegevoegd aan `backend/routers/chat/_escalation.py` — `ESCALATION_PROVIDER=openai_compat` stuurt escalatie-classificatie naar DeepSeek v4 (of elke OpenAI-compatible API) in plaats van lokale Ollama.
+- `OpenAIEmbeddingProvider` toegevoegd aan `mcp-server/services/embedding.py` — directe OpenAI text-embedding-3-small API, geen Portkey tussenlaag. Factory leest `EMBEDDING_PROVIDER` env var.
+- `mcp-server/tools/memory.py` herschreven met dual ChromaDB collections: `memories_bge_m3` (ollama) en `memories_openai_3small` (openai). `store_memory` en `recall_context` krijgen `provider: str` parameter.
+- `mcp-server/tools/migration.py` aangemaakt — migratie-tool die alle documenten vanuit source-collectie re-embedt naar target-collectie. Idempotent (upsert).
+- `mcp-server/main.py` herschreven — `_EmbedHolder` class voor hot-swap, twee nieuwe MCP tools: `switch_embedding_provider` en `migrate_all_memories`.
+- `backend/services/mcp_client.py` uitgebreid — `migrate_all_memories()` en `switch_embedding_provider()` methods.
+- `backend/routers/settings.py` uitgebreid — `POST /settings/migrate-embeddings` endpoint orchestreert migratie + provider switch + DB persistentie.
+- `docker-compose.yml` bijgewerkt — Portkey, DeepSeek, en OpenAI embedding env vars.
+- `.env.example` bijgewerkt — nieuwe variabelen gedocumenteerd.
+- Frontend `settings-screen.tsx` uitgebreid — "Geheugen (Embeddings)" card met provider Select + migratiestatus.
+
+**Beslissingen:**
+- Portkey SDK (`portkey_ai`) gebruikt ipv directe OpenAI SDK voor LLM — consistent met r-huijts/portkeytester patroon
+- OpenAI embeddings gaan DIRECT naar OpenAI API (niet via Portkey) — embeddings zijn geen generatieve aanroepen, Portkey biedt hier geen meerwaarde
+- Twee aparte ChromaDB collecties ipv één — bge-m3 en OpenAI vectors zijn incompatibele dimensies (1024 vs 1536), kunnen niet in dezelfde collection
+- Migratie is idempotent via upsert — veilig om meerdere keren uit te voeren
+- `_EmbedHolder` klasse voor hot-swap — mutable wrapper zodat MCP server geen herstart nodig heeft bij provider switch
+
+**Waarom:**
+- Portkey geeft observability, fallback routing en rate limiting voor LLM aanroepen
+- DeepSeek v4 is goedkoper en sneller dan Ollama-lokaal voor escalatie-classificatie
+- OpenAI embeddings geven hogere semantische kwaliteit voor RAG dan bge-m3
+
+---
+
+## Stap 81 — 2026-06-09 — Frontend LLM provider & model instelling
+
+**Wat is er gedaan:**
+- Alembic migratie `0007_add_llm_settings.py` toegevoegd: seeded `llm_provider=portkey` en `llm_model=gpt-5.4` in de settings tabel
+- `backend/services/llm.py`: `get_llm_provider()` uitgebreid met optionele `provider` en `model` parameters — DB-waarden overschrijven env vars
+- `backend/routers/chat/_routes.py`: leest `llm_provider` en `llm_model` settings uit DB bij elke chat request en geeft ze door aan de factory
+- `frontend/types/index.ts`: `llm_provider` en `llm_model` toegevoegd aan de `Settings` interface
+- `frontend/components/settings/settings-screen.tsx`: nieuwe "Taalmodel (LLM)" card met provider Select en model Input veld; opslaan via bestaande `updateSetting()` API
+
+**Beslissing:**
+- DB-driven instelling volgt hetzelfde patroon als `tts_provider` — geen herstart nodig bij wisselen van provider
+- Model wordt automatisch op een zinvolle default gezet wanneer de provider wijzigt
+- Providers: Portkey, Groq, Ollama, OpenRouter, Anthropic — alle al geïmplementeerd in `llm.py`
+
+---
+
+## Stap 82 — 2026-06-09 — Portkey embeddings werkend zonder dashboard-toegang
+
+**Probleem:**
+- Embeddings via Portkey faalden met een verhulde `JSONDecodeError: Expecting value`
+- Diagnose via directe HTTP-probes: de default Portkey-config (gekoppeld aan de API-key) forceert `override_params: model=gpt-5.4` op élke request → embeddings onmogelijk (gpt-5.4 kan niet embedden)
+- Geen dashboard-toegang om een aparte embedding-config aan te maken
+
+**Oplossing (puur code):**
+- Portkey model-catalog slug `@azure-openai/text-embedding-3-large` adresseert de Azure-integratie direct en omzeilt de default-config-routing
+- Geverifieerd via `/v1/models` (321 modellen, text-embedding-3-large is GA + embeddings-capable) en directe embed-call (3072-dim vector)
+- `OPENAI_EMBEDDING_MODEL=@azure-openai/text-embedding-3-large` + `EMBEDDING_PROVIDER=portkey` in `.env`
+- `PORTKEY_EMBEDDING_CONFIG` env var toegevoegd als optionele aparte config-slug (`mcp-server/services/embedding.py`, `docker-compose.yml`)
+
+**Overige fixes in deze sessie:**
+- `PortkeyProvider` (LLM): `max_tokens` → `max_completion_tokens` (gpt-5.4 weigert de oude parameter)
+- MCP server lifespan: warmup als background task i.p.v. blokkerend (server accepteert direct verbindingen)
+- `docker-compose.yml`: healthcheck op mcp-server + `backend depends_on mcp-server condition: service_healthy` tegen race-condition bij opstart
+- De "CORS-fout" in de browser was een symptoom van de 500-crash, geen echt CORS-probleem
+
+---
+
+## Stap 83 — 2026-06-09 — Escalatie Laag 1 via Portkey (gpt-5.4-nano)
+
+**Probleem:**
+- Laag 1 escaleerde niet meer; `.env` had `ESCALATION_PROVIDER=ollama` met `ESCALATION_MODEL=DeepSeek-V4-Flash`
+- DeepSeek-V4-Flash is een cloud-model, niet lokaal in Ollama → `_classify_ollama` kreeg een `404 Not Found` op `http://ollama:11434/api/chat`
+
+**Diagnose:**
+- Probe op de Portkey chat-completions endpoint: DeepSeek-slugs (`@azure-ai/...`, `DeepSeek-V4-Flash`) geven allemaal een fout ("deployment deepseek-v4-flash does not exist")
+- De `/v1/models`-lijst toont de hele Azure-catalog, maar alleen daadwerkelijk gedeployede modellen werken → DeepSeek is bij deze integratie niet gedeployed
+- Wel gedeployed en getest: `@azure-openai/gpt-5.4-nano`, `gpt-5.4-mini`, `gpt-4o-mini` (allemaal status 200)
+
+**Oplossing:**
+- Nieuw `portkey`-pad in `backend/routers/chat/_escalation.py`: `_classify_portkey()` via de `AsyncPortkey` SDK (zelfde patroon als de LLM-`PortkeyProvider`), met `response_format=json_object` en `max_completion_tokens`
+- Dispatch in `layer1_classify` uitgebreid: `portkey` | `openai_compat` | `ollama`
+- `.env`: `ESCALATION_PROVIDER=portkey`, `ESCALATION_MODEL=@azure-openai/gpt-5.4-nano`; dubbele `ESCALATION_MODEL`-regel opgeruimd
+- `ESCALATION_PORTKEY_CONFIG` env var toegevoegd (`.env`, `.env.example`, `docker-compose.yml`)
+
+**Beslissing:**
+- DeepSeek kan niet via deze Portkey-key (geen deployment). `gpt-5.4-nano` is snel + goedkoop en prima voor een guardrail-classifier; hergebruikt de bestaande `PORTKEY_API_KEY`, geen aparte provider-key nodig
+- Voor een directe DeepSeek API blijft `openai_compat` met eigen `ESCALATION_API_KEY` beschikbaar
+
+**Geverifieerd:**
+- "ja ik krijg geen lucht meer en ben duizelig en zie zwart voor men ogen" → `{"escalate":true,"urgency":"high"}`
+- "hoi Anna, hoe gaat het met je" → `{"escalate":false,"urgency":"low"}`
+
+---
+
+## Stap 84 — 2026-06-09 — Portkey model-verificatie: allowlist vs deployment
+
+**Context:**
+- Vraag: hoe controleer je of een model via Portkey werkt?
+- API-key metadata toont toegestane slugs: `gpt-5.4`, `text-embedding-3-large`, `DeepSeek-V4-Flash` (verloopt 6/7/2026)
+
+**Wat is er gedaan:**
+- HTTP-probes uitgevoerd tegen `https://api.portkey.ai/v1/chat/completions` en `/v1/embeddings` met de live `PORTKEY_API_KEY`
+- `/v1/models` is **niet** betrouwbaar als enige check — toont de hele Azure-catalog, niet per se gedeployede deployments
+
+**Resultaten probe (allowlist-slugs):**
+
+| Slug | Endpoint | Resultaat |
+|---|---|---|
+| `gpt-5.4` | chat | ✅ 200 |
+| `@azure-openai/gpt-5.4` | chat | ✅ 200 |
+| `@azure-openai/gpt-5.4-nano` | chat | ✅ 200 |
+| `DeepSeek-V4-Flash` | chat | ❌ 404 deployment bestaat niet |
+| `@azure-openai/DeepSeek-V4-Flash` | chat | ❌ 404 resource not found |
+| `text-embedding-3-large` | embeddings | ❌ lege response (config override) |
+| `@azure-openai/text-embedding-3-large` | embeddings | ✅ 200, 3072 dim |
+
+**Beslissing:**
+- **Allowlist ≠ deployment**: de key mag DeepSeek gebruiken, maar Azure heeft geen actieve deployment → admin moet deployen voordat het werkt
+- Betrouwbare check: minimale echte API-call met de exacte slug die je in `.env` zet, niet alleen `/v1/models` lezen
+- Voor embeddings altijd catalog-slug `@azure-openai/<model>` gebruiken (omzeilt default LLM-config die `gpt-5.4` forceert)
+- Huidige werkende configuratie bevestigd: LLM `gpt-5.4`, embeddings `@azure-openai/text-embedding-3-large`, escalatie `@azure-openai/gpt-5.4-nano`
+
+**Evidence-waardig?** Nee — dit is diagnostiek/kennis, geen aparte evidence nodig. Past bij Stap 83 en de Portkey-plan-implementatie.
+
+---
+
+## Stap 85 — 2026-06-09 — Sessiesamenvatting: na uitvoering Portkey-plan (troubleshooting + hardening)
+
+**Context:**
+Het plan `docs/superpowers/plans/2026-06-09-portkey-embedding-switch.md` was uitgevoerd (Stap 79–80). Daarna volgde een langere debug-/integratiesessie om alles end-to-end werkend te krijgen in Docker met de echte Portkey API-key (zonder dashboard-toegang).
+
+**Wat er na het plan is veranderd:**
+
+### Frontend
+- `types/index.ts`: `embedding_provider`, `llm_provider`, `llm_model` toegevoegd aan `Settings` (fix TypeScript build)
+- `lib/api.ts`: `migrateEmbeddings()` helper — fix 404 op `undefined/settings/migrate-embeddings`
+- `settings-screen.tsx`: LLM provider + model card (Portkey/Groq/Ollama/OpenRouter/Anthropic); embedding provider toggle + migratieknop
+
+### Backend
+- `llm.py`: `get_llm_provider(provider, model)` met DB-override; `max_tokens` → `max_completion_tokens` voor Portkey/gpt-5.4
+- `chat/_routes.py`: leest `llm_provider` + `llm_model` uit DB per chat request
+- `chat/_escalation.py`: `_classify_portkey()` toegevoegd; dispatch `portkey | openai_compat | ollama`
+- `routers/settings.py`: `"portkey"` als geldige `target_provider` bij embedding-migratie
+- Alembic `0007_add_llm_settings.py`: seed `llm_provider=portkey`, `llm_model=gpt-5.4`
+
+### MCP-server
+- `services/embedding.py`: `PortkeyEmbeddingProvider` + `PORTKEY_EMBEDDING_CONFIG` (embeddings via Portkey i.p.v. directe OpenAI key)
+- `main.py`: embedding warmup als background task (blokkeerde startup ~64s → race condition met backend)
+
+### Infra / config
+- `docker-compose.yml`: `PORTKEY_EMBEDDING_CONFIG`, `ESCALATION_PORTKEY_CONFIG`; mcp-server healthcheck; backend wacht op `mcp-server: service_healthy`
+- `.env` / `.env.example`: Portkey-slugs gedocumenteerd; embeddings `@azure-openai/text-embedding-3-large`; escalatie `@azure-openai/gpt-5.4-nano`
+
+**Problemen opgelost (chronologisch):**
+
+| # | Symptoom | Oorzaak | Fix |
+|---|---|---|---|
+| 1 | Frontend build faalt | Ontbrekende TS types | Types uitgebreid |
+| 2 | migrate-embeddings 404 | Verkeerde API base URL | `lib/api.ts` helper |
+| 3 | switch provider ToolError OPENAI_API_KEY | Embeddings gingen direct naar OpenAI | `PortkeyEmbeddingProvider` |
+| 4 | migrate-embeddings 400 | `portkey` niet gevalideerd | Backend validatie uitgebreid |
+| 5 | Chat 500 + "CORS" in browser | Portkey embeddings lege response (config forceert gpt-5.4) | Catalog-slug `@azure-openai/...` |
+| 6 | MCP connection failed na rebuild | Warmup blokkeerde poort 8001 | Background warmup + healthcheck |
+| 7 | Chat 500 (LLM) | gpt-5.4 weigert `max_tokens` | `max_completion_tokens` |
+| 8 | Escalatie triggert niet | Ollama + DeepSeek-V4-Flash (404 lokaal) | Portkey + gpt-5.4-nano |
+| 9 | DeepSeek op allowlist maar werkt niet | Allowlist ≠ Azure deployment | Diagnose + fallback naar nano |
+
+**Beslissingen t.o.v. origineel plan:**
+- Embeddings gaan wél via Portkey (plan zei direct OpenAI) — nodig omdat er geen `OPENAI_API_KEY` is, alleen Portkey
+- DeepSeek guardrail via `openai_compat` is geïmplementeerd maar **niet bruikbaar** zonder deployment of aparte DeepSeek key → fallback `gpt-5.4-nano` via Portkey
+- Catalog-slug `@azure-openai/<model>` is het patroon om default Portkey-config overrides te omzeilen (embeddings én toekomstige modellen)
+
+**Eindstatus (werkend):**
+- Chat LLM: Portkey → `gpt-5.4` (instelbaar via settings UI)
+- Embeddings: Portkey → `@azure-openai/text-embedding-3-large`
+- Escalatie Laag 1: Portkey → `@azure-openai/gpt-5.4-nano`
+- Laag 0 (keywords): ongewijzigd, synchroon vóór LLM
+
+**Nog open:**
+- DeepSeek-V4-Flash: op allowlist maar niet gedeployed — admin-actie nodig in Azure/Portkey
+- Optioneel: `scripts/probe-portkey-model.py` helper voor model-checks
+
+**Evidence-waardig?** Overweeg 1 evidence met probe-resultatentabel (allowlist vs deployment) als bewijs voor Portkey-integratiekeuze — max 1 vandaag als je dat wilt.
+
+---
+
+## Stap 86 — 2026-06-09 — Modelconfiguratie per functie instelbaar + zichtbaar in Langfuse
+
+**Wat:**
+Alle LLM-aanroepen (chat, samenvatting, escalatie) gebruiken nu een apart, DB-instelbaar model. Drie wijzigingen:
+
+1. **Alembic migratie 0008** — seeds `summary_llm_model` en `escalation_llm_model` met standaard `DeepSeek-V4-Flash` in de `settings`-tabel.
+
+2. **`_summary.py`** — leest `summary_llm_model` uit DB (via `Setting`-model); maakt een `PortkeyProvider` aan als er een model-waarde is, anders `get_llm_provider()` als fallback. Model én provider worden gelogd in de Langfuse span metadata (`llm_provider`, `llm_model`).
+
+3. **`_escalation.py`** — `layer1_classify()` opent een eigen DB-sessie en leest `escalation_llm_model` uit de `settings`-tabel. De module-level `_ESCALATION_MODEL` env var dient alleen nog als fallback. Model doorgegeven als parameter aan `_classify_ollama()`, `_classify_openai_compat()` en `_classify_portkey()`. Langfuse generation span bevat nu `model=escalation_model` en `metadata.llm_model`.
+
+4. **`settings-screen.tsx`** — nieuwe card "Modelconfiguratie" toegevoegd met twee rijen (Samenvatting en Escalatie classificatie), elk met een tekstveld + opslaanknop. State geladen vanuit `getSettings()` op basis van `summary_llm_model` en `escalation_llm_model` keys. `Settings` type uitgebreid met beide nieuwe velden.
+
+**Waarom:** Overzicht nodig van welk model welke functie gebruikt, zonder hardcoded env vars. Zichtbaar in Langfuse-traces én aanpasbaar vanuit de UI zonder herstart.
+
+**Beslissing:** Samenvatting en escalatie altijd via Portkey als er een DB-model is; chat LLM via de bestaande `llm_provider` setting (kan ook non-Portkey zijn).
+
+---
+
+## Stap 87 — 2026-06-09 — Stack-presets in settings UI (Lokaal / Cloud)
+
+**Wat:**
+Nieuwe "Snelkeuze — Stack" card toegevoegd bovenaan de settings pagina met twee knoppen: **Lokaal (Ollama)** en **Cloud (Portkey)**. Één klik past alle vijf model- en provider-instellingen tegelijk aan.
+
+Presets:
+
+| Instelling | Lokaal | Cloud |
+|---|---|---|
+| `llm_provider` | ollama | portkey |
+| `llm_model` | qwen2.5:3b | gpt-5.4 |
+| `summary_llm_model` | qwen2.5:3b | DeepSeek-V4-Flash |
+| `escalation_llm_model` | qwen2.5:0.5b | DeepSeek-V4-Flash |
+| `embedding_provider` | ollama | portkey |
+
+`applyPreset()` stuurt alle vijf `updateSetting`-aanroepen parallel via `Promise.all`. State wordt daarna lokaal bijgewerkt zodat de velden in de LLM- en Modelconfiguratie-cards direct de nieuwe waarden tonen.
+
+Opmerking: embeddings worden niet automatisch gemigreerd bij een preset-wissel — dat doet de gebruiker apart via de Geheugen-card.
+
+**Waarom:** Snel wisselen tussen lokale demo-omgeving (Ollama, geen kosten) en cloud (Portkey/DeepSeek) zonder elke instelling apart aan te passen.
+
+---
+
+## Stap 88 — 2026-06-09 — Langfuse eval-script: cloud vs lokaal op vier dimensies
+
+**Wat:**
+`backend/scripts/eval_comparison.py` aangemaakt. Het script meet vier vergelijkingen en logt elke run als Langfuse dataset-run:
+
+| Dataset | Cloud | Lokaal | Scores |
+|---|---|---|---|
+| `chat-cloud-vs-lokaal` | gpt-5.4 | qwen2.5:3b | latency_ms, in_dutch, has_anim_tag |
+| `embedding-cloud-vs-lokaal` | text-embedding-3-large | bge-m3 | latency_ms, dimensions |
+| `summary-cloud-vs-lokaal` | DeepSeek-V4-Flash | qwen2.5:3b | latency_ms, valid_json, symptom_recall, no_hallucination |
+| `escalatie-cloud-vs-lokaal` | DeepSeek-V4-Flash | qwen2.5:0.5b | latency_ms, urgency_correct, escalate_correct |
+
+Uitvoer: `python scripts/eval_comparison.py` vanuit de backend-map.
+
+**Waarom:** Meetbare vergelijking nodig voor portfolio. Langfuse dataset-runs tonen latency en kwaliteitsscores per testgeval naast elkaar — bruikbaar als evidence voor de LO over model-evaluatie.
+
+---
+
+## Stap 89 — 2026-06-11 — eval_comparison.py verbeterd: betere metrics en meer testcases
+
+**Wat:**
+Vijf verbeteringen doorgevoerd in `backend/scripts/eval_comparison.py` na eerste succesvolle run:
+
+1. **Chat-scores vervangen** — `in_dutch` en `has_anim_tag` altijd 1.0 (geen onderscheidend vermogen). Vervangen door: `response_length` (tekens zonder ANIM-tag), `contains_followup` (eindigt op `?`), `mentions_topic` (response bevat woorden uit de input).
+2. **Summary: 5 testcases** — van 1 naar 5 gevarieerde patiëntgesprekken: stabiel, oedeem-verslechtering, acuut, medicatievergeten. Elk met eigen `expected_symptoms`.
+3. **Sterkere hallucinatiecheck** — `ovr`-velden worden getoetst aan de werkelijke uitspraken van de patiënt (woordniveau), niet alleen op 6+ cijfers.
+4. **`_ensure_dataset` idempotent** — voegt nu ontbrekende items toe in plaats van de hele dataset over te slaan als er al items zijn.
+5. **`metadata` per run** — `run_experiment(..., metadata={"model": ..., "provider": ...})` zodat runs gefilterd kunnen worden in Langfuse.
+
+**Waarom:** De eerste run toonde dat `in_dutch` en `has_anim_tag` altijd 1.0 waren — geen bruikbaar onderscheid. Met `response_length`, `contains_followup` en `mentions_topic` zijn cloud vs lokaal beter te vergelijken op antwoordkwaliteit.
+
+**Zelf bedacht:** Hallucinatiecheck via patiënttekst-matching (niet alleen regex op getallen). `_ensure_dataset` die bijvult in plaats van skippt — nodig om de 5 summary-cases toe te voegen aan de bestaande dataset.
+
+---
+
+## Stap 90 — 2026-06-11 — Evidence 16: benchmark cloud vs lokaal gedocumenteerd
+
+**Wat:** `portfolio/evidence/evidence_16_cloud_vs_lokaal_benchmark.md` aangemaakt met alle benchmark-resultaten van de eval-script runs.
+
+Bevat:
+- Uitleg hoe de tests zijn uitgevoerd (script, Langfuse datasets, run_experiment)
+- Vier vergelijkingstabellen (chat, embedding, samenvatting, escalatie)
+- Vergelijking van drie escalatie-modellen (0.5b, 3b, cloud)
+- Advies per component: welk model te gebruiken en wanneer lokaal te overwegen
+
+**Waarom:** Portfolio-evidence voor de LO over model-selectie en evaluatie. De data is meetbaar en reproduceerbaar — elk resultaat staat in Langfuse en kan opnieuw gedraaid worden.
+
+---
+
+## Stap 91 — 2026-06-11 — eval_chat.py: DeepSeek-V4-Flash toegevoegd en Azure content filter opgelost
+
+**Wat:**
+Aparte script `backend/scripts/eval_chat.py` aangemaakt voor een gerichte driehoeksvergelijking van chat-modellen: `gpt-5.4`, `DeepSeek-V4-Flash` en `qwen2.5:3b`.
+
+**Probleem:** DeepSeek blokkeerde initieel met `finish_reason: content_filter` (Azure Responsible AI filter). Na drie diagnosepogingen ontdekt dat de oorzaak de `[ANIM: standard_waiting]`-tag-instructie in de system prompt was — niet de medische gespreksrol zelf. Azure's filter voor DeepSeek blokkeert ongebruikelijke opmaak-instructies; gpt-5.4 heeft soepelere filterregels op dezelfde deployment.
+
+**Workaround:** `CHAT_SYSTEM_NO_ANIM` — identieke prompt zonder ANIM-instructie. De tag wordt toch gestript uit responses vóór scoring, dus evaluatieeerlijkheid blijft gewaarborgd.
+
+**Eindresultaten (5 patiëntberichten):**
+
+| Metric | gpt-5.4 | DeepSeek-V4-Flash | qwen2.5:3b |
+|---|---|---|---|
+| Gemiddelde latency | ~4.7s | ~1.6s | ~12.6s |
+| Respons-lengte | ~596t | ~203t | ~140t |
+| `contains_followup` | 5/5 | 5/5 | 4/5 |
+| `mentions_topic` | 5/5 | 4/5 | 0/5 |
+
+**Zelf bedacht:** Diagnose door eliminatie (config → Portkey-config → system prompt content). `CHAT_SYSTEM_NO_ANIM` als alternatieve promptconstante per model in de evaluatieloop — zodat DeepSeek eerlijk vergeleken kan worden zonder een nep-resultaat door blokkade.
+
+**Evidence bijgewerkt:** `evidence_16` chat-sectie bijgewerkt met de correcte driehoeksvergelijking en de ANIM-tag rootcause analyse.
 

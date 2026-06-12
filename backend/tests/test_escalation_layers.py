@@ -1,5 +1,7 @@
 """Tests for layered escalation detection (Layer 0 keywords + Layer 1 JSON parse)."""
 
+import pytest
+
 from routers.chat._escalation import (
     format_escalation_reason,
     layer0_check,
@@ -47,3 +49,30 @@ def test_parse_escalation_json_with_fences():
     result = _parse_classify_json(raw)
     assert result is not None
     assert result["escalate"] is False
+
+
+@pytest.mark.asyncio
+async def test_layer1_uses_openai_compat_when_configured(monkeypatch):
+    """When ESCALATION_PROVIDER=openai_compat, layer1 must call OpenAI SDK, not Ollama."""
+    import routers.chat._escalation as esc_module
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    monkeypatch.setattr(esc_module, "_ESCALATION_PROVIDER", "openai_compat")
+    monkeypatch.setattr(esc_module, "_ESCALATION_API_KEY", "ds-test-key")
+    monkeypatch.setattr(esc_module, "_ESCALATION_BASE_URL", "https://api.deepseek.com/v1")
+    monkeypatch.setattr(esc_module, "_ESCALATION_MODEL", "deepseek-chat")
+
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock()]
+    mock_response.choices[0].message.content = '{"escalate": false, "urgency": "low", "reason": "test"}'
+
+    with patch("openai.AsyncOpenAI") as mock_openai_class:
+        mock_client = AsyncMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_openai_class.return_value = mock_client
+
+        raw = await esc_module._classify_openai_compat("ik voel me goed")
+        assert raw == '{"escalate": false, "urgency": "low", "reason": "test"}'
+        mock_openai_class.assert_called_once()
+        call_kwargs = mock_openai_class.call_args.kwargs
+        assert call_kwargs["base_url"] == "https://api.deepseek.com/v1"

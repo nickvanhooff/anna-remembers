@@ -204,47 +204,114 @@ class OllamaProvider(LLMProvider):
         return result
 
 
-def get_llm_provider() -> LLMProvider:
-    """Factory — reads the desired provider from the environment.
+class PortkeyProvider(LLMProvider):
+    """LLM provider via Portkey AI gateway (portkey_ai SDK, same pattern as r-huijts/portkeytester).
+
+    Portkey routes to the configured virtual key target (OpenAI, Anthropic, etc.)
+    based on the config set in the Portkey dashboard.
+    """
+
+    def __init__(self, api_key: str, model: str, config: str | None = None) -> None:
+        self.api_key = api_key
+        self.model = model
+        self.config = config  # optional Portkey config ID or virtual key slug
+
+    async def chat(
+        self,
+        messages: list[dict[str, str]],
+        system: str | None = None,
+    ) -> str:
+        from portkey_ai import AsyncPortkey
+
+        client = AsyncPortkey(api_key=self.api_key, config=self.config)
+
+        all_messages = []
+        if system:
+            all_messages.append({"role": "system", "content": system})
+        all_messages.extend(messages)
+
+        langfuse = get_client()
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="llm-generation",
+            model=self.model,
+            input=all_messages,
+        ) as gen:
+            response = await client.chat.completions.create(
+                model=self.model,
+                messages=all_messages,
+                max_completion_tokens=1024,
+            )
+            result = response.choices[0].message.content or ""
+            gen.update(
+                output=result,
+                usage_details={
+                    "input": response.usage.prompt_tokens,
+                    "output": response.usage.completion_tokens,
+                },
+            )
+        return result
+
+
+def get_llm_provider(
+    provider: str | None = None,
+    model: str | None = None,
+) -> LLMProvider:
+    """Factory — reads the desired provider from the environment, with optional DB overrides.
 
     LLM_PROVIDER=ollama       →  OllamaProvider (default)
     LLM_PROVIDER=anthropic    →  AnthropicProvider (Claude Haiku)
     LLM_PROVIDER=openrouter   →  OpenRouterProvider (OpenAI-compatible, many models)
     LLM_PROVIDER=groq         →  GroqProvider (fast LPU inference, free tier)
-    """
-    provider = os.getenv("LLM_PROVIDER", "ollama")
+    LLM_PROVIDER=portkey      →  PortkeyProvider (Portkey AI gateway → OpenAI, etc.)
 
-    if provider == "ollama":
+    Args:
+        provider: override the LLM_PROVIDER env var (e.g. from DB settings)
+        model:    override the default model for the chosen provider
+    """
+    resolved = provider or os.getenv("LLM_PROVIDER", "ollama")
+
+    if resolved == "ollama":
         return OllamaProvider(
-            model=os.getenv("OLLAMA_MODEL", "gemma4:e2b"),
+            model=model or os.getenv("OLLAMA_MODEL", "gemma4:e2b"),
             base_url=os.getenv("OLLAMA_BASE_URL", "http://ollama:11434"),
         )
 
-    if provider == "anthropic":
+    if resolved == "anthropic":
         api_key = os.getenv("ANTHROPIC_API_KEY", "")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY is niet ingesteld in de omgeving.")
         return AnthropicProvider(
-            model=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
+            model=model or os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
             api_key=api_key,
         )
 
-    if provider == "openrouter":
+    if resolved == "openrouter":
         api_key = os.getenv("OPENROUTER_API_KEY", "")
         if not api_key:
             raise ValueError("OPENROUTER_API_KEY is niet ingesteld in de omgeving.")
         return OpenRouterProvider(
-            model=os.getenv("OPENROUTER_MODEL", "anthropic/claude-haiku-4-5"),
+            model=model or os.getenv("OPENROUTER_MODEL", "anthropic/claude-haiku-4-5"),
             api_key=api_key,
         )
 
-    if provider == "groq":
+    if resolved == "groq":
         api_key = os.getenv("GROQ_API_KEY", "")
         if not api_key:
             raise ValueError("GROQ_API_KEY is niet ingesteld in de omgeving.")
         return GroqProvider(
-            model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            model=model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
             api_key=api_key,
         )
 
-    raise ValueError(f"Onbekende LLM provider: '{provider}'. Kies uit: ollama, anthropic, openrouter, groq")
+    if resolved == "portkey":
+        api_key = os.getenv("PORTKEY_API_KEY", "")
+        if not api_key:
+            raise ValueError("PORTKEY_API_KEY is niet ingesteld in de omgeving.")
+        return PortkeyProvider(
+            api_key=api_key,
+            model=model or os.getenv("PORTKEY_MODEL", "gpt-5.4"),
+            config=os.getenv("PORTKEY_CONFIG", None),
+        )
+
+    raise ValueError(f"Onbekende LLM provider: '{resolved}'. Kies uit: ollama, anthropic, openrouter, groq, portkey")

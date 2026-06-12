@@ -12,8 +12,8 @@ export const metadata = { title: "Anna Remembers", description: "Hartfalen pati√
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="nl" suppressHydrationWarning className={cn(geistSans.variable, geistMono.variable)}>
-      <body className="antialiased font-sans">
+    <html lang="nl" suppressHydrationWarning className={cn(geistSans.variable, geistMono.variable, "h-full")}>
+      <body className="h-full antialiased font-sans">
         <ThemeProvider>
           <TooltipProvider>
             {children}

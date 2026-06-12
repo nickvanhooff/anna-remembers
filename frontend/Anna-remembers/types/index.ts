@@ -81,4 +81,9 @@ export interface Settings {
   twilio_sms_enabled: "true" | "false"
   tts_provider: "piper" | "xtts"
   twilio_to: string
+  embedding_provider?: "ollama" | "openai" | "portkey"
+  llm_provider?: "portkey" | "groq" | "ollama" | "openrouter" | "anthropic"
+  llm_model?: string
+  summary_llm_model?: string
+  escalation_llm_model?: string
 }

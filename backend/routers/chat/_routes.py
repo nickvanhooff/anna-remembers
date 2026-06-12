@@ -378,7 +378,13 @@ async def chat(
                     "layer0_triggered": bool(layer0_urgency),
                 }
             )
-            llm = get_llm_provider()
+            from models.setting import Setting as SettingModel
+            llm_provider_row = db.query(SettingModel).filter(SettingModel.key == "llm_provider").first()
+            llm_model_row = db.query(SettingModel).filter(SettingModel.key == "llm_model").first()
+            llm = get_llm_provider(
+                provider=llm_provider_row.value if llm_provider_row else None,
+                model=llm_model_row.value if llm_model_row else None,
+            )
             raw_response = await llm.chat(messages=history, system=system_prompt)
             root_span.update(output=raw_response)
 
