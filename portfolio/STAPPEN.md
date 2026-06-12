@@ -2241,3 +2241,56 @@ Drie kleine verbeteringen op branch `fix/ui-polish`:
 3. **Local stack preset** hersteld: `qwen2.5:0.5b` → `qwen2.5:3b` voor escalatie. Het 0.5b model is onveilig voor medische triage (1/10 urgency correct in benchmark).
 
 **Waarom:** Punt 3 was een actieve bug geïdentificeerd in de benchmark — het preset stelde een onveilig model in. Punt 1 en 2 verbeteren de demo-kwaliteit.
+
+---
+
+## Stap 96 — 2026-06-13 — Symptoomtrends: datalaag (model + migratie + schema's)
+
+**Wat:**
+Start van de symptoomtrends feature (Child Issues 1.1 en 1.2).
+
+1. **SQLAlchemy model** aangemaakt: `backend/models/symptom_observation.py`
+   - Tabel `symptom_observations` met UUID PK, FK naar `patients` en `sessions` (UNIQUE op `session_id`)
+   - Kolommen: `dyspnea`, `edema`, `fatigue`, `medication` (Integer 0–3, nullable), `weight_kg` (Float, nullable), `reasoning` (JSONB), `extracted_by` (String)
+   - CheckConstraints per scorekolom: `IS NULL OR BETWEEN 0 AND 3`
+2. **`backend/models/__init__.py`** uitgebreid met `SymptomObservation` (vereist voor Alembic autogenerate)
+3. **Alembic migratie** handmatig geschreven: `backend/alembic/versions/0009_add_symptom_observations.py`
+   - Revision ID: 0009, Revises: 0008
+   - Index `idx_symptom_obs_patient_week` op `(patient_id, year, week_number)`
+   - Migratie handmatig geschreven omdat Docker/PostgreSQL niet draaide tijdens ontwikkeling
+4. **Pydantic schema's** aangemaakt: `backend/schemas/symptom_observation.py`
+   - `SymptomObservationCreate` met `field_validator` die 0–3 enforceert (aparte validator voor scores vs. weight_kg als float)
+   - `SymptomObservationRead` extends Create met `id`, `observed_at`, `extracted_by`
+   - `TrendPoint` voor Recharts-datapunten inclusief `session_id` voor drill-down
+   - `TrendsResponse` als wrapper
+
+**Waarom:** `null` en `0` zijn expliciet verschillende waarden — null = niet besproken, 0 = geen symptoom. CheckConstraint laat NULL toe maar blokkeert waarden buiten 0–3. Gewicht valt buiten de 0–3 schaal en heeft een aparte Float-kolom.
+
+---
+
+## Stap 97 — 2026-06-13 — Symptoomtrends: extractieservice + trigger + API-endpoints
+
+**Wat:**
+Child Issues 2.1 t/m 2.4 geïmplementeerd.
+
+1. **`backend/services/symptom_extraction.py`** aangemaakt — LLM-extractiefunctie:
+   - System prompt dwingt JSON-output af met 0–3 schaal en null-definitie
+   - JSON-parsing met regex-fallback voor het geval de LLM extra tekst geeft
+   - `_safe_score()` coerceert waarden buiten 0–3 naar None (defensief)
+   - UPSERT via `db.merge()` — UNIQUE constraint op `session_id` voorkomt duplicaten
+   - Volledige `try/except` — extractiefout crasht de chat nooit
+   - Langfuse tracing via `propagate_attributes` — extractie zichtbaar als aparte trace
+
+2. **`backend/routers/chat/_routes.py`** aangepast — BackgroundTask trigger:
+   - Import toegevoegd: `from services.symptom_extraction import extract_and_store_symptoms`
+   - Transcript samengesteld uit `recent` berichten + nieuw AI-antwoord
+   - `background_tasks.add_task(extract_and_store_symptoms, ...)` na `db.commit()` voor AI-antwoord
+
+3. **`backend/routers/symptom_trends.py`** aangemaakt — twee endpoints:
+   - `GET /patients/{patient_id}/symptom-trends?weeks=8` — tijdlijn voor Recharts, retourneert `TrendsResponse` met `session_id` per punt
+   - `GET /patients/{patient_id}/symptom-observations/{session_id}` — detail met `reasoning` JSONB voor clinical traceability modal
+   - Cutoff-berekening op basis van ISO-week
+
+4. **`backend/main.py`** uitgebreid: `symptom_trends` router geregistreerd
+
+**Waarom:** BackgroundTask zodat de chatrespons niet vertraagd wordt. Transcript bevat de laatste 6 berichten (de `recent` variabele die al beschikbaar was) plus het nieuwe AI-antwoord — voldoende context voor symptoomextractie zonder extra DB-query.

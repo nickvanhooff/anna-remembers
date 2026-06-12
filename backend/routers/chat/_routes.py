@@ -33,6 +33,7 @@ from ._animation import resolve_animation
 from ._escalation import format_escalation_reason, layer0_check, layer1_classify
 from ._prompts import build_system_prompt
 from ._summary import _SUMMARY_INTERVAL, trigger_summary_update
+from services.symptom_extraction import extract_and_store_symptoms
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -398,6 +399,16 @@ async def chat(
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
+
+    # Symptom extraction — runs async after response, never blocks the chat
+    transcript_lines = [f"{m.role}: {m.content}" for m in recent]
+    transcript_lines.append(f"assistant: {clean_response}")
+    background_tasks.add_task(
+        extract_and_store_symptoms,
+        session_id=str(session.id),
+        patient_id=str(patient_id),
+        transcript="\n".join(transcript_lines),
+    )
 
     # Update summary every N messages
     total_messages: int = (
