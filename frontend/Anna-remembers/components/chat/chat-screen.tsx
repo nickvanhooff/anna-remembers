@@ -8,6 +8,7 @@ import {
   ScrollText,
   Mic,
   MessageSquare,
+  ChevronsDown,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -55,6 +56,7 @@ export function ChatScreen() {
   const [typing, setTyping] = useState(false)
   const [panelOpen, setPanelOpen] = useState(true)
   const [summaryOpen, setSummaryOpen] = useState(false)
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
   const [voiceMode, setVoiceMode] = useState(false)
   const streamRef = useRef<HTMLDivElement>(null)
 
@@ -110,7 +112,19 @@ export function ChatScreen() {
     if (streamRef.current) {
       streamRef.current.scrollTop = streamRef.current.scrollHeight
     }
+    setShowScrollBtn(false)
   }, [messages.length, typing])
+
+  useEffect(() => {
+    const el = streamRef.current
+    if (!el) return
+    const onScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      setShowScrollBtn(distanceFromBottom > 120)
+    }
+    el.addEventListener("scroll", onScroll)
+    return () => el.removeEventListener("scroll", onScroll)
+  }, [])
 
   async function handleSendMessage(text: string) {
     if (!patient) return
@@ -430,9 +444,19 @@ export function ChatScreen() {
           </div>
 
           {/* Berichtenstroom */}
+          <div className="relative flex-1 overflow-hidden">
+            {showScrollBtn && (
+              <button
+                onClick={() => streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight, behavior: "smooth" })}
+                className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border bg-background px-3 py-1.5 text-[12px] text-muted-foreground shadow-md transition-opacity hover:text-foreground"
+              >
+                <ChevronsDown className="size-3.5" />
+                Scroll naar beneden
+              </button>
+            )}
           <div
             ref={streamRef}
-            className="flex flex-1 flex-col gap-3.5 overflow-auto bg-background px-7 py-5"
+            className="flex h-full flex-col gap-3.5 overflow-auto bg-background px-7 py-5"
           >
             {loadingMsgs ? (
               <div className="flex flex-col gap-3">
@@ -572,6 +596,7 @@ export function ChatScreen() {
                 )}
               </>
             )}
+          </div>
           </div>
 
           {/* Composer */}

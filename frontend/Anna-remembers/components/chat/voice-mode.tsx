@@ -166,16 +166,16 @@ export function VoiceMode({
           }`}
         >
           {isSpeaking
-            ? "Doctor speaking..."
+            ? "Anna spreekt..."
             : isListening
-              ? "Stop listening"
-              : "Push to talk"}
+              ? "Stop opname"
+              : "Druk om te spreken"}
         </button>
 
         {isListening && (
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 animate-pulse rounded-full bg-red-500"></div>
-            <span className="text-sm text-gray-600">Listening...</span>
+            <span className="text-sm text-gray-600">Luisteren...</span>
           </div>
         )}
       </div>
@@ -183,7 +183,7 @@ export function VoiceMode({
       {/* Transcript display */}
       {transcript && (
         <div className="max-h-28 overflow-y-auto rounded-lg border border-blue-200 bg-blue-50 p-3 break-words">
-          <p className="text-sm text-blue-900">You said: {transcript}</p>
+          <p className="text-sm text-blue-900">U zei: {transcript}</p>
         </div>
       )}
     </div>
