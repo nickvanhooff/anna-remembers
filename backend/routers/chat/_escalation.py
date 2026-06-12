@@ -170,13 +170,13 @@ async def _classify_ollama(patient_message: str, model: str) -> str:
         return response.json()["message"]["content"]
 
 
-async def _classify_openai_compat(patient_message: str, model: str) -> str:
+async def _classify_openai_compat(patient_message: str, model: str | None = None) -> str:
     """Call any OpenAI-compatible API for escalation classification (DeepSeek, etc.)."""
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(api_key=_ESCALATION_API_KEY, base_url=_ESCALATION_BASE_URL)
     response = await client.chat.completions.create(
-        model=model,
+        model=model or _ESCALATION_MODEL,
         messages=[
             {"role": "system", "content": _CLASSIFY_SYSTEM},
             {"role": "user", "content": f"Patient message: {patient_message}"},
