@@ -2121,3 +2121,76 @@ Opmerking: embeddings worden niet automatisch gemigreerd bij een preset-wissel �
 
 **Waarom:** Snel wisselen tussen lokale demo-omgeving (Ollama, geen kosten) en cloud (Portkey/DeepSeek) zonder elke instelling apart aan te passen.
 
+---
+
+## Stap 88 — 2026-06-09 — Langfuse eval-script: cloud vs lokaal op vier dimensies
+
+**Wat:**
+`backend/scripts/eval_comparison.py` aangemaakt. Het script meet vier vergelijkingen en logt elke run als Langfuse dataset-run:
+
+| Dataset | Cloud | Lokaal | Scores |
+|---|---|---|---|
+| `chat-cloud-vs-lokaal` | gpt-5.4 | qwen2.5:3b | latency_ms, in_dutch, has_anim_tag |
+| `embedding-cloud-vs-lokaal` | text-embedding-3-large | bge-m3 | latency_ms, dimensions |
+| `summary-cloud-vs-lokaal` | DeepSeek-V4-Flash | qwen2.5:3b | latency_ms, valid_json, symptom_recall, no_hallucination |
+| `escalatie-cloud-vs-lokaal` | DeepSeek-V4-Flash | qwen2.5:0.5b | latency_ms, urgency_correct, escalate_correct |
+
+Uitvoer: `python scripts/eval_comparison.py` vanuit de backend-map.
+
+**Waarom:** Meetbare vergelijking nodig voor portfolio. Langfuse dataset-runs tonen latency en kwaliteitsscores per testgeval naast elkaar — bruikbaar als evidence voor de LO over model-evaluatie.
+
+---
+
+## Stap 89 — 2026-06-11 — eval_comparison.py verbeterd: betere metrics en meer testcases
+
+**Wat:**
+Vijf verbeteringen doorgevoerd in `backend/scripts/eval_comparison.py` na eerste succesvolle run:
+
+1. **Chat-scores vervangen** — `in_dutch` en `has_anim_tag` altijd 1.0 (geen onderscheidend vermogen). Vervangen door: `response_length` (tekens zonder ANIM-tag), `contains_followup` (eindigt op `?`), `mentions_topic` (response bevat woorden uit de input).
+2. **Summary: 5 testcases** — van 1 naar 5 gevarieerde patiëntgesprekken: stabiel, oedeem-verslechtering, acuut, medicatievergeten. Elk met eigen `expected_symptoms`.
+3. **Sterkere hallucinatiecheck** — `ovr`-velden worden getoetst aan de werkelijke uitspraken van de patiënt (woordniveau), niet alleen op 6+ cijfers.
+4. **`_ensure_dataset` idempotent** — voegt nu ontbrekende items toe in plaats van de hele dataset over te slaan als er al items zijn.
+5. **`metadata` per run** — `run_experiment(..., metadata={"model": ..., "provider": ...})` zodat runs gefilterd kunnen worden in Langfuse.
+
+**Waarom:** De eerste run toonde dat `in_dutch` en `has_anim_tag` altijd 1.0 waren — geen bruikbaar onderscheid. Met `response_length`, `contains_followup` en `mentions_topic` zijn cloud vs lokaal beter te vergelijken op antwoordkwaliteit.
+
+**Zelf bedacht:** Hallucinatiecheck via patiënttekst-matching (niet alleen regex op getallen). `_ensure_dataset` die bijvult in plaats van skippt — nodig om de 5 summary-cases toe te voegen aan de bestaande dataset.
+
+---
+
+## Stap 90 — 2026-06-11 — Evidence 16: benchmark cloud vs lokaal gedocumenteerd
+
+**Wat:** `portfolio/evidence/evidence_16_cloud_vs_lokaal_benchmark.md` aangemaakt met alle benchmark-resultaten van de eval-script runs.
+
+Bevat:
+- Uitleg hoe de tests zijn uitgevoerd (script, Langfuse datasets, run_experiment)
+- Vier vergelijkingstabellen (chat, embedding, samenvatting, escalatie)
+- Vergelijking van drie escalatie-modellen (0.5b, 3b, cloud)
+- Advies per component: welk model te gebruiken en wanneer lokaal te overwegen
+
+**Waarom:** Portfolio-evidence voor de LO over model-selectie en evaluatie. De data is meetbaar en reproduceerbaar — elk resultaat staat in Langfuse en kan opnieuw gedraaid worden.
+
+---
+
+## Stap 91 — 2026-06-11 — eval_chat.py: DeepSeek-V4-Flash toegevoegd en Azure content filter opgelost
+
+**Wat:**
+Aparte script `backend/scripts/eval_chat.py` aangemaakt voor een gerichte driehoeksvergelijking van chat-modellen: `gpt-5.4`, `DeepSeek-V4-Flash` en `qwen2.5:3b`.
+
+**Probleem:** DeepSeek blokkeerde initieel met `finish_reason: content_filter` (Azure Responsible AI filter). Na drie diagnosepogingen ontdekt dat de oorzaak de `[ANIM: standard_waiting]`-tag-instructie in de system prompt was — niet de medische gespreksrol zelf. Azure's filter voor DeepSeek blokkeert ongebruikelijke opmaak-instructies; gpt-5.4 heeft soepelere filterregels op dezelfde deployment.
+
+**Workaround:** `CHAT_SYSTEM_NO_ANIM` — identieke prompt zonder ANIM-instructie. De tag wordt toch gestript uit responses vóór scoring, dus evaluatieeerlijkheid blijft gewaarborgd.
+
+**Eindresultaten (5 patiëntberichten):**
+
+| Metric | gpt-5.4 | DeepSeek-V4-Flash | qwen2.5:3b |
+|---|---|---|---|
+| Gemiddelde latency | ~4.7s | ~1.6s | ~12.6s |
+| Respons-lengte | ~596t | ~203t | ~140t |
+| `contains_followup` | 5/5 | 5/5 | 4/5 |
+| `mentions_topic` | 5/5 | 4/5 | 0/5 |
+
+**Zelf bedacht:** Diagnose door eliminatie (config → Portkey-config → system prompt content). `CHAT_SYSTEM_NO_ANIM` als alternatieve promptconstante per model in de evaluatieloop — zodat DeepSeek eerlijk vergeleken kan worden zonder een nep-resultaat door blokkade.
+
+**Evidence bijgewerkt:** `evidence_16` chat-sectie bijgewerkt met de correcte driehoeksvergelijking en de ANIM-tag rootcause analyse.
+
