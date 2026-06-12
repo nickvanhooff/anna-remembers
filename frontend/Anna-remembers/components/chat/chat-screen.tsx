@@ -358,7 +358,7 @@ export function ChatScreen() {
         {/* Chat area */}
         <div className="flex flex-col overflow-hidden">
           {/* Patiënt header */}
-          <div className="flex shrink-0 items-center gap-3 border-b px-7 py-3.5">
+          <div className="flex shrink-0 items-center gap-3 border-b bg-background px-7 py-3.5">
             <Button
               variant="ghost"
               size="icon"

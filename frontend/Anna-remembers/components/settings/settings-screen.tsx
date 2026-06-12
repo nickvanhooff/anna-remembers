@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Mic, Settings2, Square, Trash2, Upload } from "lucide-react"
+import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
@@ -226,17 +228,27 @@ export function SettingsScreen() {
   const displayError = error ?? recorderError
 
   return (
-    <div className="p-6 max-w-2xl">
-      <div className="flex items-center gap-2.5 mb-6">
-        <Settings2 className="size-5 text-muted-foreground" />
-        <h1 className="text-xl font-semibold">Instellingen</h1>
-      </div>
+    <div className="flex h-full flex-col overflow-hidden">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-6">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="h-4" />
+        <span className="text-[13px] text-muted-foreground">
+          Dashboard / <b className="font-medium text-foreground">Instellingen</b>
+        </span>
+      </header>
 
-      {displayError && (
-        <p className="text-sm text-destructive mb-4">{displayError}</p>
-      )}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="max-w-2xl">
+          <div className="flex items-center gap-2.5 mb-6">
+            <Settings2 className="size-5 text-muted-foreground" />
+            <h1 className="text-xl font-semibold">Instellingen</h1>
+          </div>
 
-      <div className="flex flex-col gap-4">
+          {displayError && (
+            <p className="text-sm text-destructive mb-4">{displayError}</p>
+          )}
+
+          <div className="flex flex-col gap-4">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Snelkeuze — Stack</CardTitle>
@@ -555,6 +567,8 @@ export function SettingsScreen() {
             </div>
           </CardContent>
         </Card>
+          </div>
+        </div>
       </div>
     </div>
   )

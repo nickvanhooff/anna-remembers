@@ -54,7 +54,7 @@ def test_parse_escalation_json_with_fences():
 @pytest.mark.asyncio
 async def test_layer1_uses_openai_compat_when_configured(monkeypatch):
     """When ESCALATION_PROVIDER=openai_compat, layer1 must call OpenAI SDK, not Ollama."""
-    import backend.routers.chat._escalation as esc_module
+    import routers.chat._escalation as esc_module
     from unittest.mock import AsyncMock, MagicMock, patch
 
     monkeypatch.setattr(esc_module, "_ESCALATION_PROVIDER", "openai_compat")
