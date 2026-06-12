@@ -139,7 +139,8 @@
       "PowerShell(ls \"C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\mcp-server\" | ForEach-Object { $_.Name })",
       "Skill(langfuse)",
       "Bash(Select-String -Path \"C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\portfolio\\\\STAPPEN.md\" -Pattern \"^## Stap \\\\d+\")",
-      "Bash(Select-Object -Last 5)"
+      "Bash(Select-Object -Last 5)",
+      "Bash(git checkout *)"
     ]
   }
 }
