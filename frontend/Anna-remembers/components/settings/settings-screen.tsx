@@ -141,7 +141,7 @@ export function SettingsScreen() {
       llm_provider: "ollama",
       llm_model: "qwen2.5:3b",
       summary_llm_model: "qwen2.5:3b",
-      escalation_llm_model: "qwen2.5:0.5b",
+      escalation_llm_model: "qwen2.5:3b",
       embedding_provider: "ollama",
     },
     cloud: {

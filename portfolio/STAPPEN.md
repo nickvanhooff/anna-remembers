@@ -2194,3 +2194,50 @@ Aparte script `backend/scripts/eval_chat.py` aangemaakt voor een gerichte drieho
 
 **Evidence bijgewerkt:** `evidence_16` chat-sectie bijgewerkt met de correcte driehoeksvergelijking en de ANIM-tag rootcause analyse.
 
+---
+
+## Stap 92 — 2026-06-12 — Chat UI: patiëntheader gefixed en settings scrollbaar gemaakt
+
+**Wat:**
+Twee layoutbugs opgelost in de frontend.
+
+1. **Patiëntheader scrollde weg** bij lange gesprekken. Rootcause: `SidebarProvider` in `components/ui/sidebar.tsx` had `min-h-svh` — dit liet de pagina groeien met content, waardoor de hele pagina scrollde in plaats van alleen het berichtenvenster. Opgelost door `min-h-svh` → `h-svh`. Aanvullend `h-full` toegevoegd aan `html`, `body` en `SidebarInset` om de hoogteketen sluitend te maken.
+
+2. **Settings screen niet scrollbaar**. Rootcause: dezelfde layout — de content werd afgeknipt door `overflow-hidden` zonder eigen scroll. Opgelost door de settings root div te herstructureren naar `flex h-full flex-col overflow-hidden` met een `flex-1 overflow-auto` scrollregio. Topbar toegevoegd die consistent is met de chat-pagina.
+
+**Waarom:** De `h-full` chain in Next.js vereist dat alle voorouder-elementen een expliciete hoogte hebben. Zonder dit valt `h-full` terug op `auto` en scrollt de hele pagina.
+
+---
+
+## Stap 93 — 2026-06-12 — Voice mode bug: Anna sprak direct bij openen zonder patiëntinput
+
+**Wat:**
+Bug opgelost waarbij Anna direct begon te spreken zodra voice mode werd geactiveerd — zonder dat de patiënt iets had gezegd.
+
+Rootcause: `lastPlayedRef` in `voice-mode.tsx` initialiseerde op `null`. Bij het openen van voice mode zag de `useEffect` Anna's laatste bericht als "nieuw" en speelde het direct af via TTS.
+
+Fix: `lastPlayedRef` initialiseert nu op `messageText ?? null` — het huidige laatste bericht wordt overgeslagen bij openen. Alleen berichten die binnenkomen nádat voice mode actief is, triggeren TTS.
+
+---
+
+## Stap 94 — 2026-06-12 — CI fix: test_layer1_uses_openai_compat_when_configured
+
+**Wat:**
+Twee CI-fouten opgelost in `backend/tests/test_escalation_layers.py`:
+
+1. `ModuleNotFoundError: No module named 'backend'` — test gebruikte `import backend.routers.chat._escalation` terwijl `conftest.py` de `backend/`-map zelf aan `sys.path` toevoegt. Opgelost door `backend.` prefix te verwijderen.
+
+2. `TypeError: _classify_openai_compat() missing 1 required positional argument: 'model'` — de testpatch patchte `_ESCALATION_MODEL` en verwachtte dat de functie dit automatisch gebruikte. `model`-parameter optioneel gemaakt (`str | None = None`) met fallback naar `_ESCALATION_MODEL` in de functie.
+
+---
+
+## Stap 95 — 2026-06-12 — UI polish: Nederlandse labels, scroll-to-bottom, preset fix
+
+**Wat:**
+Drie kleine verbeteringen op branch `fix/ui-polish`:
+
+1. **Voice mode labels vertaald** — "Doctor speaking / Stop listening / Push to talk / Listening / You said" → "Anna spreekt / Stop opname / Druk om te spreken / Luisteren / U zei"
+2. **Scroll-to-bottom knop** toegevoegd in het chatvenster. Verschijnt als de gebruiker >120px omhoogscrollt, verdwijnt automatisch bij nieuw bericht. Gecentreerd zwevend boven het berichtenvenster.
+3. **Local stack preset** hersteld: `qwen2.5:0.5b` → `qwen2.5:3b` voor escalatie. Het 0.5b model is onveilig voor medische triage (1/10 urgency correct in benchmark).
+
+**Waarom:** Punt 3 was een actieve bug geïdentificeerd in de benchmark — het preset stelde een onveilig model in. Punt 1 en 2 verbeteren de demo-kwaliteit.
