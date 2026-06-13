@@ -2294,3 +2294,25 @@ Child Issues 2.1 t/m 2.4 geïmplementeerd.
 4. **`backend/main.py`** uitgebreid: `symptom_trends` router geregistreerd
 
 **Waarom:** BackgroundTask zodat de chatrespons niet vertraagd wordt. Transcript bevat de laatste 6 berichten (de `recent` variabele die al beschikbaar was) plus het nieuwe AI-antwoord — voldoende context voor symptoomextractie zonder extra DB-query.
+
+---
+
+## Stap 98 — 2026-06-13 — Bugfix: extractie retourneerde verkeerd JSON-schema
+
+**Wat:**
+De abstracte `LLMProvider.chat()` geeft `format: json` niet door aan Ollama, waardoor het model zijn eigen JSON-schema verzon in plaats van het vereiste schema te volgen. Oplossing: `symptom_extraction.py` herschreven naar provider-specifieke functies met JSON-mode, exact het patroon van `_escalation.py`.
+
+- `_extract_ollama()` — Ollama HTTP API met `"format": "json"` en `num_predict: 256`
+- `_extract_portkey()` — Portkey SDK met `response_format={"type": "json_object"}`
+- `_extract_openai_compat()` — OpenAI SDK met `response_format={"type": "json_object"}` (Groq, OpenRouter)
+- `_call_provider()` — dispatch op basis van `LLM_PROVIDER` env var
+- Validatie toegevoegd: als de LLM toch een eigen schema retourneert, wordt de observatie niet opgeslagen en gelogd
+
+**Getest:** directe aanroep van `extract_and_store_symptoms()` in container → rij zichtbaar in `symptom_observations` tabel met correcte veldnamen en reasoning. `GET /patients/{id}/symptom-trends` retourneert live data.
+
+---
+
+## Stap 99 — 2026-06-13 — Bugfix: modal opent niet bij klik op grafiekpunt
+
+**Wat:**
+De klikhandler op `<Line onClick>` in Recharts vangt klikken op de lijn zelf op, niet op individuele datapunten. Oplossing: `dot` prop vervangen door een custom SVG `<circle>` met eigen `onClick`, en `activeDot` voorzien van een `onClick` handler. Beide handlers zetten `modalSessionId` waarna `SymptomDetailModal` opent en `GET /patients/{id}/symptom-observations/{session_id}` aanroept.

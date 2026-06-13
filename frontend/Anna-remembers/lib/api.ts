@@ -1,14 +1,13 @@
 import type {
   Patient,
-  Session,
   Escalation,
   EscalationUrgency,
   EscalationStatus,
   TrendPoint,
   PatientStatus,
   Settings,
+  SymptomObservationRead,
 } from "@/types"
-import { TRENDS, ESCALATIONS } from "./mock-data"
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
@@ -233,10 +232,13 @@ export async function updateEscalationStatus(
 
 // ─── Trends (still mock) ──────────────────────────────────────────
 
-export async function getTrends(patientId: string): Promise<TrendPoint[]> {
-  // TODO: return get<TrendPoint[]>(`/patients/${patientId}/trends`)
-  void patientId
-  return Promise.resolve(TRENDS)
+export async function getTrends(patientId: string, weeks: number): Promise<TrendPoint[]> {
+  const data = await get<{ data: TrendPoint[] }>(`/patients/${patientId}/symptom-trends?weeks=${weeks}`)
+  return data.data
+}
+
+export async function getSymptomObservation(patientId: string, sessionId: string): Promise<SymptomObservationRead> {
+  return get<SymptomObservationRead>(`/patients/${patientId}/symptom-observations/${sessionId}`)
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────

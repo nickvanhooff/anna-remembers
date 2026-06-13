@@ -1,68 +1,177 @@
 """Symptom extraction service.
 
 Extracts structured symptom observations from a chat transcript using the
-configured LLM provider. Stores one observation row per session (UPSERT).
+configured LLM provider. Uses provider-specific JSON-mode calls (same pattern
+as routers/chat/_escalation.py) to guarantee valid JSON output.
+Stores one observation row per session (UPSERT).
 """
 
 import json
 import logging
+import os
 import re
 import uuid
 from datetime import datetime, timezone
 
+import httpx
 from langfuse import get_client as get_langfuse, propagate_attributes
 
 from models.symptom_observation import SymptomObservation
 from services.database import SessionLocal
-from services.llm import get_llm_provider
 
 logger = logging.getLogger(__name__)
 
+_LLM_PROVIDER      = os.getenv("LLM_PROVIDER", "ollama")
+_OLLAMA_BASE_URL   = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434")
+_OLLAMA_MODEL      = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+_PORTKEY_API_KEY   = os.getenv("PORTKEY_API_KEY", "")
+_PORTKEY_MODEL     = os.getenv("PORTKEY_MODEL", "gpt-5.4")
+_PORTKEY_CONFIG    = os.getenv("PORTKEY_CONFIG") or None
+_GROQ_API_KEY      = os.getenv("GROQ_API_KEY", "")
+_GROQ_MODEL        = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+_OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+_OPENROUTER_MODEL  = os.getenv("OPENROUTER_MODEL", "anthropic/claude-haiku-4-5")
+
 _EXTRACT_SYSTEM = (
-    "Je bent een medisch documentatiesysteem voor hartfalenpatiënten. "
-    "Analyseer het onderstaande gesprek en extraheer symptoomobservaties.\n"
+    "YOU ARE A JSON EXTRACTION SYSTEM. YOU ONLY OUTPUT VALID JSON. NO OTHER TEXT.\n"
     "\n"
-    "Schaal voor dyspnea / edema / fatigue / medication:\n"
-    "  0 = geen symptoom (expliciet gemeld, bijv. 'geen last van', 'gaat goed')\n"
-    "  1 = licht (bijv. 'beetje benauwd', 'lichte zwelling')\n"
-    "  2 = matig (bijv. 'vrij benauwd', 'duidelijke oedeem')\n"
-    "  3 = ernstig (bijv. 'heel ernstig benauwd', 'zware vermoeidheid')\n"
-    "  null = niet besproken in dit gesprek (gebruik dit als het onderwerp niet ter sprake kwam)\n"
+    "Task: extract symptom scores from a Dutch patient-assistant conversation.\n"
     "\n"
-    "BELANGRIJK: null en 0 zijn NIET hetzelfde.\n"
-    "  null = het onderwerp is niet besproken\n"
-    "  0    = de patiënt heeft expliciet gemeld geen klachten te hebben\n"
+    "Scores for dyspnea / edema / fatigue / medication:\n"
+    "  0 = no symptom (patient explicitly said so)\n"
+    "  1 = mild\n"
+    "  2 = moderate\n"
+    "  3 = severe\n"
+    "  null = topic not mentioned in this conversation\n"
     "\n"
-    "weight_kg: het exacte gewicht in kg als getal (float), of null als niet gemeld.\n"
+    "null != 0: null means not discussed, 0 means explicitly reported as absent.\n"
+    "weight_kg: exact float value if mentioned, else null.\n"
     "\n"
-    "Voor elk veld dat je invult (niet null), schrijf je een 'reasoning'-sleutel "
-    "met een korte citerende toelichting (max 80 tekens, Nederlands) over wat de patiënt zei.\n"
+    "For each non-null field include a short Dutch reasoning (max 80 chars) citing what the patient said.\n"
     "\n"
-    "Geef ALLEEN een JSON-object terug, geen uitleg buiten het object.\n"
-    "\n"
-    "Schema:\n"
-    '{\n'
-    '  "dyspnea":    0|1|2|3|null,\n'
-    '  "edema":      0|1|2|3|null,\n'
-    '  "fatigue":    0|1|2|3|null,\n'
-    '  "medication": 0|1|2|3|null,\n'
-    '  "weight_kg":  float|null,\n'
+    "REQUIRED OUTPUT — return ONLY this exact JSON structure with these exact field names:\n"
+    "{\n"
+    '  "dyspnea": <0|1|2|3|null>,\n'
+    '  "edema": <0|1|2|3|null>,\n'
+    '  "fatigue": <0|1|2|3|null>,\n'
+    '  "medication": <0|1|2|3|null>,\n'
+    '  "weight_kg": <float|null>,\n'
     '  "reasoning": {\n'
-    '    "dyspnea":    "...",\n'
-    '    "weight_kg":  "..."\n'
-    '  }\n'
-    '}\n'
+    '    "dyspnea": "<citation if not null>",\n'
+    '    "edema": "<citation if not null>"\n'
+    "  }\n"
+    "}\n"
     "\n"
-    "Voorbeelden:\n"
-    '"ik ben erg benauwd na het traplopen" → dyspnea: 2, reasoning: {"dyspnea": "erg benauwd na traplopen"}\n'
-    '"mijn gewicht is 79.5 kg" → weight_kg: 79.5, reasoning: {"weight_kg": "79.5 kg gemeld"}\n'
-    '"ik heb mijn medicijnen genomen" → medication: 0, reasoning: {"medication": "medicatie genomen zoals voorgeschreven"}\n'
-    '"hoe gaat het met Anna" → alle velden null, reasoning: {}'
+    "EXAMPLES:\n"
+    'Conversation: "user: ik ben erg benauwd na het traplopen"\n'
+    'Output: {"dyspnea":2,"edema":null,"fatigue":null,"medication":null,"weight_kg":null,"reasoning":{"dyspnea":"erg benauwd na traplopen"}}\n'
+    "\n"
+    'Conversation: "user: mijn gewicht is 79.5 kg en ik voel me goed"\n'
+    'Output: {"dyspnea":null,"edema":null,"fatigue":null,"medication":null,"weight_kg":79.5,"reasoning":{"weight_kg":"79.5 kg gemeld"}}\n'
+    "\n"
+    'Conversation: "user: ik heb mijn pillen genomen, geen klachten"\n'
+    'Output: {"dyspnea":0,"edema":0,"fatigue":0,"medication":0,"weight_kg":null,"reasoning":{"medication":"pillen genomen, geen klachten"}}\n'
+    "\n"
+    'Conversation: "user: hoe gaat het met jou"\n'
+    'Output: {"dyspnea":null,"edema":null,"fatigue":null,"medication":null,"weight_kg":null,"reasoning":{}}'
 )
 
 
+def _user_message(transcript: str) -> str:
+    return (
+        f"Extract symptom scores from this conversation.\n\n"
+        f"{transcript}\n\n"
+        f"Reply with ONLY the JSON object, no other text."
+    )
+
+
+# ─── Provider-specific calls with JSON mode ───────────────────────────────────
+
+async def _extract_ollama(transcript: str) -> str:
+    """Ollama: uses format=json to guarantee JSON output."""
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        response = await client.post(
+            f"{_OLLAMA_BASE_URL}/api/chat",
+            json={
+                "model": _OLLAMA_MODEL,
+                "messages": [
+                    {"role": "system", "content": _EXTRACT_SYSTEM},
+                    {"role": "user", "content": _user_message(transcript)},
+                ],
+                "stream": False,
+                "format": "json",
+                "options": {"num_predict": 256},
+            },
+        )
+        response.raise_for_status()
+        return response.json()["message"]["content"]
+
+
+async def _extract_portkey(transcript: str) -> str:
+    """Portkey gateway: uses response_format=json_object."""
+    from portkey_ai import AsyncPortkey
+
+    client = AsyncPortkey(api_key=_PORTKEY_API_KEY, config=_PORTKEY_CONFIG)
+    response = await client.chat.completions.create(
+        model=_PORTKEY_MODEL,
+        messages=[
+            {"role": "system", "content": _EXTRACT_SYSTEM},
+            {"role": "user", "content": _user_message(transcript)},
+        ],
+        max_completion_tokens=256,
+        response_format={"type": "json_object"},
+    )
+    return response.choices[0].message.content or "{}"
+
+
+async def _extract_openai_compat(
+    transcript: str,
+    base_url: str,
+    api_key: str,
+    model: str,
+) -> str:
+    """Any OpenAI-compatible API (Groq, OpenRouter): uses response_format=json_object."""
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+    response = await client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": _EXTRACT_SYSTEM},
+            {"role": "user", "content": _user_message(transcript)},
+        ],
+        max_tokens=256,
+        response_format={"type": "json_object"},
+        timeout=60.0,
+    )
+    return response.choices[0].message.content or "{}"
+
+
+async def _call_provider(transcript: str) -> str:
+    """Dispatch to the correct provider based on LLM_PROVIDER env var."""
+    if _LLM_PROVIDER == "portkey":
+        return await _extract_portkey(transcript)
+    if _LLM_PROVIDER == "groq":
+        return await _extract_openai_compat(
+            transcript,
+            base_url="https://api.groq.com/openai/v1",
+            api_key=_GROQ_API_KEY,
+            model=_GROQ_MODEL,
+        )
+    if _LLM_PROVIDER == "openrouter":
+        return await _extract_openai_compat(
+            transcript,
+            base_url="https://openrouter.ai/api/v1",
+            api_key=_OPENROUTER_API_KEY,
+            model=_OPENROUTER_MODEL,
+        )
+    # Default: ollama
+    return await _extract_ollama(transcript)
+
+
+# ─── JSON helpers ─────────────────────────────────────────────────────────────
+
 def _parse_json(raw: str) -> dict | None:
-    """Parse JSON from LLM output; tolerate surrounding text or markdown fences."""
     text = raw.strip()
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
@@ -80,7 +189,6 @@ def _parse_json(raw: str) -> dict | None:
 
 
 def _safe_score(value: object) -> int | None:
-    """Coerce a JSON value to a valid 0–3 score or None."""
     if value is None:
         return None
     try:
@@ -89,6 +197,8 @@ def _safe_score(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
 
+
+# ─── Main entry point ─────────────────────────────────────────────────────────
 
 async def extract_and_store_symptoms(
     session_id: str,
@@ -101,17 +211,20 @@ async def extract_and_store_symptoms(
     """
     try:
         langfuse = get_langfuse()
-        llm = get_llm_provider()
 
         with propagate_attributes(
             user_id=patient_id,
             session_id=session_id,
             trace_name="symptom-extraction",
         ):
-            raw = await llm.chat(
-                messages=[{"role": "user", "content": f"Gesprek:\n\n{transcript}"}],
-                system=_EXTRACT_SYSTEM,
-            )
+            with langfuse.start_as_current_observation(
+                as_type="generation",
+                name="symptom-extract-llm",
+                model=_OLLAMA_MODEL if _LLM_PROVIDER == "ollama" else _PORTKEY_MODEL,
+                input=transcript,
+            ) as span:
+                raw = await _call_provider(transcript)
+                span.update(output=raw)
 
         result = _parse_json(raw)
         if not result:
@@ -121,13 +234,18 @@ async def extract_and_store_symptoms(
             )
             return
 
-        # Build reasoning dict — only include keys that have a non-null score or weight
-        raw_reasoning: dict = result.get("reasoning") or {}
-        reasoning: dict[str, str] = {
-            k: str(v) for k, v in raw_reasoning.items() if v
-        }
+        # Validate field names — reject if the model invented its own schema
+        expected_keys = {"dyspnea", "edema", "fatigue", "medication", "weight_kg", "reasoning"}
+        if not expected_keys.intersection(result.keys()):
+            logger.warning(
+                "symptom_extraction: onverwacht JSON-schema voor session=%s, keys=%s",
+                session_id, list(result.keys()),
+            )
+            return
 
-        # ISO week of the current moment (extraction time)
+        raw_reasoning: dict = result.get("reasoning") or {}
+        reasoning: dict[str, str] = {k: str(v) for k, v in raw_reasoning.items() if v}
+
         now = datetime.now(timezone.utc)
         iso = now.isocalendar()
 
@@ -148,11 +266,10 @@ async def extract_and_store_symptoms(
 
         db = SessionLocal()
         try:
-            # UPSERT: merge on session_id unique constraint
             db.merge(observation)
             db.commit()
             logger.info(
-                "symptom_extraction: opgeslagen voor session=%s week=%d-%d",
+                "symptom_extraction: opgeslagen voor session=%s week=%d-W%02d",
                 session_id, iso.year, iso.week,
             )
         finally:

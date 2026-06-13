@@ -1,21 +1,26 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Wind, Scale, Droplet, Pill, HeartPulse } from "lucide-react"
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { toast } from "sonner"
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
 
 import { StatusBadge } from "@/components/dashboard/status-badge"
-import { PATIENTS, TRENDS } from "@/lib/mock-data"
-import type { TrendPoint } from "@/types"
+import { getPatients, getTrends } from "@/lib/api"
+import type { TrendPoint, Patient } from "@/types"
+import { SymptomDetailModal } from "./symptom-detail-modal"
 
 type Range = "7d" | "14d" | "28d"
-type SymptomKey = "kortademigheid" | "gewicht" | "oedeem" | "medicatietrouw" | "vermoeidheid"
+type SymptomKey = "dyspnea" | "weight_kg" | "edema" | "medication" | "fatigue"
+
+const weeksMap: Record<Range, number> = { "7d": 1, "14d": 2, "28d": 4 }
 
 interface Symptom {
   key: SymptomKey
@@ -29,56 +34,124 @@ interface Symptom {
 }
 
 const SYMPTOMS: Symptom[] = [
-  { key: "kortademigheid", label: "Kortademigheid", unit: "/10", kind: "line", domain: [0, 10],    color: "var(--chart-1)", Icon: Wind,       accentStatus: "warning" },
-  { key: "gewicht",        label: "Gewicht",        unit: "kg",  kind: "line", domain: [80, 86],   color: "var(--chart-2)", Icon: Scale,      accentStatus: "info" },
-  { key: "oedeem",         label: "Oedeem",         unit: "/10", kind: "bar",  domain: [0, 10],    color: "var(--chart-3)", Icon: Droplet,    accentStatus: "info" },
-  { key: "medicatietrouw", label: "Medicatietrouw", unit: "%",   kind: "bar",  domain: [60, 100],  color: "var(--chart-4)", Icon: Pill,       accentStatus: "success" },
-  { key: "vermoeidheid",   label: "Vermoeidheid",   unit: "/10", kind: "line", domain: [0, 10],    color: "var(--chart-5)", Icon: HeartPulse, accentStatus: "warning" },
+  { key: "dyspnea",    label: "Kortademigheid", unit: "/3", kind: "line", domain: [0, 3],   color: "var(--chart-1)", Icon: Wind,       accentStatus: "warning" },
+  { key: "weight_kg",  label: "Gewicht",        unit: "kg",  kind: "line", domain: [70, 90], color: "var(--chart-2)", Icon: Scale,      accentStatus: "info" },
+  { key: "edema",      label: "Oedeem",         unit: "/3", kind: "bar",  domain: [0, 3],   color: "var(--chart-3)", Icon: Droplet,    accentStatus: "info" },
+  { key: "medication", label: "Medicatietrouw", unit: "/3", kind: "bar",  domain: [0, 3],   color: "var(--chart-4)", Icon: Pill,       accentStatus: "success" },
+  { key: "fatigue",    label: "Vermoeidheid",   unit: "/3", kind: "line", domain: [0, 3],   color: "var(--chart-5)", Icon: HeartPulse, accentStatus: "warning" },
 ]
 
-const OBSERVATIONS: Record<SymptomKey, string[]> = {
-  kortademigheid: [
-    "Geleidelijke toename in 4 weken — gemiddelde stijging van ~0.1 per dag.",
-    "Patiënt linkt het aan inspanning, maar pieken correleren met gewichtstoename.",
-  ],
-  gewicht: [
-    "Boven drempelwaarde van +1 kg/week op 14 april — zorgvuldig volgen.",
-  ],
-  oedeem: [
-    "Stabiel rond enkels, lichte toename na 20 april.",
-    "Patiënt rapporteert dit zelf consistent — geen escalatie nodig.",
-  ],
-  medicatietrouw: [
-    "Gedaald naar 80% in week 4 — patiënt vergeet avonddosis.",
-    "Anna heeft hier 2 keer naar gevraagd; gesprek lopend.",
-  ],
-  vermoeidheid: [
-    "Toename volgt patroon van kortademigheid — waarschijnlijk gerelateerd.",
-  ],
-}
-
 export function TrendsScreen() {
-  const [patientId, setPatientId] = useState("P-002")
-  const [active, setActive] = useState<SymptomKey>("kortademigheid")
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [patientId, setPatientId] = useState("")
+  const [active, setActive] = useState<SymptomKey>("dyspnea")
   const [range, setRange] = useState<Range>("28d")
+  const [trendData, setTrendData] = useState<TrendPoint[]>([])
+  const [patientsLoading, setPatientsLoading] = useState(true)
+  const [trendsLoading, setTrendsLoading] = useState(false)
+  const [modalSessionId, setModalSessionId] = useState<string | null>(null)
 
-  const patient = PATIENTS.find(p => p.id === patientId) ?? PATIENTS[0]
-  const sym = SYMPTOMS.find(s => s.key === active)!
+  const patient = patients.find(p => p.id === patientId)
 
-  const sliced = useMemo<TrendPoint[]>(() => {
-    if (range === "7d")  return TRENDS.slice(-7)
-    if (range === "14d") return TRENDS.slice(-14)
-    return TRENDS
-  }, [range])
+  useEffect(() => {
+    getPatients()
+      .then(data => {
+        setPatients(data)
+        if (data.length > 0) {
+          setPatientId(data[0].id)
+        }
+      })
+      .catch(err => {
+        console.error(err)
+        toast.error("Kon patiënten niet laden.")
+      })
+      .finally(() => setPatientsLoading(false))
+  }, [])
+
+  useEffect(() => {
+    if (!patientId) return
+
+    const timer = setTimeout(() => {
+      setTrendsLoading(true)
+    }, 0)
+
+    getTrends(patientId, weeksMap[range])
+      .then(setTrendData)
+      .catch(err => {
+        console.error(err)
+        toast.error("Kon symptoomtrends niet laden.")
+      })
+      .finally(() => {
+        setTrendsLoading(false)
+      })
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [patientId, range])
 
   const stats = useMemo(() => SYMPTOMS.map(s => {
-    const vals = sliced.map(d => d[s.key])
-    const cur  = vals[vals.length - 1]
-    const prev = vals[0]
-    return { ...s, cur, delta: cur - prev, vals: sliced.map(d => ({ x: d.date.slice(5), y: d[s.key] })) }
-  }), [sliced])
+    const nonNullVals = trendData.map(d => d[s.key]).filter((v): v is number => v !== null && v !== undefined)
+    const cur = nonNullVals.length > 0 ? nonNullVals[nonNullVals.length - 1] : null
+    const prev = nonNullVals.length > 0 ? nonNullVals[0] : null
+    const delta = (cur !== null && prev !== null) ? cur - prev : 0
+
+    const vals = trendData.map(d => ({
+      x: d.week ? d.week.slice(5) : "",
+      y: d[s.key],
+      session_id: d.session_id
+    }))
+
+    let domain = s.domain
+    if (s.key === "weight_kg" && nonNullVals.length > 0) {
+      const minWeight = Math.min(...nonNullVals)
+      const maxWeight = Math.max(...nonNullVals)
+      if (minWeight === maxWeight) {
+        domain = [minWeight - 2, minWeight + 2]
+      } else {
+        domain = [minWeight - 1, maxWeight + 1]
+      }
+    }
+
+    return { ...s, cur, prev, delta, vals, calculatedDomain: domain }
+  }), [trendData])
 
   const activeStat = stats.find(s => s.key === active)!
+  const sym = activeStat
+
+  if (patientsLoading) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        {/* Topbar skeleton */}
+        <header className="flex h-14 items-center gap-3 border-b px-6 shrink-0 bg-background">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="h-4" />
+          <span className="text-[13px] text-muted-foreground">
+            Dashboard / <b className="text-foreground font-medium">Symptoomtrends</b>
+          </span>
+        </header>
+        <div className="flex-1 p-6 flex flex-col gap-5 max-w-[1280px] w-full mx-auto">
+          <div className="flex items-end justify-between gap-4 flex-wrap">
+            <div>
+              <Skeleton className="h-8 w-48" />
+              <Skeleton className="h-4 w-96 mt-2" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-8 w-52" />
+              <Skeleton className="h-8 w-24" />
+            </div>
+          </div>
+          <Skeleton className="h-[72px] w-full rounded-xl" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            {[...Array(5)].map((_, i) => (
+              <Skeleton key={i} className="h-[104px] rounded-xl" />
+            ))}
+          </div>
+          <Skeleton className="h-[380px] w-full rounded-xl" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -106,7 +179,7 @@ export function TrendsScreen() {
               value={patientId}
               onChange={e => setPatientId(e.target.value)}
             >
-              {PATIENTS.map(p => (
+              {patients.map(p => (
                 <option key={p.id} value={p.id}>{p.first} {p.last} · {p.id}</option>
               ))}
             </select>
@@ -125,117 +198,189 @@ export function TrendsScreen() {
           <div className="flex items-center gap-4 p-4">
             <Avatar className="size-10 shrink-0">
               <AvatarFallback className="text-sm font-medium bg-accent text-accent-foreground">
-                {patient.first[0]}{patient.last[0]}
+                {patient ? `${patient.first[0]}${patient.last[0]}` : ""}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <div className="text-[16px] font-medium">{patient.first} {patient.last}</div>
+              <div className="text-[16px] font-medium">{patient ? `${patient.first} ${patient.last}` : "Patiënt laden..."}</div>
               <div className="text-[12.5px] text-muted-foreground">
-                {patient.age} jaar · {patient.sessions} sessies · {patient.meds}
+                {patient ? `${patient.age} jaar · ${patient.sessions} sessies · ${patient.meds}` : ""}
               </div>
             </div>
-            <StatusBadge status={patient.status} label={patient.label} />
+            {patient && <StatusBadge status={patient.status} label={patient.label} />}
           </div>
         </Card>
 
-        {/* KPI tiles */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {stats.map(s => {
-            const isGood = s.key === "medicatietrouw" ? s.delta >= 0 : s.delta <= 0
-            const arrow  = s.delta >= 0 ? "↑" : "↓"
-            return (
-              <button
-                key={s.key}
-                className="text-left rounded-xl p-3.5 border bg-card transition-all duration-100 outline-none"
-                style={active === s.key ? { borderColor: "var(--primary)", boxShadow: "0 0 0 3px var(--ring)" } : {}}
-                onClick={() => setActive(s.key)}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5" style={{ color: s.color }}>
-                    <s.Icon className="size-3.5" />
-                    <span className="text-[12px] text-muted-foreground font-medium">{s.label}</span>
-                  </div>
-                  <span
-                    className="text-[11px] flex items-center gap-0.5"
-                    style={{ color: isGood ? "var(--success-soft-fg)" : "var(--warning-soft-fg)" }}
+        {trendsLoading && trendData.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center min-h-[300px]">
+            <Skeleton className="h-[300px] w-full rounded-xl" />
+          </div>
+        ) : trendData.length === 0 ? (
+          <Card className="rounded-xl flex-1 flex flex-col items-center justify-center py-16 text-muted-foreground text-center">
+            <HeartPulse className="size-12 opacity-30 mb-3 text-primary" />
+            <h3 className="text-base font-medium text-foreground">Nog geen symptoomdata beschikbaar</h3>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+              Er zijn in de geselecteerde periode nog geen symptoommetingen geregistreerd voor deze patiënt.
+            </p>
+          </Card>
+        ) : (
+          <>
+            {/* KPI tiles */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {stats.map(s => {
+                const isGood = s.key === "medication" ? s.delta >= 0 : s.delta <= 0
+                const arrow  = s.delta > 0 ? "↑" : s.delta < 0 ? "↓" : ""
+                return (
+                  <button
+                    key={s.key}
+                    className="text-left rounded-xl p-3.5 border bg-card transition-all duration-100 outline-none"
+                    style={active === s.key ? { borderColor: "var(--primary)", boxShadow: "0 0 0 3px var(--ring)" } : {}}
+                    onClick={() => setActive(s.key)}
                   >
-                    {arrow}{Math.abs(s.delta).toFixed(s.key === "gewicht" ? 1 : 0)}{s.unit}
-                  </span>
-                </div>
-                <div className="text-[28px] font-medium leading-none tabular-nums" style={{ letterSpacing: "-0.01em" }}>
-                  {s.cur.toFixed(s.key === "gewicht" ? 1 : 0)}
-                  <span className="text-[14px] text-muted-foreground font-normal ml-0.5">{s.unit}</span>
-                </div>
-                <div className="mt-2">
-                  <Sparkline values={s.vals.map(v => v.y)} domain={s.domain} color={s.color} />
-                </div>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Big chart */}
-        <Card className="rounded-xl">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2" style={{ color: sym.color }}>
-                  <sym.Icon className="size-5" />
-                  <h2 className="text-lg font-medium text-foreground">{sym.label}</h2>
-                </div>
-                <p className="text-[12.5px] text-muted-foreground mt-0.5">
-                  Schaal {sym.unit} ·{" "}
-                  {range === "7d" ? "afgelopen 7 dagen" : range === "14d" ? "afgelopen 14 dagen" : "afgelopen 4 weken"}
-                </p>
-              </div>
-              <StatusBadge status={sym.accentStatus} label="Geregistreerd" />
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5" style={{ color: s.color }}>
+                        <s.Icon className="size-3.5" />
+                        <span className="text-[12px] text-muted-foreground font-medium">{s.label}</span>
+                      </div>
+                      {s.cur !== null && (
+                        <span
+                          className="text-[11px] flex items-center gap-0.5"
+                          style={{ color: s.delta === 0 ? "var(--muted-foreground)" : isGood ? "var(--success-soft-fg)" : "var(--warning-soft-fg)" }}
+                        >
+                          {arrow}{Math.abs(s.delta).toFixed(s.key === "weight_kg" ? 1 : 0)}{s.unit}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[28px] font-medium leading-none tabular-nums" style={{ letterSpacing: "-0.01em" }}>
+                      {s.cur !== null ? s.cur.toFixed(s.key === "weight_kg" ? 1 : 0) : "—"}
+                      {s.cur !== null && <span className="text-[14px] text-muted-foreground font-normal ml-0.5">{s.unit}</span>}
+                    </div>
+                    <div className="mt-2">
+                      <Sparkline
+                        values={s.vals.map(v => v.y).filter((v): v is number => v !== null && v !== undefined)}
+                        domain={s.calculatedDomain}
+                        color={s.color}
+                      />
+                    </div>
+                  </button>
+                )
+              })}
             </div>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
-              {sym.kind === "line" ? (
-                <LineChart data={activeStat.vals} margin={{ left: 4, right: 4, top: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" vertical={false} />
-                  <XAxis dataKey="x" tick={{ fontSize: 10.5, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis domain={sym.domain} tick={{ fontSize: 10.5, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={32} />
-                  <Tooltip
-                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
-                    labelStyle={{ color: "var(--foreground)" }}
-                    formatter={(v) => [`${Number(v).toFixed(sym.key === "gewicht" ? 1 : 0)}${sym.unit}`, sym.label]}
-                  />
-                  <Line dataKey="y" stroke={sym.color} strokeWidth={2} dot={{ r: 2.5, fill: sym.color, strokeWidth: 0 }} activeDot={{ r: 4 }} />
-                </LineChart>
-              ) : (
-                <BarChart data={activeStat.vals} margin={{ left: 4, right: 4, top: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" vertical={false} />
-                  <XAxis dataKey="x" tick={{ fontSize: 10.5, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis domain={sym.domain} tick={{ fontSize: 10.5, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={32} />
-                  <Tooltip
-                    contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
-                    formatter={(v) => [`${Number(v).toFixed(0)}${sym.unit}`, sym.label]}
-                  />
-                  <Bar dataKey="y" fill={sym.color} radius={[2, 2, 0, 0]} fillOpacity={0.85} />
-                </BarChart>
-              )}
-            </ResponsiveContainer>
 
-            {/* Observations */}
-            <div className="mt-4 pt-4 border-t">
-              <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-2">
-                Anna&apos;s observaties
-              </div>
-              <div className="flex flex-col gap-2">
-                {OBSERVATIONS[active].map((obs, i) => (
-                  <div key={i} className="flex items-start gap-2 text-[13px]">
-                    <span className="mt-1.5 size-1.5 rounded-full shrink-0" style={{ backgroundColor: sym.color }} />
-                    <span>{obs}</span>
+            {/* Big chart */}
+            <Card className="rounded-xl">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2" style={{ color: sym.color }}>
+                      <sym.Icon className="size-5" />
+                      <h2 className="text-lg font-medium text-foreground">{sym.label}</h2>
+                    </div>
+                    <p className="text-[12.5px] text-muted-foreground mt-0.5">
+                      Schaal {sym.unit} ·{" "}
+                      {range === "7d" ? "afgelopen week" : range === "14d" ? "afgelopen 2 weken" : "afgelopen 4 weken"}
+                    </p>
                   </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                  <StatusBadge status={sym.accentStatus} label="Geregistreerd" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="relative">
+                  {trendsLoading && (
+                    <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10 rounded-lg">
+                      <div className="size-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                  <ResponsiveContainer width="100%" height={260}>
+                    {sym.kind === "line" ? (
+                      <LineChart data={activeStat.vals} margin={{ left: 4, right: 4, top: 4, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" vertical={false} />
+                        <XAxis dataKey="x" tick={{ fontSize: 10.5, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                        <YAxis domain={sym.calculatedDomain} tick={{ fontSize: 10.5, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={32} />
+                        <Tooltip
+                          contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                          labelStyle={{ color: "var(--foreground)" }}
+                          formatter={(v) => [v !== null && v !== undefined ? `${Number(v).toFixed(sym.key === "weight_kg" ? 1 : 0)}${sym.unit}` : "—", sym.label]}
+                        />
+                        <Line
+                          dataKey="y"
+                          stroke={sym.color}
+                          strokeWidth={2}
+                          connectNulls={true}
+                          dot={(props: unknown) => {
+                            const p = props as { cx?: number; cy?: number; payload?: { session_id?: string }; r?: number }
+                            return (
+                              <circle
+                                key={`dot-${p.payload?.session_id}`}
+                                cx={p.cx}
+                                cy={p.cy}
+                                r={4}
+                                fill={sym.color}
+                                stroke="none"
+                                style={{ cursor: "pointer" }}
+                                onClick={() => { if (p.payload?.session_id) setModalSessionId(p.payload.session_id) }}
+                              />
+                            )
+                          }}
+                          activeDot={{
+                            r: 6,
+                            cursor: "pointer",
+                            onClick: (_event: unknown, payload: unknown) => {
+                              const p = payload as { payload?: { session_id?: string } }
+                              if (p?.payload?.session_id) setModalSessionId(p.payload.session_id)
+                            },
+                          }}
+                        />
+                      </LineChart>
+                    ) : (
+                      <BarChart data={activeStat.vals} margin={{ left: 4, right: 4, top: 4, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" vertical={false} />
+                        <XAxis dataKey="x" tick={{ fontSize: 10.5, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                        <YAxis domain={sym.calculatedDomain} tick={{ fontSize: 10.5, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={32} />
+                        <Tooltip
+                          contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }}
+                          formatter={(v) => [v !== null && v !== undefined ? `${Number(v).toFixed(0)}${sym.unit}` : "—", sym.label]}
+                        />
+                        <Bar
+                          dataKey="y"
+                          fill={sym.color}
+                          radius={[2, 2, 0, 0]}
+                          fillOpacity={0.85}
+                          cursor="pointer"
+                          onClick={(data: unknown) => {
+                            const d = data as { payload?: { session_id?: string }; session_id?: string }
+                            if (d && d.payload && d.payload.session_id) {
+                              setModalSessionId(d.payload.session_id)
+                            } else if (d && d.session_id) {
+                              setModalSessionId(d.session_id)
+                            }
+                          }}
+                        />
+                      </BarChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Observations instruction */}
+                <div className="mt-4 pt-4 border-t">
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-2">
+                    Anna&apos;s observaties
+                  </div>
+                  <div className="text-[13px] text-muted-foreground flex items-center gap-2">
+                    <span className="size-1.5 rounded-full shrink-0" style={{ backgroundColor: sym.color }} />
+                    <span>Klik op een meting in de grafiek om Anna&apos;s toelichting en klinische onderbouwing te openen.</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
+      <SymptomDetailModal
+        sessionId={modalSessionId}
+        patientId={patientId}
+        onClose={() => setModalSessionId(null)}
+      />
     </div>
   )
 }
@@ -243,6 +388,7 @@ export function TrendsScreen() {
 // ─── Sparkline (SVG) ─────────────────────────────────────────────
 
 function Sparkline({ values, domain, color }: { values: number[]; domain: [number, number]; color: string }) {
+  if (values.length === 0) return <div className="h-8" />
   const w = 200, h = 32, p = 2
   const [lo, hi] = domain
   const pts = values.map((v, i): [number, number] => {
