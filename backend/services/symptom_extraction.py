@@ -47,7 +47,7 @@ _EXTRACT_SYSTEM = (
     "null != 0: null means not discussed, 0 means explicitly reported as absent.\n"
     "weight_kg: exact float value if mentioned, else null.\n"
     "\n"
-    "For each non-null field include a short Dutch reasoning (max 80 chars) citing what the patient said.\n"
+    "For each non-null field include a short Dutch reasoning (max 80 chars) citing ONLY what the PATIENT (user role) said — NEVER cite the assistant's text.\n"
     "\n"
     "REQUIRED OUTPUT — return ONLY this exact JSON structure with these exact field names:\n"
     "{\n"
@@ -79,7 +79,8 @@ _EXTRACT_SYSTEM = (
 
 def _user_message(transcript: str) -> str:
     return (
-        f"Extract symptom scores from this conversation.\n\n"
+        f"Extract symptom scores from the PATIENT (user) messages below.\n"
+        f"Reasoning must ONLY cite what the patient said — never the assistant.\n\n"
         f"{transcript}\n\n"
         f"Reply with ONLY the JSON object, no other text."
     )
@@ -249,24 +250,43 @@ async def extract_and_store_symptoms(
         now = datetime.now(timezone.utc)
         iso = now.isocalendar()
 
-        observation = SymptomObservation(
-            id=uuid.uuid4(),
-            patient_id=uuid.UUID(patient_id),
-            session_id=uuid.UUID(session_id),
-            week_number=iso.week,
-            year=iso.year,
-            dyspnea=_safe_score(result.get("dyspnea")),
-            edema=_safe_score(result.get("edema")),
-            fatigue=_safe_score(result.get("fatigue")),
-            medication=_safe_score(result.get("medication")),
-            weight_kg=float(result["weight_kg"]) if result.get("weight_kg") is not None else None,
-            reasoning=reasoning,
-            extracted_by="llm",
-        )
+        dyspnea    = _safe_score(result.get("dyspnea"))
+        edema      = _safe_score(result.get("edema"))
+        fatigue    = _safe_score(result.get("fatigue"))
+        medication = _safe_score(result.get("medication"))
+        weight_kg  = float(result["weight_kg"]) if result.get("weight_kg") is not None else None
 
         db = SessionLocal()
         try:
-            db.merge(observation)
+            existing = (
+                db.query(SymptomObservation)
+                .filter(SymptomObservation.session_id == uuid.UUID(session_id))
+                .first()
+            )
+            if existing:
+                existing.dyspnea    = dyspnea
+                existing.edema      = edema
+                existing.fatigue    = fatigue
+                existing.medication = medication
+                existing.weight_kg  = weight_kg
+                existing.reasoning  = reasoning
+                existing.week_number = iso.week
+                existing.year        = iso.year
+            else:
+                db.add(SymptomObservation(
+                    id=uuid.uuid4(),
+                    patient_id=uuid.UUID(patient_id),
+                    session_id=uuid.UUID(session_id),
+                    week_number=iso.week,
+                    year=iso.year,
+                    dyspnea=dyspnea,
+                    edema=edema,
+                    fatigue=fatigue,
+                    medication=medication,
+                    weight_kg=weight_kg,
+                    reasoning=reasoning,
+                    extracted_by="llm",
+                ))
             db.commit()
             logger.info(
                 "symptom_extraction: opgeslagen voor session=%s week=%d-W%02d",
