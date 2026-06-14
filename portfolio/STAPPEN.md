@@ -2316,3 +2316,35 @@ De abstracte `LLMProvider.chat()` geeft `format: json` niet door aan Ollama, waa
 
 **Wat:**
 De klikhandler op `<Line onClick>` in Recharts vangt klikken op de lijn zelf op, niet op individuele datapunten. Oplossing: `dot` prop vervangen door een custom SVG `<circle>` met eigen `onClick`, en `activeDot` voorzien van een `onClick` handler. Beide handlers zetten `modalSessionId` waarna `SymptomDetailModal` opent en `GET /patients/{id}/symptom-observations/{session_id}` aanroept.
+
+---
+
+## Stap 100 — 2026-06-14 — Bugfix: reasoning citeerde Anna's tekst in plaats van patiënttekst
+
+**Wat:**
+De extractieprompt gaf de LLM de volledige transcript (inclusief `assistant:` berichten), waardoor de reasoning citaten pakte uit Anna's antwoorden in plaats van de patiëntberichten. Oplossing in `backend/services/symptom_extraction.py`:
+- System prompt uitgebreid: "cite ONLY what the PATIENT (user role) said — NEVER cite the assistant's text"
+- User-turn prefix toegevoegd: "Extract symptom scores from the PATIENT (user) messages below. Reasoning must ONLY cite what the patient said — never the assistant."
+
+**Getest:** directe run in container toonde reasoning met correcte patientcitaten zonder Anna's tekst.
+
+---
+
+## Stap 101 — 2026-06-14 — Feature: ChromaDB sessiegeheugen tonen in symptoomdetailmodal
+
+**Wat:**
+De `SymptomDetailModal` toont nu naast de LLM-redenering ook de opgeslagen ChromaDB-herinneringen die tijdens de sessie zijn aangemaakt. Dit geeft zorgverleners direct inzicht in welke uitspraken van de patiënt zijn opgeslagen als vectorgeheugen.
+
+Geïmplementeerde onderdelen:
+1. **`mcp-server/tools/memory.py`** — `get_session_memories()` toegevoegd: haalt alle memories op voor een specifieke sessie via `collection.get()` met `$and` filter op `patient_id` en `session_id`, gesorteerd op timestamp
+2. **`mcp-server/main.py`** — `get_session_memories` MCP-tool geregistreerd
+3. **`backend/services/mcp_client.py`** — `get_session_memories()` methode toegevoegd die de MCP-tool aanroept
+4. **`backend/routers/symptom_trends.py`** — `GET /patients/{patient_id}/sessions/{session_id}/memories` endpoint toegevoegd
+5. **`frontend/Anna-remembers/types/index.ts`** — `SessionMemory` interface toegevoegd (`content`, `source`, `session_id`, `timestamp`)
+6. **`frontend/Anna-remembers/lib/api.ts`** — `getSessionMemories()` functie toegevoegd
+7. **`frontend/Anna-remembers/components/trends/symptom-detail-modal.tsx`** — modal fetcht nu `Promise.all([getSymptomObservation(), getSessionMemories()])` en rendert een "Opgeslagen geheugen" sectie met source-badge (`patiënt` / `AI afgeleid`) en tijdstempel per geheugenitem
+
+**Beslissingen:**
+- `getSessionMemories()` faalt graceful (`.catch(() => [])`) zodat de modal altijd opent, ook als de MCP-server geen memories heeft
+- ChromaDB `collection.get()` (niet `query()`) — geen semantische zoekopdracht nodig, we willen alle memories van deze sessie
+- Source-kleurcodering: `patient_stated` → chart-1 (blauw), `ai_inferred` → chart-4 (paars)

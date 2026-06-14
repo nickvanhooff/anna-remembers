@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from models.symptom_observation import SymptomObservation
 from schemas.symptom_observation import SymptomObservationRead, TrendPoint, TrendsResponse
 from services.database import get_db
+from services.mcp_client import MCPClient, get_mcp_client
 
 router = APIRouter(prefix="/patients", tags=["symptom-trends"])
 
@@ -96,3 +97,19 @@ def get_symptom_observation(
     if not row:
         raise HTTPException(status_code=404, detail="Observatie niet gevonden")
     return row
+
+
+@router.get(
+    "/{patient_id}/sessions/{session_id}/memories",
+    response_model=list[dict],
+)
+async def get_session_memories(
+    patient_id: uuid.UUID,
+    session_id: uuid.UUID,
+    mcp: Annotated[MCPClient, Depends(get_mcp_client)],
+) -> list[dict]:
+    """Return all ChromaDB memories stored during a specific session."""
+    return await mcp.get_session_memories(
+        patient_id=str(patient_id),
+        session_id=str(session_id),
+    )

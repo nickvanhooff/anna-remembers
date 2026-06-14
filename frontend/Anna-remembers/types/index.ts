@@ -78,6 +78,13 @@ export interface TrendPoint {
   session_id: string
 }
 
+export interface SessionMemory {
+  content:    string
+  source:     "patient_stated" | "ai_inferred" | string
+  session_id: string
+  timestamp:  string
+}
+
 export interface SymptomObservationRead {
   id:           string
   session_id:   string

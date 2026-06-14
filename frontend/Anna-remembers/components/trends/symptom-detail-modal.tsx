@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Wind, Scale, Droplet, Pill, HeartPulse, Loader2, AlertCircle } from "lucide-react"
+import { Wind, Scale, Droplet, Pill, HeartPulse, Loader2, AlertCircle, Brain } from "lucide-react"
 
 import {
   Dialog,
@@ -10,8 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { getSymptomObservation } from "@/lib/api"
-import type { SymptomObservationRead } from "@/types"
+import { getSymptomObservation, getSessionMemories } from "@/lib/api"
+import type { SymptomObservationRead, SessionMemory } from "@/types"
 
 interface SymptomDetailModalProps {
   sessionId: string | null
@@ -34,6 +34,11 @@ const SYMPTOM_METAS: SymptomMeta[] = [
   { key: "fatigue",    label: "Vermoeidheid",   color: "var(--chart-5)", Icon: HeartPulse },
 ]
 
+const SOURCE_LABEL: Record<string, string> = {
+  patient_stated: "patiënt",
+  ai_inferred: "AI afgeleid",
+}
+
 export function SymptomDetailModal({
   sessionId,
   patientId,
@@ -42,11 +47,13 @@ export function SymptomDetailModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [observation, setObservation] = useState<SymptomObservationRead | null>(null)
+  const [memories, setMemories] = useState<SessionMemory[]>([])
 
   useEffect(() => {
     if (!sessionId) {
       const timer = setTimeout(() => {
         setObservation(null)
+        setMemories([])
         setError(null)
       }, 0)
       return () => clearTimeout(timer)
@@ -57,8 +64,14 @@ export function SymptomDetailModal({
       setError(null)
     }, 0)
 
-    getSymptomObservation(patientId, sessionId)
-      .then(setObservation)
+    Promise.all([
+      getSymptomObservation(patientId, sessionId),
+      getSessionMemories(patientId, sessionId).catch(() => [] as SessionMemory[]),
+    ])
+      .then(([obs, mems]) => {
+        setObservation(obs)
+        setMemories(mems)
+      })
       .catch(err => {
         console.error(err)
         setError("Kon de symptoomdetails niet ophalen.")
@@ -84,7 +97,7 @@ export function SymptomDetailModal({
 
   return (
     <Dialog open={!!sessionId} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[480px] rounded-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[520px] rounded-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Klinische toelichting</DialogTitle>
           <DialogDescription>
@@ -121,7 +134,6 @@ export function SymptomDetailModal({
                   key={meta.key}
                   className="p-3.5 rounded-xl border bg-card/50 flex flex-col gap-2.5 transition-all hover:bg-card"
                 >
-                  {/* Header info */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2" style={{ color: meta.color }}>
                       <meta.Icon className="size-4 shrink-0" />
@@ -139,7 +151,6 @@ export function SymptomDetailModal({
                     </div>
                   </div>
 
-                  {/* Progress bar for 0-3 score symptoms */}
                   {score !== null && !isWeight && (
                     <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                       <div
@@ -152,11 +163,10 @@ export function SymptomDetailModal({
                     </div>
                   )}
 
-                  {/* Reasoning block */}
                   {reasoningText ? (
                     <div className="text-[12.5px] leading-relaxed text-muted-foreground bg-muted/40 p-2.5 rounded-lg border border-border/40 font-normal">
                       <div className="text-[10.5px] uppercase font-bold text-muted-foreground/60 mb-0.5 tracking-wider">
-                        Onderbouwing Anna
+                        Onderbouwing (citaat patiënt)
                       </div>
                       &ldquo;{reasoningText}&rdquo;
                     </div>
@@ -168,6 +178,34 @@ export function SymptomDetailModal({
                 </div>
               )
             })}
+
+            {memories.length > 0 && (
+              <div className="flex flex-col gap-2 pt-1">
+                <div className="flex items-center gap-2 text-[11px] uppercase font-bold tracking-wider text-muted-foreground/60">
+                  <Brain className="size-3.5" />
+                  Opgeslagen geheugen ({memories.length})
+                </div>
+                {memories.map((mem, i) => (
+                  <div
+                    key={i}
+                    className="text-[12.5px] leading-relaxed bg-muted/30 p-2.5 rounded-lg border border-border/30 flex flex-col gap-1"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-semibold tracking-wide"
+                        style={{ color: mem.source === "patient_stated" ? "var(--chart-1)" : "var(--chart-4)" }}>
+                        {SOURCE_LABEL[mem.source] ?? mem.source}
+                      </span>
+                      {mem.timestamp && (
+                        <span className="text-[10px] text-muted-foreground/50">
+                          {new Date(mem.timestamp).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-muted-foreground font-normal">{mem.content}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : null}
       </DialogContent>

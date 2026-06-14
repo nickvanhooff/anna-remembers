@@ -7,6 +7,7 @@ import type {
   PatientStatus,
   Settings,
   SymptomObservationRead,
+  SessionMemory,
 } from "@/types"
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
@@ -239,6 +240,10 @@ export async function getTrends(patientId: string, weeks: number): Promise<Trend
 
 export async function getSymptomObservation(patientId: string, sessionId: string): Promise<SymptomObservationRead> {
   return get<SymptomObservationRead>(`/patients/${patientId}/symptom-observations/${sessionId}`)
+}
+
+export async function getSessionMemories(patientId: string, sessionId: string): Promise<SessionMemory[]> {
+  return get<SessionMemory[]>(`/patients/${patientId}/sessions/${sessionId}/memories`)
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────

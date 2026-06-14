@@ -58,6 +58,32 @@ async def store_memory(
     return doc_id
 
 
+async def get_session_memories(
+    patient_id: str,
+    session_id: str,
+    provider: str,
+) -> list[dict]:
+    """Return all stored memories for a specific session (no semantic search)."""
+    collection = get_collection(provider)
+    results = collection.get(
+        where={"$and": [{"patient_id": patient_id}, {"session_id": session_id}]},
+        include=["documents", "metadatas"],
+    )
+    memories: list[dict] = []
+    for i, doc in enumerate(results["documents"]):
+        meta = results["metadatas"][i]
+        memories.append(
+            {
+                "content": doc,
+                "source": meta.get("source", ""),
+                "session_id": meta.get("session_id", ""),
+                "timestamp": meta.get("timestamp", ""),
+            }
+        )
+    memories.sort(key=lambda m: m["timestamp"])
+    return memories
+
+
 async def recall_context(
     query: str,
     patient_id: str,

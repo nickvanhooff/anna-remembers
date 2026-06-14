@@ -85,6 +85,22 @@ class MCPClient:
             return value
         return str(value)
 
+    async def get_session_memories(
+        self,
+        patient_id: str,
+        session_id: str,
+    ) -> list[dict]:
+        """Return all ChromaDB memories stored for a specific session."""
+        async with Client(self._url) as client:
+            result = await client.call_tool(
+                "get_session_memories",
+                {"patient_id": patient_id, "session_id": session_id},
+            )
+        value = _unwrap_tool_result(result)
+        if isinstance(value, str):
+            return json.loads(value)
+        return value if isinstance(value, list) else []
+
     async def get_symptom_trends(
         self,
         patient_id: str,
