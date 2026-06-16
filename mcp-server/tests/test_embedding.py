@@ -44,6 +44,7 @@ async def test_ollama_embed_raises_on_connection_error():
 
 def test_get_embedding_provider_returns_ollama(monkeypatch):
     """Factory returns OllamaEmbeddingProvider with values from env."""
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "ollama")
     monkeypatch.setenv("EMBEDDING_MODEL", "bge-m3")
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama:11434")
     provider = get_embedding_provider()

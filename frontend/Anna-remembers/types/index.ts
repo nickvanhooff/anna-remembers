@@ -69,12 +69,35 @@ export interface Escalation {
 }
 
 export interface TrendPoint {
-  date: string
-  kortademigheid: number
-  gewicht: number
-  oedeem: number
-  medicatietrouw: number
-  vermoeidheid: number
+  week:       string           // "2026-W23"
+  dyspnea:    number | null
+  edema:      number | null
+  fatigue:    number | null
+  medication: number | null
+  weight_kg:  number | null
+  session_id: string
+}
+
+export interface SessionMemory {
+  content:    string
+  source:     "patient_stated" | "ai_inferred" | string
+  session_id: string
+  timestamp:  string
+}
+
+export interface SymptomObservationRead {
+  id:           string
+  session_id:   string
+  week_number:  number
+  year:         number
+  dyspnea:      number | null
+  edema:        number | null
+  fatigue:      number | null
+  medication:   number | null
+  weight_kg:    number | null
+  reasoning:    Record<string, string>
+  observed_at:  string
+  extracted_by: string
 }
 
 export interface Settings {

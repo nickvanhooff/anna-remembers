@@ -139,7 +139,14 @@
       "PowerShell(ls \"C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\mcp-server\" | ForEach-Object { $_.Name })",
       "Skill(langfuse)",
       "Bash(Select-String -Path \"C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\portfolio\\\\STAPPEN.md\" -Pattern \"^## Stap \\\\d+\")",
-      "Bash(Select-Object -Last 5)"
+      "Bash(Select-Object -Last 5)",
+      "Bash(git checkout *)",
+      "WebFetch(domain:gofastmcp.com)",
+      "Bash(pip index *)",
+      "Bash(npx skills *)",
+      "Bash(npx create-video@latest --yes --blank --no-tailwind demo-video)",
+      "Bash(npx remotion *)",
+      "Bash(node --experimental-strip-types scripts/generate-captions.mts)"
     ]
   }
 }

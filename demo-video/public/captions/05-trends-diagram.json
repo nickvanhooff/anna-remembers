@@ -1,0 +1,37 @@
+[
+  {
+    "text": "Na elke sessie extraheert een apart model symptoomdata",
+    "startMs": 800,
+    "endMs": 5500,
+    "timestampMs": 800,
+    "confidence": 1
+  },
+  {
+    "text": "Scores 0–3 per klacht — null betekent niet besproken",
+    "startMs": 5500,
+    "endMs": 12000,
+    "timestampMs": 5500,
+    "confidence": 1
+  },
+  {
+    "text": "Opslag in PostgreSQL — één observatie per sessie",
+    "startMs": 12000,
+    "endMs": 20000,
+    "timestampMs": 12000,
+    "confidence": 1
+  },
+  {
+    "text": "Dashboard toont trends over meerdere weken",
+    "startMs": 20000,
+    "endMs": 29000,
+    "timestampMs": 20000,
+    "confidence": 1
+  },
+  {
+    "text": "Per datapunt: redenering + patiëntcitaat",
+    "startMs": 29000,
+    "endMs": 38000,
+    "timestampMs": 29000,
+    "confidence": 1
+  }
+]

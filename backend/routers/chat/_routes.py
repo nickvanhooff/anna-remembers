@@ -33,6 +33,7 @@ from ._animation import resolve_animation
 from ._escalation import format_escalation_reason, layer0_check, layer1_classify
 from ._prompts import build_system_prompt
 from ._summary import _SUMMARY_INTERVAL, trigger_summary_update
+from services.symptom_extraction import extract_and_store_symptoms
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -237,9 +238,10 @@ def list_messages(
 )
 def close_session(
     patient_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
-    """Close the current open session."""
+    """Close the current open session and extract symptoms from the full transcript."""
     session = (
         db.query(ChatSession)
         .filter(
@@ -255,11 +257,22 @@ def close_session(
     db.commit()
     db.refresh(session)
 
-    count = (
-        db.query(func.count(Message.id))
+    messages = (
+        db.query(Message)
         .filter(Message.session_id == session.id)
-        .scalar()
-    ) or 0
+        .order_by(Message.created_at.asc())
+        .all()
+    )
+    count = len(messages)
+
+    if messages:
+        transcript = "\n".join(f"{m.role}: {m.content}" for m in messages)
+        background_tasks.add_task(
+            extract_and_store_symptoms,
+            session_id=str(session.id),
+            patient_id=str(patient_id),
+            transcript=transcript,
+        )
 
     return {
         "id": session.id,

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import chat, escalations, patients, settings, tts, voice_samples
+from routers import chat, escalations, patients, settings, symptom_trends, tts, voice_samples
 
 app = FastAPI(
     title="Anna Remembers API",
@@ -22,6 +22,7 @@ app.include_router(escalations.router)
 app.include_router(tts.router)
 app.include_router(voice_samples.router)
 app.include_router(settings.router)
+app.include_router(symptom_trends.router)
 
 
 @app.get("/health")

@@ -2241,3 +2241,234 @@ Drie kleine verbeteringen op branch `fix/ui-polish`:
 3. **Local stack preset** hersteld: `qwen2.5:0.5b` → `qwen2.5:3b` voor escalatie. Het 0.5b model is onveilig voor medische triage (1/10 urgency correct in benchmark).
 
 **Waarom:** Punt 3 was een actieve bug geïdentificeerd in de benchmark — het preset stelde een onveilig model in. Punt 1 en 2 verbeteren de demo-kwaliteit.
+
+---
+
+## Stap 96 — 2026-06-13 — Symptoomtrends: datalaag (model + migratie + schema's)
+
+**Wat:**
+Start van de symptoomtrends feature (Child Issues 1.1 en 1.2).
+
+1. **SQLAlchemy model** aangemaakt: `backend/models/symptom_observation.py`
+   - Tabel `symptom_observations` met UUID PK, FK naar `patients` en `sessions` (UNIQUE op `session_id`)
+   - Kolommen: `dyspnea`, `edema`, `fatigue`, `medication` (Integer 0–3, nullable), `weight_kg` (Float, nullable), `reasoning` (JSONB), `extracted_by` (String)
+   - CheckConstraints per scorekolom: `IS NULL OR BETWEEN 0 AND 3`
+2. **`backend/models/__init__.py`** uitgebreid met `SymptomObservation` (vereist voor Alembic autogenerate)
+3. **Alembic migratie** handmatig geschreven: `backend/alembic/versions/0009_add_symptom_observations.py`
+   - Revision ID: 0009, Revises: 0008
+   - Index `idx_symptom_obs_patient_week` op `(patient_id, year, week_number)`
+   - Migratie handmatig geschreven omdat Docker/PostgreSQL niet draaide tijdens ontwikkeling
+4. **Pydantic schema's** aangemaakt: `backend/schemas/symptom_observation.py`
+   - `SymptomObservationCreate` met `field_validator` die 0–3 enforceert (aparte validator voor scores vs. weight_kg als float)
+   - `SymptomObservationRead` extends Create met `id`, `observed_at`, `extracted_by`
+   - `TrendPoint` voor Recharts-datapunten inclusief `session_id` voor drill-down
+   - `TrendsResponse` als wrapper
+
+**Waarom:** `null` en `0` zijn expliciet verschillende waarden — null = niet besproken, 0 = geen symptoom. CheckConstraint laat NULL toe maar blokkeert waarden buiten 0–3. Gewicht valt buiten de 0–3 schaal en heeft een aparte Float-kolom.
+
+---
+
+## Stap 97 — 2026-06-13 — Symptoomtrends: extractieservice + trigger + API-endpoints
+
+**Wat:**
+Child Issues 2.1 t/m 2.4 geïmplementeerd.
+
+1. **`backend/services/symptom_extraction.py`** aangemaakt — LLM-extractiefunctie:
+   - System prompt dwingt JSON-output af met 0–3 schaal en null-definitie
+   - JSON-parsing met regex-fallback voor het geval de LLM extra tekst geeft
+   - `_safe_score()` coerceert waarden buiten 0–3 naar None (defensief)
+   - UPSERT via `db.merge()` — UNIQUE constraint op `session_id` voorkomt duplicaten
+   - Volledige `try/except` — extractiefout crasht de chat nooit
+   - Langfuse tracing via `propagate_attributes` — extractie zichtbaar als aparte trace
+
+2. **`backend/routers/chat/_routes.py`** aangepast — BackgroundTask trigger:
+   - Import toegevoegd: `from services.symptom_extraction import extract_and_store_symptoms`
+   - Transcript samengesteld uit `recent` berichten + nieuw AI-antwoord
+   - `background_tasks.add_task(extract_and_store_symptoms, ...)` na `db.commit()` voor AI-antwoord
+
+3. **`backend/routers/symptom_trends.py`** aangemaakt — twee endpoints:
+   - `GET /patients/{patient_id}/symptom-trends?weeks=8` — tijdlijn voor Recharts, retourneert `TrendsResponse` met `session_id` per punt
+   - `GET /patients/{patient_id}/symptom-observations/{session_id}` — detail met `reasoning` JSONB voor clinical traceability modal
+   - Cutoff-berekening op basis van ISO-week
+
+4. **`backend/main.py`** uitgebreid: `symptom_trends` router geregistreerd
+
+**Waarom:** BackgroundTask zodat de chatrespons niet vertraagd wordt. Transcript bevat de laatste 6 berichten (de `recent` variabele die al beschikbaar was) plus het nieuwe AI-antwoord — voldoende context voor symptoomextractie zonder extra DB-query.
+
+---
+
+## Stap 98 — 2026-06-13 — Bugfix: extractie retourneerde verkeerd JSON-schema
+
+**Wat:**
+De abstracte `LLMProvider.chat()` geeft `format: json` niet door aan Ollama, waardoor het model zijn eigen JSON-schema verzon in plaats van het vereiste schema te volgen. Oplossing: `symptom_extraction.py` herschreven naar provider-specifieke functies met JSON-mode, exact het patroon van `_escalation.py`.
+
+- `_extract_ollama()` — Ollama HTTP API met `"format": "json"` en `num_predict: 256`
+- `_extract_portkey()` — Portkey SDK met `response_format={"type": "json_object"}`
+- `_extract_openai_compat()` — OpenAI SDK met `response_format={"type": "json_object"}` (Groq, OpenRouter)
+- `_call_provider()` — dispatch op basis van `LLM_PROVIDER` env var
+- Validatie toegevoegd: als de LLM toch een eigen schema retourneert, wordt de observatie niet opgeslagen en gelogd
+
+**Getest:** directe aanroep van `extract_and_store_symptoms()` in container → rij zichtbaar in `symptom_observations` tabel met correcte veldnamen en reasoning. `GET /patients/{id}/symptom-trends` retourneert live data.
+
+---
+
+## Stap 99 — 2026-06-13 — Bugfix: modal opent niet bij klik op grafiekpunt
+
+**Wat:**
+De klikhandler op `<Line onClick>` in Recharts vangt klikken op de lijn zelf op, niet op individuele datapunten. Oplossing: `dot` prop vervangen door een custom SVG `<circle>` met eigen `onClick`, en `activeDot` voorzien van een `onClick` handler. Beide handlers zetten `modalSessionId` waarna `SymptomDetailModal` opent en `GET /patients/{id}/symptom-observations/{session_id}` aanroept.
+
+---
+
+## Stap 100 — 2026-06-14 — Bugfix: reasoning citeerde Anna's tekst in plaats van patiënttekst
+
+**Wat:**
+De extractieprompt gaf de LLM de volledige transcript (inclusief `assistant:` berichten), waardoor de reasoning citaten pakte uit Anna's antwoorden in plaats van de patiëntberichten. Oplossing in `backend/services/symptom_extraction.py`:
+- System prompt uitgebreid: "cite ONLY what the PATIENT (user role) said — NEVER cite the assistant's text"
+- User-turn prefix toegevoegd: "Extract symptom scores from the PATIENT (user) messages below. Reasoning must ONLY cite what the patient said — never the assistant."
+
+**Getest:** directe run in container toonde reasoning met correcte patientcitaten zonder Anna's tekst.
+
+---
+
+## Stap 101 — 2026-06-14 — Feature: ChromaDB sessiegeheugen tonen in symptoomdetailmodal
+
+**Wat:**
+De `SymptomDetailModal` toont nu naast de LLM-redenering ook de opgeslagen ChromaDB-herinneringen die tijdens de sessie zijn aangemaakt. Dit geeft zorgverleners direct inzicht in welke uitspraken van de patiënt zijn opgeslagen als vectorgeheugen.
+
+Geïmplementeerde onderdelen:
+1. **`mcp-server/tools/memory.py`** — `get_session_memories()` toegevoegd: haalt alle memories op voor een specifieke sessie via `collection.get()` met `$and` filter op `patient_id` en `session_id`, gesorteerd op timestamp
+2. **`mcp-server/main.py`** — `get_session_memories` MCP-tool geregistreerd
+3. **`backend/services/mcp_client.py`** — `get_session_memories()` methode toegevoegd die de MCP-tool aanroept
+4. **`backend/routers/symptom_trends.py`** — `GET /patients/{patient_id}/sessions/{session_id}/memories` endpoint toegevoegd
+5. **`frontend/Anna-remembers/types/index.ts`** — `SessionMemory` interface toegevoegd (`content`, `source`, `session_id`, `timestamp`)
+6. **`frontend/Anna-remembers/lib/api.ts`** — `getSessionMemories()` functie toegevoegd
+7. **`frontend/Anna-remembers/components/trends/symptom-detail-modal.tsx`** — modal fetcht nu `Promise.all([getSymptomObservation(), getSessionMemories()])` en rendert een "Opgeslagen geheugen" sectie met source-badge (`patiënt` / `AI afgeleid`) en tijdstempel per geheugenitem
+
+**Beslissingen:**
+- `getSessionMemories()` faalt graceful (`.catch(() => [])`) zodat de modal altijd opent, ook als de MCP-server geen memories heeft
+- ChromaDB `collection.get()` (niet `query()`) — geen semantische zoekopdracht nodig, we willen alle memories van deze sessie
+- Source-kleurcodering: `patient_stated` → chart-1 (blauw), `ai_inferred` → chart-4 (paars)
+
+---
+
+## Stap 102 — 2026-06-16 — Demo-video: escalatiediagram + ontbrekende opname graceful
+
+**Wat:**
+- `EscalationDiagram` laadt schermopname `04-escalation.mp4` als achtergrondlaag in de root
+- `RecordingVideo` component toegevoegd: controleert via HEAD/Range of bestand bestaat vóór `<Video>` mount — voorkomt mediabunny 404-crash in Studio
+- `Escalation` composition geregistreerd in `Root.tsx` (1050 frames = 35s)
+- Scene 4 in `AnnaRemembers` gebruikt nu `EscalationDiagram` i.p.v. alleen `SceneCard`
+
+**Beslissingen:**
+- Opname ontbreekt nog (`public/recordings/` heeft alleen placeholder) — diagram speelt door met donkere achtergrond tot bestand geplaatst is
+- Zelfde `RecordingVideo` patroon hergebruikt in `SceneCard` voor alle scenes met opnames
+
+**Evidence:** Nog geen aparte evidence — wacht op geplaatste `04-escalation.mp4` voor screenshot/render
+
+---
+
+## Stap 103 — 2026-06-16 — Demo-video: escalatiediagram layout overlap gefixt
+
+**Wat:**
+- Diagram-nodes omhoog geschoven (triage-rij y: 800→700) voor ruimte onderaan
+- Urgentiescore verplaatst naar links van Triage Model (niet meer eronder)
+- Fase-label verplaatst van onderkant naar boven (onder titel)
+- Captions in escalatiescene kleiner (`26px`) en lager (`bottom: 28`) zodat ze niet over score/fase heen vallen
+- `CaptionOverlay` ondersteunt nu optionele `bottom` en `fontSize` props
+
+**Beslissingen:**
+- Onderkant gereserveerd voor voice-over captions; diagram-informatie naar boven en zijkant
+
+---
+
+## Stap 104 — 2026-06-16 — Demo-video: globale ondertiteling escalatiescene
+
+**Wat:**
+- `04-escalation.json` herschreven: 4 korte globale zinnen i.p.v. woord-voor-woord
+- `CaptionOverlay` krijgt `mode="phrase"` — één zin per blok, geen TikTok-style woordhighlight
+- Laatste 3 zinnen langer op scherm (6.7s / 9.5s / 13s vs 4s intro)
+- Diagram-fases ②③④ verlengd; fase ① korter (focus op escalatie-pad)
+- `generate-captions.mts` ondersteunt `phrases[]` voor toekomstige regeneratie
+
+**Beslissingen:**
+- Globale ondertiteling = samenvatting per stap, niet volledige voice-over letterlijk
+
+---
+
+## Stap 105 — 2026-06-16 — Demo-video: escalatiescene duur → 16s (lengte opname)
+
+**Wat:**
+- Escalatiescene verkort van 35s naar 16s (werkelijke lengte `04-escalation.mp4`)
+- `AnnaRemembers` totaalduur: 7950 → 7380 frames; latere scenes verschoven
+- `Escalation` composition: 480 frames
+- Captions en fase-labels herschaald naar 16s tijdlijn
+- Diagram-overlay fadet weg rond 13s; laatste ~3s alleen opname + ondertitel
+
+**Beslissingen:**
+- Geen stilstaand laatste frame meer na einde opname
+
+---
+
+## Stap 106 — 2026-06-16 — ChatFlow + Escalatie gecombineerd met zoom op background-task
+
+**Wat:**
+- Nieuwe `ChatEscalationDiagram`: chat flow (18s) → crossfade → escalatie (16s)
+- Zoom 1.55× op achtergrond-track zodra `BackgroundTask` start (triage → escalatie → Twilio)
+- Scene 4 in `AnnaRemembers` gebruikt gecombineerde compositie (~33s)
+- Nieuwe Studio-compositie `ChatEscalation`; standalone `Escalation` houdt zoom
+
+**Beslissingen:**
+- Zoom alleen op diagramlaag, niet op schermopname — opname blijft leesbaar op achtergrond
+- Zoom-center op midden van triage/escalatie-pad (x≈1285, y=700)
+
+---
+
+## Stap 107 — 2026-06-16 — Demo-video: achtergrond-track onder MCP/ChromaDB + langere triage
+
+**Wat:**
+- Triage/escalatie/Twilio verplaatst naar y=900 (eigen rij onder MCP/ChromaDB op y=760)
+- Zoom-center aangepast naar (1280, 900); zoom iets minder agressief (1.65×)
+- Triage-fase verlengd: score telt langzamer (318–392), escalatie-pakketten later (395+)
+- Zoom-out verschoven naar frame 448–472 zodat triage langer in beeld blijft
+
+**Beslissingen:**
+- Achtergrond-track visueel gescheiden van RAG-pad — geen overlap meer bij zoom
+- Langere triage = meer tijd voor urgentiescore en drempel-moment vóór escalatie
+
+**Evidence:** Nog niet — visueel check via `npx remotion still ChatEscalation out/ChatEscalation.png --frame=360`
+
+---
+
+## Stap 108 — 2026-06-16 — Scene 4 trager + nieuwe Symptoomtrends-visualisatie
+
+**Wat:**
+- ChatEscalation fase ④ verlengd: 480 → 570 frames (+3s); triage/escalatie/SMS krijgen meer tijd
+- Nieuwe `SymptomTrendsDiagram`: aparte Remotion-compositie (40s, Nederlands)
+  - Flow: check-in → BackgroundTask extractie → JSON scores → PostgreSQL → dashboard grafiek → detailmodal
+  - Transcript-panel, typewriter JSON, lijngrafiek kortademigheid W01–W04, patiëntcitaat
+- Scene 5 in `AnnaRemembers` gebruikt diagram i.p.v. schermopname
+- Studio-compositie `SymptomTrends`; captions in `05-trends-diagram.json`
+- Totale duur AnnaRemembers: 7380 → 7470 frames
+
+**Beslissingen:**
+- Symptoomtrends als eigen architectuurvideo (niet gecombineerd met ChatEscalation)
+- Gebaseerd op echte pipeline: `extract_and_store_symptoms` + `GET /symptom-trends` + reasoning JSONB
+
+**Evidence:** Nog niet — `npx remotion still SymptomTrends out/SymptomTrends-chart.png --frame=900`
+
+---
+
+## Stap 109 — 2026-06-16 — Symptoomextractie bij sessie-einde + volledig transcript
+
+**Wat:**
+- `extract_and_store_symptoms` verplaatst van chat-beurt naar `POST /sessions/close`
+- Transcript = alle berichten van de sessie (niet meer laatste 6)
+- Per-beurt extractie uit `chat()` verwijderd
+- Merge bij update: `null` overschrijft bestaande score/reasoning niet
+- `SymptomTrendsDiagram` labels bijgewerkt (sessie afsluiten)
+
+**Beslissingen:**
+- Eén extractie per check-in = volledige context, geen verlies bij lange gesprekken
+- Merge als vangnet bij her-extractie (zelfde session_id)
+
+**Evidence:** Nog niet — handmatig testen: sessie met 10+ berichten → sluiten → check `symptom_observations`

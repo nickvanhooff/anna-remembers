@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from services.embedding import EmbeddingProvider, get_embedding_provider
 from tools.escalation import escalate_to_human as _escalate_to_human
+from tools.memory import get_session_memories as _get_session_memories
 from tools.memory import recall_context as _recall_context
 from tools.memory import store_memory as _store_memory
 from tools.migration import migrate_embeddings as _migrate_embeddings
@@ -66,6 +67,15 @@ async def recall_context(
 
 
 @mcp.tool()
+async def get_session_memories(
+    patient_id: str,
+    session_id: str,
+) -> list[dict]:
+    """Return all stored memories for a specific session, sorted by timestamp."""
+    return await _get_session_memories(patient_id, session_id, _holder.provider_name)
+
+
+@mcp.tool()
 async def escalate_to_human(
     patient_id: str,
     reason: str,
@@ -104,4 +114,4 @@ async def migrate_all_memories(source_provider: str, target_provider: str) -> di
 
 if __name__ == "__main__":
     port = int(os.getenv("MCP_PORT", "8001"))
-    mcp.run(transport="sse", host="0.0.0.0", port=port)
+    mcp.run(transport="http", host="0.0.0.0", port=port)

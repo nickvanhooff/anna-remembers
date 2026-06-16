@@ -39,7 +39,7 @@ class MCPClient:
     """Wrapper around fastmcp.Client exposing MCP tools as Python methods."""
 
     def __init__(self, base_url: str) -> None:
-        self._url = f"{base_url}/sse"
+        self._url = f"{base_url}/mcp"
 
     async def recall_context(
         self,
@@ -84,6 +84,22 @@ class MCPClient:
         if isinstance(value, str):
             return value
         return str(value)
+
+    async def get_session_memories(
+        self,
+        patient_id: str,
+        session_id: str,
+    ) -> list[dict]:
+        """Return all ChromaDB memories stored for a specific session."""
+        async with Client(self._url) as client:
+            result = await client.call_tool(
+                "get_session_memories",
+                {"patient_id": patient_id, "session_id": session_id},
+            )
+        value = _unwrap_tool_result(result)
+        if isinstance(value, str):
+            return json.loads(value)
+        return value if isinstance(value, list) else []
 
     async def get_symptom_trends(
         self,
