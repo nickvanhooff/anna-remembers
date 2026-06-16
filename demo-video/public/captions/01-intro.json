@@ -1,0 +1,198 @@
+[
+  {
+    "text": " Anna",
+    "startMs": 800,
+    "endMs": 1188,
+    "timestampMs": 800,
+    "confidence": 1
+  },
+  {
+    "text": " Remembers",
+    "startMs": 1188,
+    "endMs": 1945,
+    "timestampMs": 1188,
+    "confidence": 1
+  },
+  {
+    "text": " is",
+    "startMs": 1945,
+    "endMs": 2185,
+    "timestampMs": 1945,
+    "confidence": 1
+  },
+  {
+    "text": " een",
+    "startMs": 2185,
+    "endMs": 2498,
+    "timestampMs": 2185,
+    "confidence": 1
+  },
+  {
+    "text": " AI-gezondheidsassistent",
+    "startMs": 2498,
+    "endMs": 4289,
+    "timestampMs": 2498,
+    "confidence": 1
+  },
+  {
+    "text": " voor",
+    "startMs": 4289,
+    "endMs": 4677,
+    "timestampMs": 4289,
+    "confidence": 1
+  },
+  {
+    "text": " hartfalenpatiënten.",
+    "startMs": 4677,
+    "endMs": 6172,
+    "timestampMs": 4677,
+    "confidence": 1
+  },
+  {
+    "text": " Het",
+    "startMs": 6172,
+    "endMs": 6486,
+    "timestampMs": 6172,
+    "confidence": 1
+  },
+  {
+    "text": " systeem",
+    "startMs": 6486,
+    "endMs": 7095,
+    "timestampMs": 6486,
+    "confidence": 1
+  },
+  {
+    "text": " voert",
+    "startMs": 7095,
+    "endMs": 7557,
+    "timestampMs": 7095,
+    "confidence": 1
+  },
+  {
+    "text": " wekelijkse",
+    "startMs": 7557,
+    "endMs": 8388,
+    "timestampMs": 7557,
+    "confidence": 1
+  },
+  {
+    "text": " check-ins",
+    "startMs": 8388,
+    "endMs": 9145,
+    "timestampMs": 8388,
+    "confidence": 1
+  },
+  {
+    "text": " uit,",
+    "startMs": 9145,
+    "endMs": 9532,
+    "timestampMs": 9145,
+    "confidence": 1
+  },
+  {
+    "text": " onthoudt",
+    "startMs": 9532,
+    "endMs": 10215,
+    "timestampMs": 9532,
+    "confidence": 1
+  },
+  {
+    "text": " wat",
+    "startMs": 10215,
+    "endMs": 10529,
+    "timestampMs": 10215,
+    "confidence": 1
+  },
+  {
+    "text": " patiënten",
+    "startMs": 10529,
+    "endMs": 11286,
+    "timestampMs": 10529,
+    "confidence": 1
+  },
+  {
+    "text": " eerder",
+    "startMs": 11286,
+    "endMs": 11822,
+    "timestampMs": 11286,
+    "confidence": 1
+  },
+  {
+    "text": " hebben",
+    "startMs": 11822,
+    "endMs": 12357,
+    "timestampMs": 11822,
+    "confidence": 1
+  },
+  {
+    "text": " gezegd,",
+    "startMs": 12357,
+    "endMs": 12966,
+    "timestampMs": 12357,
+    "confidence": 1
+  },
+  {
+    "text": " herkent",
+    "startMs": 12966,
+    "endMs": 13575,
+    "timestampMs": 12966,
+    "confidence": 1
+  },
+  {
+    "text": " verslechterende",
+    "startMs": 13575,
+    "endMs": 14775,
+    "timestampMs": 13575,
+    "confidence": 1
+  },
+  {
+    "text": " patronen,",
+    "startMs": 14775,
+    "endMs": 15532,
+    "timestampMs": 14775,
+    "confidence": 1
+  },
+  {
+    "text": " en",
+    "startMs": 15532,
+    "endMs": 15772,
+    "timestampMs": 15532,
+    "confidence": 1
+  },
+  {
+    "text": " escaleert",
+    "startMs": 15772,
+    "endMs": 16529,
+    "timestampMs": 15772,
+    "confidence": 1
+  },
+  {
+    "text": " automatisch",
+    "startMs": 16529,
+    "endMs": 17434,
+    "timestampMs": 16529,
+    "confidence": 1
+  },
+  {
+    "text": " naar",
+    "startMs": 17434,
+    "endMs": 17822,
+    "timestampMs": 17434,
+    "confidence": 1
+  },
+  {
+    "text": " een",
+    "startMs": 17822,
+    "endMs": 18135,
+    "timestampMs": 17822,
+    "confidence": 1
+  },
+  {
+    "text": " zorgverlener.",
+    "startMs": 18135,
+    "endMs": 19188,
+    "timestampMs": 18135,
+    "confidence": 1
+  }
+]

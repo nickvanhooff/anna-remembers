@@ -1,4 +1,4 @@
-import type { Patient, Session, Escalation, TrendPoint } from "@/types"
+import type { Patient, Session, Escalation } from "@/types"
 
 export const PATIENTS: Patient[] = [
   { id: "P-001", first: "Greta",   last: "de Vries",  dob: "1951-04-12", age: 74, sessions: 12, lastSession: "2026-05-06", status: "success", label: "Stabiel",   meds: "Furosemide 40 mg · Bisoprolol 5 mg",          notes: "Voelt zich kortademig bij de trap. Gewicht stabiel.", medicalSummary: null },
@@ -43,7 +43,7 @@ export const ESCALATIONS: Escalation[] = [
   { id: "E-2026-010", patient: "P-004", name: "Johan van Dijk",  urgency: "info",    status: "closed",      opened: "2026-04-18T09:50:00", closed: "2026-04-20T11:30:00", reason: "Routine review na 8 sessies — alles in orde.",                  channel: "Email · M. Visser",   assignee: "M. Visser" },
 ]
 
-export const TRENDS: TrendPoint[] = (() => {
+export const TRENDS = (() => {
   const days = 28
   const start = new Date("2026-04-10")
   return Array.from({ length: days }, (_, i) => {

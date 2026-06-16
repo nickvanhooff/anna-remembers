@@ -1,0 +1,233 @@
+[
+  {
+    "text": " 3D-avatar",
+    "startMs": 800,
+    "endMs": 1557,
+    "timestampMs": 800,
+    "confidence": 1
+  },
+  {
+    "text": " met",
+    "startMs": 1557,
+    "endMs": 1871,
+    "timestampMs": 1557,
+    "confidence": 1
+  },
+  {
+    "text": " 72",
+    "startMs": 1871,
+    "endMs": 2111,
+    "timestampMs": 1871,
+    "confidence": 1
+  },
+  {
+    "text": " ARKit",
+    "startMs": 2111,
+    "endMs": 2572,
+    "timestampMs": 2111,
+    "confidence": 1
+  },
+  {
+    "text": " morph",
+    "startMs": 2572,
+    "endMs": 3034,
+    "timestampMs": 2572,
+    "confidence": 1
+  },
+  {
+    "text": " targets,",
+    "startMs": 3034,
+    "endMs": 3717,
+    "timestampMs": 3034,
+    "confidence": 1
+  },
+  {
+    "text": " lip",
+    "startMs": 3717,
+    "endMs": 4031,
+    "timestampMs": 3717,
+    "confidence": 1
+  },
+  {
+    "text": " sync",
+    "startMs": 4031,
+    "endMs": 4418,
+    "timestampMs": 4031,
+    "confidence": 1
+  },
+  {
+    "text": " via",
+    "startMs": 4418,
+    "endMs": 4732,
+    "timestampMs": 4418,
+    "confidence": 1
+  },
+  {
+    "text": " Web",
+    "startMs": 4732,
+    "endMs": 5046,
+    "timestampMs": 4732,
+    "confidence": 1
+  },
+  {
+    "text": " Audio",
+    "startMs": 5046,
+    "endMs": 5508,
+    "timestampMs": 5046,
+    "confidence": 1
+  },
+  {
+    "text": " API",
+    "startMs": 5508,
+    "endMs": 5822,
+    "timestampMs": 5508,
+    "confidence": 1
+  },
+  {
+    "text": " FFT-analyse.",
+    "startMs": 5822,
+    "endMs": 6800,
+    "timestampMs": 5822,
+    "confidence": 1
+  },
+  {
+    "text": " De",
+    "startMs": 6800,
+    "endMs": 7040,
+    "timestampMs": 6800,
+    "confidence": 1
+  },
+  {
+    "text": " stem",
+    "startMs": 7040,
+    "endMs": 7428,
+    "timestampMs": 7040,
+    "confidence": 1
+  },
+  {
+    "text": " is",
+    "startMs": 7428,
+    "endMs": 7668,
+    "timestampMs": 7428,
+    "confidence": 1
+  },
+  {
+    "text": " mijn",
+    "startMs": 7668,
+    "endMs": 8055,
+    "timestampMs": 7668,
+    "confidence": 1
+  },
+  {
+    "text": " eigen",
+    "startMs": 8055,
+    "endMs": 8517,
+    "timestampMs": 8055,
+    "confidence": 1
+  },
+  {
+    "text": " stem,",
+    "startMs": 8517,
+    "endMs": 8978,
+    "timestampMs": 8517,
+    "confidence": 1
+  },
+  {
+    "text": " gekloond",
+    "startMs": 8978,
+    "endMs": 9662,
+    "timestampMs": 8978,
+    "confidence": 1
+  },
+  {
+    "text": " via",
+    "startMs": 9662,
+    "endMs": 9975,
+    "timestampMs": 9662,
+    "confidence": 1
+  },
+  {
+    "text": " XTTS",
+    "startMs": 9975,
+    "endMs": 10363,
+    "timestampMs": 9975,
+    "confidence": 1
+  },
+  {
+    "text": " v2.",
+    "startMs": 10363,
+    "endMs": 10677,
+    "timestampMs": 10363,
+    "confidence": 1
+  },
+  {
+    "text": " Spraakherkenning",
+    "startMs": 10677,
+    "endMs": 11951,
+    "timestampMs": 10677,
+    "confidence": 1
+  },
+  {
+    "text": " loopt",
+    "startMs": 11951,
+    "endMs": 12412,
+    "timestampMs": 11951,
+    "confidence": 1
+  },
+  {
+    "text": " via",
+    "startMs": 12412,
+    "endMs": 12726,
+    "timestampMs": 12412,
+    "confidence": 1
+  },
+  {
+    "text": " de",
+    "startMs": 12726,
+    "endMs": 12966,
+    "timestampMs": 12726,
+    "confidence": 1
+  },
+  {
+    "text": " Web",
+    "startMs": 12966,
+    "endMs": 13280,
+    "timestampMs": 12966,
+    "confidence": 1
+  },
+  {
+    "text": " Speech",
+    "startMs": 13280,
+    "endMs": 13815,
+    "timestampMs": 13280,
+    "confidence": 1
+  },
+  {
+    "text": " API",
+    "startMs": 13815,
+    "endMs": 14129,
+    "timestampMs": 13815,
+    "confidence": 1
+  },
+  {
+    "text": " in",
+    "startMs": 14129,
+    "endMs": 14369,
+    "timestampMs": 14129,
+    "confidence": 1
+  },
+  {
+    "text": " de",
+    "startMs": 14369,
+    "endMs": 14609,
+    "timestampMs": 14369,
+    "confidence": 1
+  },
+  {
+    "text": " browser.",
+    "startMs": 14609,
+    "endMs": 15292,
+    "timestampMs": 14609,
+    "confidence": 1
+  }
+]

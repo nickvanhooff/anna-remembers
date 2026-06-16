@@ -1,0 +1,268 @@
+[
+  {
+    "text": " Het",
+    "startMs": 800,
+    "endMs": 1114,
+    "timestampMs": 800,
+    "confidence": 1
+  },
+  {
+    "text": " systeem",
+    "startMs": 1114,
+    "endMs": 1723,
+    "timestampMs": 1114,
+    "confidence": 1
+  },
+  {
+    "text": " is",
+    "startMs": 1723,
+    "endMs": 1963,
+    "timestampMs": 1723,
+    "confidence": 1
+  },
+  {
+    "text": " volledig",
+    "startMs": 1963,
+    "endMs": 2646,
+    "timestampMs": 1963,
+    "confidence": 1
+  },
+  {
+    "text": " configureerbaar.",
+    "startMs": 2646,
+    "endMs": 3920,
+    "timestampMs": 2646,
+    "confidence": 1
+  },
+  {
+    "text": " Met",
+    "startMs": 3920,
+    "endMs": 4234,
+    "timestampMs": 3920,
+    "confidence": 1
+  },
+  {
+    "text": " één",
+    "startMs": 4234,
+    "endMs": 4548,
+    "timestampMs": 4234,
+    "confidence": 1
+  },
+  {
+    "text": " klik",
+    "startMs": 4548,
+    "endMs": 4935,
+    "timestampMs": 4548,
+    "confidence": 1
+  },
+  {
+    "text": " wissel",
+    "startMs": 4935,
+    "endMs": 5471,
+    "timestampMs": 4935,
+    "confidence": 1
+  },
+  {
+    "text": " je",
+    "startMs": 5471,
+    "endMs": 5711,
+    "timestampMs": 5471,
+    "confidence": 1
+  },
+  {
+    "text": " tussen",
+    "startMs": 5711,
+    "endMs": 6246,
+    "timestampMs": 5711,
+    "confidence": 1
+  },
+  {
+    "text": " lokale",
+    "startMs": 6246,
+    "endMs": 6782,
+    "timestampMs": 6246,
+    "confidence": 1
+  },
+  {
+    "text": " stack",
+    "startMs": 6782,
+    "endMs": 7243,
+    "timestampMs": 6782,
+    "confidence": 1
+  },
+  {
+    "text": " op",
+    "startMs": 7243,
+    "endMs": 7483,
+    "timestampMs": 7243,
+    "confidence": 1
+  },
+  {
+    "text": " Ollama",
+    "startMs": 7483,
+    "endMs": 8018,
+    "timestampMs": 7483,
+    "confidence": 1
+  },
+  {
+    "text": " of",
+    "startMs": 8018,
+    "endMs": 8258,
+    "timestampMs": 8018,
+    "confidence": 1
+  },
+  {
+    "text": " cloud",
+    "startMs": 8258,
+    "endMs": 8720,
+    "timestampMs": 8258,
+    "confidence": 1
+  },
+  {
+    "text": " via",
+    "startMs": 8720,
+    "endMs": 9034,
+    "timestampMs": 8720,
+    "confidence": 1
+  },
+  {
+    "text": " Portkey.",
+    "startMs": 9034,
+    "endMs": 9717,
+    "timestampMs": 9034,
+    "confidence": 1
+  },
+  {
+    "text": " TTS,",
+    "startMs": 9717,
+    "endMs": 10105,
+    "timestampMs": 9717,
+    "confidence": 1
+  },
+  {
+    "text": " embeddings,",
+    "startMs": 10105,
+    "endMs": 11009,
+    "timestampMs": 10105,
+    "confidence": 1
+  },
+  {
+    "text": " en",
+    "startMs": 11009,
+    "endMs": 11249,
+    "timestampMs": 11009,
+    "confidence": 1
+  },
+  {
+    "text": " het",
+    "startMs": 11249,
+    "endMs": 11563,
+    "timestampMs": 11249,
+    "confidence": 1
+  },
+  {
+    "text": " LLM",
+    "startMs": 11563,
+    "endMs": 11877,
+    "timestampMs": 11563,
+    "confidence": 1
+  },
+  {
+    "text": " per",
+    "startMs": 11877,
+    "endMs": 12191,
+    "timestampMs": 11877,
+    "confidence": 1
+  },
+  {
+    "text": " functie",
+    "startMs": 12191,
+    "endMs": 12800,
+    "timestampMs": 12191,
+    "confidence": 1
+  },
+  {
+    "text": " zijn",
+    "startMs": 12800,
+    "endMs": 13188,
+    "timestampMs": 12800,
+    "confidence": 1
+  },
+  {
+    "text": " elk",
+    "startMs": 13188,
+    "endMs": 13502,
+    "timestampMs": 13188,
+    "confidence": 1
+  },
+  {
+    "text": " apart",
+    "startMs": 13502,
+    "endMs": 13963,
+    "timestampMs": 13502,
+    "confidence": 1
+  },
+  {
+    "text": " in",
+    "startMs": 13963,
+    "endMs": 14203,
+    "timestampMs": 13963,
+    "confidence": 1
+  },
+  {
+    "text": " te",
+    "startMs": 14203,
+    "endMs": 14443,
+    "timestampMs": 14203,
+    "confidence": 1
+  },
+  {
+    "text": " stellen",
+    "startMs": 14443,
+    "endMs": 15052,
+    "timestampMs": 14443,
+    "confidence": 1
+  },
+  {
+    "text": " —",
+    "startMs": 15052,
+    "endMs": 15218,
+    "timestampMs": 15052,
+    "confidence": 1
+  },
+  {
+    "text": " zonder",
+    "startMs": 15218,
+    "endMs": 15754,
+    "timestampMs": 15218,
+    "confidence": 1
+  },
+  {
+    "text": " code",
+    "startMs": 15754,
+    "endMs": 16142,
+    "timestampMs": 15754,
+    "confidence": 1
+  },
+  {
+    "text": " aan",
+    "startMs": 16142,
+    "endMs": 16455,
+    "timestampMs": 16142,
+    "confidence": 1
+  },
+  {
+    "text": " te",
+    "startMs": 16455,
+    "endMs": 16695,
+    "timestampMs": 16455,
+    "confidence": 1
+  },
+  {
+    "text": " passen.",
+    "startMs": 16695,
+    "endMs": 17305,
+    "timestampMs": 16695,
+    "confidence": 1
+  }
+]

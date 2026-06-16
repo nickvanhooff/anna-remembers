@@ -1,0 +1,114 @@
+[
+  {
+    "text": " Drie",
+    "startMs": 800,
+    "endMs": 1188,
+    "timestampMs": 800,
+    "confidence": 1
+  },
+  {
+    "text": " gesimuleerde",
+    "startMs": 1188,
+    "endMs": 2166,
+    "timestampMs": 1188,
+    "confidence": 1
+  },
+  {
+    "text": " patiënten",
+    "startMs": 2166,
+    "endMs": 2923,
+    "timestampMs": 2166,
+    "confidence": 1
+  },
+  {
+    "text": " —",
+    "startMs": 2923,
+    "endMs": 3089,
+    "timestampMs": 2923,
+    "confidence": 1
+  },
+  {
+    "text": " elk",
+    "startMs": 3089,
+    "endMs": 3403,
+    "timestampMs": 3089,
+    "confidence": 1
+  },
+  {
+    "text": " met",
+    "startMs": 3403,
+    "endMs": 3717,
+    "timestampMs": 3403,
+    "confidence": 1
+  },
+  {
+    "text": " een",
+    "startMs": 3717,
+    "endMs": 4031,
+    "timestampMs": 3717,
+    "confidence": 1
+  },
+  {
+    "text": " eigen",
+    "startMs": 4031,
+    "endMs": 4492,
+    "timestampMs": 4031,
+    "confidence": 1
+  },
+  {
+    "text": " scenario.",
+    "startMs": 4492,
+    "endMs": 5249,
+    "timestampMs": 4492,
+    "confidence": 1
+  },
+  {
+    "text": " Patiënt",
+    "startMs": 5249,
+    "endMs": 5858,
+    "timestampMs": 5249,
+    "confidence": 1
+  },
+  {
+    "text": " 2",
+    "startMs": 5858,
+    "endMs": 6025,
+    "timestampMs": 5858,
+    "confidence": 1
+  },
+  {
+    "text": " verslechtert",
+    "startMs": 6025,
+    "endMs": 7003,
+    "timestampMs": 6025,
+    "confidence": 1
+  },
+  {
+    "text": " geleidelijk",
+    "startMs": 7003,
+    "endMs": 7908,
+    "timestampMs": 7003,
+    "confidence": 1
+  },
+  {
+    "text": " over",
+    "startMs": 7908,
+    "endMs": 8295,
+    "timestampMs": 7908,
+    "confidence": 1
+  },
+  {
+    "text": " meerdere",
+    "startMs": 8295,
+    "endMs": 8978,
+    "timestampMs": 8295,
+    "confidence": 1
+  },
+  {
+    "text": " weken.",
+    "startMs": 8978,
+    "endMs": 9514,
+    "timestampMs": 8978,
+    "confidence": 1
+  }
+]

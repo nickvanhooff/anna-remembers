@@ -1,0 +1,338 @@
+[
+  {
+    "text": " Zodra",
+    "startMs": 800,
+    "endMs": 1262,
+    "timestampMs": 800,
+    "confidence": 1
+  },
+  {
+    "text": " een",
+    "startMs": 1262,
+    "endMs": 1575,
+    "timestampMs": 1262,
+    "confidence": 1
+  },
+  {
+    "text": " sessie",
+    "startMs": 1575,
+    "endMs": 2111,
+    "timestampMs": 1575,
+    "confidence": 1
+  },
+  {
+    "text": " start,",
+    "startMs": 2111,
+    "endMs": 2646,
+    "timestampMs": 2111,
+    "confidence": 1
+  },
+  {
+    "text": " bouwt",
+    "startMs": 2646,
+    "endMs": 3108,
+    "timestampMs": 2646,
+    "confidence": 1
+  },
+  {
+    "text": " het",
+    "startMs": 3108,
+    "endMs": 3422,
+    "timestampMs": 3108,
+    "confidence": 1
+  },
+  {
+    "text": " systeem",
+    "startMs": 3422,
+    "endMs": 4031,
+    "timestampMs": 3422,
+    "confidence": 1
+  },
+  {
+    "text": " context",
+    "startMs": 4031,
+    "endMs": 4640,
+    "timestampMs": 4031,
+    "confidence": 1
+  },
+  {
+    "text": " op",
+    "startMs": 4640,
+    "endMs": 4880,
+    "timestampMs": 4640,
+    "confidence": 1
+  },
+  {
+    "text": " in",
+    "startMs": 4880,
+    "endMs": 5120,
+    "timestampMs": 4880,
+    "confidence": 1
+  },
+  {
+    "text": " drie",
+    "startMs": 5120,
+    "endMs": 5508,
+    "timestampMs": 5120,
+    "confidence": 1
+  },
+  {
+    "text": " lagen:",
+    "startMs": 5508,
+    "endMs": 6043,
+    "timestampMs": 5508,
+    "confidence": 1
+  },
+  {
+    "text": " het",
+    "startMs": 6043,
+    "endMs": 6357,
+    "timestampMs": 6043,
+    "confidence": 1
+  },
+  {
+    "text": " patiëntdossier",
+    "startMs": 6357,
+    "endMs": 7483,
+    "timestampMs": 6357,
+    "confidence": 1
+  },
+  {
+    "text": " als",
+    "startMs": 7483,
+    "endMs": 7797,
+    "timestampMs": 7483,
+    "confidence": 1
+  },
+  {
+    "text": " compact",
+    "startMs": 7797,
+    "endMs": 8406,
+    "timestampMs": 7797,
+    "confidence": 1
+  },
+  {
+    "text": " JSON,",
+    "startMs": 8406,
+    "endMs": 8868,
+    "timestampMs": 8406,
+    "confidence": 1
+  },
+  {
+    "text": " RAG-geheugen",
+    "startMs": 8868,
+    "endMs": 9846,
+    "timestampMs": 8868,
+    "confidence": 1
+  },
+  {
+    "text": " via",
+    "startMs": 9846,
+    "endMs": 10160,
+    "timestampMs": 9846,
+    "confidence": 1
+  },
+  {
+    "text": " ChromaDB",
+    "startMs": 10160,
+    "endMs": 10843,
+    "timestampMs": 10160,
+    "confidence": 1
+  },
+  {
+    "text": " met",
+    "startMs": 10843,
+    "endMs": 11157,
+    "timestampMs": 10843,
+    "confidence": 1
+  },
+  {
+    "text": " semantisch",
+    "startMs": 11157,
+    "endMs": 11988,
+    "timestampMs": 11157,
+    "confidence": 1
+  },
+  {
+    "text": " zoeken",
+    "startMs": 11988,
+    "endMs": 12523,
+    "timestampMs": 11988,
+    "confidence": 1
+  },
+  {
+    "text": " via",
+    "startMs": 12523,
+    "endMs": 12837,
+    "timestampMs": 12523,
+    "confidence": 1
+  },
+  {
+    "text": " bge-m3,",
+    "startMs": 12837,
+    "endMs": 13446,
+    "timestampMs": 12837,
+    "confidence": 1
+  },
+  {
+    "text": " en",
+    "startMs": 13446,
+    "endMs": 13686,
+    "timestampMs": 13446,
+    "confidence": 1
+  },
+  {
+    "text": " de",
+    "startMs": 13686,
+    "endMs": 13926,
+    "timestampMs": 13686,
+    "confidence": 1
+  },
+  {
+    "text": " volledige",
+    "startMs": 13926,
+    "endMs": 14683,
+    "timestampMs": 13926,
+    "confidence": 1
+  },
+  {
+    "text": " gesprekshistorie",
+    "startMs": 14683,
+    "endMs": 15957,
+    "timestampMs": 14683,
+    "confidence": 1
+  },
+  {
+    "text": " uit",
+    "startMs": 15957,
+    "endMs": 16271,
+    "timestampMs": 15957,
+    "confidence": 1
+  },
+  {
+    "text": " PostgreSQL.",
+    "startMs": 16271,
+    "endMs": 17175,
+    "timestampMs": 16271,
+    "confidence": 1
+  },
+  {
+    "text": " Anna",
+    "startMs": 17175,
+    "endMs": 17563,
+    "timestampMs": 17175,
+    "confidence": 1
+  },
+  {
+    "text": " refereert",
+    "startMs": 17563,
+    "endMs": 18320,
+    "timestampMs": 17563,
+    "confidence": 1
+  },
+  {
+    "text": " aan",
+    "startMs": 18320,
+    "endMs": 18634,
+    "timestampMs": 18320,
+    "confidence": 1
+  },
+  {
+    "text": " wat",
+    "startMs": 18634,
+    "endMs": 18948,
+    "timestampMs": 18634,
+    "confidence": 1
+  },
+  {
+    "text": " de",
+    "startMs": 18948,
+    "endMs": 19188,
+    "timestampMs": 18948,
+    "confidence": 1
+  },
+  {
+    "text": " patiënt",
+    "startMs": 19188,
+    "endMs": 19797,
+    "timestampMs": 19188,
+    "confidence": 1
+  },
+  {
+    "text": " vorige",
+    "startMs": 19797,
+    "endMs": 20332,
+    "timestampMs": 19797,
+    "confidence": 1
+  },
+  {
+    "text": " week",
+    "startMs": 20332,
+    "endMs": 20720,
+    "timestampMs": 20332,
+    "confidence": 1
+  },
+  {
+    "text": " zei",
+    "startMs": 20720,
+    "endMs": 21034,
+    "timestampMs": 20720,
+    "confidence": 1
+  },
+  {
+    "text": " —",
+    "startMs": 21034,
+    "endMs": 21200,
+    "timestampMs": 21034,
+    "confidence": 1
+  },
+  {
+    "text": " dat",
+    "startMs": 21200,
+    "endMs": 21514,
+    "timestampMs": 21200,
+    "confidence": 1
+  },
+  {
+    "text": " is",
+    "startMs": 21514,
+    "endMs": 21754,
+    "timestampMs": 21514,
+    "confidence": 1
+  },
+  {
+    "text": " een",
+    "startMs": 21754,
+    "endMs": 22068,
+    "timestampMs": 21754,
+    "confidence": 1
+  },
+  {
+    "text": " live",
+    "startMs": 22068,
+    "endMs": 22455,
+    "timestampMs": 22068,
+    "confidence": 1
+  },
+  {
+    "text": " ChromaDB-resultaat,",
+    "startMs": 22455,
+    "endMs": 23951,
+    "timestampMs": 22455,
+    "confidence": 1
+  },
+  {
+    "text": " niet",
+    "startMs": 23951,
+    "endMs": 24338,
+    "timestampMs": 23951,
+    "confidence": 1
+  },
+  {
+    "text": " hardcoded.",
+    "startMs": 24338,
+    "endMs": 25169,
+    "timestampMs": 24338,
+    "confidence": 1
+  }
+]

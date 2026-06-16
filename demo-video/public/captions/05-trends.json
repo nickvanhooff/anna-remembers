@@ -1,0 +1,212 @@
+[
+  {
+    "text": " Na",
+    "startMs": 800,
+    "endMs": 1040,
+    "timestampMs": 800,
+    "confidence": 1
+  },
+  {
+    "text": " elke",
+    "startMs": 1040,
+    "endMs": 1428,
+    "timestampMs": 1040,
+    "confidence": 1
+  },
+  {
+    "text": " sessie",
+    "startMs": 1428,
+    "endMs": 1963,
+    "timestampMs": 1428,
+    "confidence": 1
+  },
+  {
+    "text": " extraheert",
+    "startMs": 1963,
+    "endMs": 2794,
+    "timestampMs": 1963,
+    "confidence": 1
+  },
+  {
+    "text": " een",
+    "startMs": 2794,
+    "endMs": 3108,
+    "timestampMs": 2794,
+    "confidence": 1
+  },
+  {
+    "text": " apart",
+    "startMs": 3108,
+    "endMs": 3569,
+    "timestampMs": 3108,
+    "confidence": 1
+  },
+  {
+    "text": " model",
+    "startMs": 3569,
+    "endMs": 4031,
+    "timestampMs": 3569,
+    "confidence": 1
+  },
+  {
+    "text": " gestructureerde",
+    "startMs": 4031,
+    "endMs": 5231,
+    "timestampMs": 4031,
+    "confidence": 1
+  },
+  {
+    "text": " symptoomdata:",
+    "startMs": 5231,
+    "endMs": 6283,
+    "timestampMs": 5231,
+    "confidence": 1
+  },
+  {
+    "text": " kortademigheid,",
+    "startMs": 6283,
+    "endMs": 7483,
+    "timestampMs": 6283,
+    "confidence": 1
+  },
+  {
+    "text": " gewicht,",
+    "startMs": 7483,
+    "endMs": 8166,
+    "timestampMs": 7483,
+    "confidence": 1
+  },
+  {
+    "text": " medicatietrouw.",
+    "startMs": 8166,
+    "endMs": 9366,
+    "timestampMs": 8166,
+    "confidence": 1
+  },
+  {
+    "text": " Per",
+    "startMs": 9366,
+    "endMs": 9680,
+    "timestampMs": 9366,
+    "confidence": 1
+  },
+  {
+    "text": " datapunt",
+    "startMs": 9680,
+    "endMs": 10363,
+    "timestampMs": 9680,
+    "confidence": 1
+  },
+  {
+    "text": " zie",
+    "startMs": 10363,
+    "endMs": 10677,
+    "timestampMs": 10363,
+    "confidence": 1
+  },
+  {
+    "text": " je",
+    "startMs": 10677,
+    "endMs": 10917,
+    "timestampMs": 10677,
+    "confidence": 1
+  },
+  {
+    "text": " de",
+    "startMs": 10917,
+    "endMs": 11157,
+    "timestampMs": 10917,
+    "confidence": 1
+  },
+  {
+    "text": " klinische",
+    "startMs": 11157,
+    "endMs": 11914,
+    "timestampMs": 11157,
+    "confidence": 1
+  },
+  {
+    "text": " redenering",
+    "startMs": 11914,
+    "endMs": 12745,
+    "timestampMs": 11914,
+    "confidence": 1
+  },
+  {
+    "text": " én",
+    "startMs": 12745,
+    "endMs": 12985,
+    "timestampMs": 12745,
+    "confidence": 1
+  },
+  {
+    "text": " de",
+    "startMs": 12985,
+    "endMs": 13225,
+    "timestampMs": 12985,
+    "confidence": 1
+  },
+  {
+    "text": " exacte",
+    "startMs": 13225,
+    "endMs": 13760,
+    "timestampMs": 13225,
+    "confidence": 1
+  },
+  {
+    "text": " citaten",
+    "startMs": 13760,
+    "endMs": 14369,
+    "timestampMs": 13760,
+    "confidence": 1
+  },
+  {
+    "text": " van",
+    "startMs": 14369,
+    "endMs": 14683,
+    "timestampMs": 14369,
+    "confidence": 1
+  },
+  {
+    "text": " de",
+    "startMs": 14683,
+    "endMs": 14923,
+    "timestampMs": 14683,
+    "confidence": 1
+  },
+  {
+    "text": " patiënt",
+    "startMs": 14923,
+    "endMs": 15532,
+    "timestampMs": 14923,
+    "confidence": 1
+  },
+  {
+    "text": " waarop",
+    "startMs": 15532,
+    "endMs": 16068,
+    "timestampMs": 15532,
+    "confidence": 1
+  },
+  {
+    "text": " het",
+    "startMs": 16068,
+    "endMs": 16382,
+    "timestampMs": 16068,
+    "confidence": 1
+  },
+  {
+    "text": " gebaseerd",
+    "startMs": 16382,
+    "endMs": 17138,
+    "timestampMs": 16382,
+    "confidence": 1
+  },
+  {
+    "text": " is.",
+    "startMs": 17138,
+    "endMs": 17452,
+    "timestampMs": 17138,
+    "confidence": 1
+  }
+]

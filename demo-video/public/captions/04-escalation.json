@@ -1,0 +1,30 @@
+[
+  {
+    "text": "Licht triage-model op de achtergrond",
+    "startMs": 800,
+    "endMs": 2500,
+    "timestampMs": 800,
+    "confidence": 1
+  },
+  {
+    "text": "Parallel: LLM-antwoord + urgentiescore",
+    "startMs": 2500,
+    "endMs": 5500,
+    "timestampMs": 2500,
+    "confidence": 1
+  },
+  {
+    "text": "Drempel overschreden → escalatie",
+    "startMs": 5500,
+    "endMs": 9500,
+    "timestampMs": 5500,
+    "confidence": 1
+  },
+  {
+    "text": "Escalatieregel + SMS naar zorgverlener",
+    "startMs": 9500,
+    "endMs": 18200,
+    "timestampMs": 9500,
+    "confidence": 1
+  }
+]

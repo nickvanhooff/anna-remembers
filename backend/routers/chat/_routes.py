@@ -238,9 +238,10 @@ def list_messages(
 )
 def close_session(
     patient_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     db: Annotated[Session, Depends(get_db)],
 ) -> dict:
-    """Close the current open session."""
+    """Close the current open session and extract symptoms from the full transcript."""
     session = (
         db.query(ChatSession)
         .filter(
@@ -256,11 +257,22 @@ def close_session(
     db.commit()
     db.refresh(session)
 
-    count = (
-        db.query(func.count(Message.id))
+    messages = (
+        db.query(Message)
         .filter(Message.session_id == session.id)
-        .scalar()
-    ) or 0
+        .order_by(Message.created_at.asc())
+        .all()
+    )
+    count = len(messages)
+
+    if messages:
+        transcript = "\n".join(f"{m.role}: {m.content}" for m in messages)
+        background_tasks.add_task(
+            extract_and_store_symptoms,
+            session_id=str(session.id),
+            patient_id=str(patient_id),
+            transcript=transcript,
+        )
 
     return {
         "id": session.id,
@@ -399,16 +411,6 @@ async def chat(
     db.add(assistant_message)
     db.commit()
     db.refresh(assistant_message)
-
-    # Symptom extraction — runs async after response, never blocks the chat
-    transcript_lines = [f"{m.role}: {m.content}" for m in recent]
-    transcript_lines.append(f"assistant: {clean_response}")
-    background_tasks.add_task(
-        extract_and_store_symptoms,
-        session_id=str(session.id),
-        patient_id=str(patient_id),
-        transcript="\n".join(transcript_lines),
-    )
 
     # Update summary every N messages
     total_messages: int = (

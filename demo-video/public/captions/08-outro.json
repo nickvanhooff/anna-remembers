@@ -1,0 +1,72 @@
+[
+  {
+    "text": " Anna",
+    "startMs": 800,
+    "endMs": 1188,
+    "timestampMs": 800,
+    "confidence": 1
+  },
+  {
+    "text": " Remembers",
+    "startMs": 1188,
+    "endMs": 1945,
+    "timestampMs": 1188,
+    "confidence": 1
+  },
+  {
+    "text": " —",
+    "startMs": 1945,
+    "endMs": 2111,
+    "timestampMs": 1945,
+    "confidence": 1
+  },
+  {
+    "text": " zodat",
+    "startMs": 2111,
+    "endMs": 2572,
+    "timestampMs": 2111,
+    "confidence": 1
+  },
+  {
+    "text": " niets",
+    "startMs": 2572,
+    "endMs": 3034,
+    "timestampMs": 2572,
+    "confidence": 1
+  },
+  {
+    "text": " tussen",
+    "startMs": 3034,
+    "endMs": 3569,
+    "timestampMs": 3034,
+    "confidence": 1
+  },
+  {
+    "text": " de",
+    "startMs": 3569,
+    "endMs": 3809,
+    "timestampMs": 3569,
+    "confidence": 1
+  },
+  {
+    "text": " sessies",
+    "startMs": 3809,
+    "endMs": 4418,
+    "timestampMs": 3809,
+    "confidence": 1
+  },
+  {
+    "text": " verloren",
+    "startMs": 4418,
+    "endMs": 5102,
+    "timestampMs": 4418,
+    "confidence": 1
+  },
+  {
+    "text": " gaat.",
+    "startMs": 5102,
+    "endMs": 5563,
+    "timestampMs": 5102,
+    "confidence": 1
+  }
+]

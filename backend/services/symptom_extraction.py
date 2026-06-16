@@ -199,6 +199,24 @@ def _safe_score(value: object) -> int | None:
         return None
 
 
+def _merge_reasoning(existing: dict, new: dict[str, str]) -> dict[str, str]:
+    """Keep prior reasoning keys when the new extraction omits them."""
+    merged = {k: str(v) for k, v in (existing or {}).items() if v}
+    for key, value in new.items():
+        if value:
+            merged[key] = value
+    return merged
+
+
+def _merge_score(new: int | None, existing: int | None) -> int | None:
+    """Null in a new extraction means 'not mentioned' — preserve existing value."""
+    return new if new is not None else existing
+
+
+def _merge_weight(new: float | None, existing: float | None) -> float | None:
+    return new if new is not None else existing
+
+
 # ─── Main entry point ─────────────────────────────────────────────────────────
 
 async def extract_and_store_symptoms(
@@ -206,9 +224,10 @@ async def extract_and_store_symptoms(
     patient_id: str,
     transcript: str,
 ) -> None:
-    """Extract symptom scores from a transcript and persist one row per session.
+    """Extract symptom scores from a full session transcript and persist one row.
 
-    Designed to run as a BackgroundTask — never raises, logs errors instead.
+    Triggered when a session is closed (POST /sessions/close). Designed to run
+    as a BackgroundTask — never raises, logs errors instead.
     """
     try:
         langfuse = get_langfuse()
@@ -264,12 +283,12 @@ async def extract_and_store_symptoms(
                 .first()
             )
             if existing:
-                existing.dyspnea    = dyspnea
-                existing.edema      = edema
-                existing.fatigue    = fatigue
-                existing.medication = medication
-                existing.weight_kg  = weight_kg
-                existing.reasoning  = reasoning
+                existing.dyspnea    = _merge_score(dyspnea, existing.dyspnea)
+                existing.edema      = _merge_score(edema, existing.edema)
+                existing.fatigue    = _merge_score(fatigue, existing.fatigue)
+                existing.medication = _merge_score(medication, existing.medication)
+                existing.weight_kg    = _merge_weight(weight_kg, existing.weight_kg)
+                existing.reasoning    = _merge_reasoning(existing.reasoning, reasoning)
                 existing.week_number = iso.week
                 existing.year        = iso.year
             else:

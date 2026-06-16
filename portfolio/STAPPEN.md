@@ -2348,3 +2348,127 @@ Geïmplementeerde onderdelen:
 - `getSessionMemories()` faalt graceful (`.catch(() => [])`) zodat de modal altijd opent, ook als de MCP-server geen memories heeft
 - ChromaDB `collection.get()` (niet `query()`) — geen semantische zoekopdracht nodig, we willen alle memories van deze sessie
 - Source-kleurcodering: `patient_stated` → chart-1 (blauw), `ai_inferred` → chart-4 (paars)
+
+---
+
+## Stap 102 — 2026-06-16 — Demo-video: escalatiediagram + ontbrekende opname graceful
+
+**Wat:**
+- `EscalationDiagram` laadt schermopname `04-escalation.mp4` als achtergrondlaag in de root
+- `RecordingVideo` component toegevoegd: controleert via HEAD/Range of bestand bestaat vóór `<Video>` mount — voorkomt mediabunny 404-crash in Studio
+- `Escalation` composition geregistreerd in `Root.tsx` (1050 frames = 35s)
+- Scene 4 in `AnnaRemembers` gebruikt nu `EscalationDiagram` i.p.v. alleen `SceneCard`
+
+**Beslissingen:**
+- Opname ontbreekt nog (`public/recordings/` heeft alleen placeholder) — diagram speelt door met donkere achtergrond tot bestand geplaatst is
+- Zelfde `RecordingVideo` patroon hergebruikt in `SceneCard` voor alle scenes met opnames
+
+**Evidence:** Nog geen aparte evidence — wacht op geplaatste `04-escalation.mp4` voor screenshot/render
+
+---
+
+## Stap 103 — 2026-06-16 — Demo-video: escalatiediagram layout overlap gefixt
+
+**Wat:**
+- Diagram-nodes omhoog geschoven (triage-rij y: 800→700) voor ruimte onderaan
+- Urgentiescore verplaatst naar links van Triage Model (niet meer eronder)
+- Fase-label verplaatst van onderkant naar boven (onder titel)
+- Captions in escalatiescene kleiner (`26px`) en lager (`bottom: 28`) zodat ze niet over score/fase heen vallen
+- `CaptionOverlay` ondersteunt nu optionele `bottom` en `fontSize` props
+
+**Beslissingen:**
+- Onderkant gereserveerd voor voice-over captions; diagram-informatie naar boven en zijkant
+
+---
+
+## Stap 104 — 2026-06-16 — Demo-video: globale ondertiteling escalatiescene
+
+**Wat:**
+- `04-escalation.json` herschreven: 4 korte globale zinnen i.p.v. woord-voor-woord
+- `CaptionOverlay` krijgt `mode="phrase"` — één zin per blok, geen TikTok-style woordhighlight
+- Laatste 3 zinnen langer op scherm (6.7s / 9.5s / 13s vs 4s intro)
+- Diagram-fases ②③④ verlengd; fase ① korter (focus op escalatie-pad)
+- `generate-captions.mts` ondersteunt `phrases[]` voor toekomstige regeneratie
+
+**Beslissingen:**
+- Globale ondertiteling = samenvatting per stap, niet volledige voice-over letterlijk
+
+---
+
+## Stap 105 — 2026-06-16 — Demo-video: escalatiescene duur → 16s (lengte opname)
+
+**Wat:**
+- Escalatiescene verkort van 35s naar 16s (werkelijke lengte `04-escalation.mp4`)
+- `AnnaRemembers` totaalduur: 7950 → 7380 frames; latere scenes verschoven
+- `Escalation` composition: 480 frames
+- Captions en fase-labels herschaald naar 16s tijdlijn
+- Diagram-overlay fadet weg rond 13s; laatste ~3s alleen opname + ondertitel
+
+**Beslissingen:**
+- Geen stilstaand laatste frame meer na einde opname
+
+---
+
+## Stap 106 — 2026-06-16 — ChatFlow + Escalatie gecombineerd met zoom op background-task
+
+**Wat:**
+- Nieuwe `ChatEscalationDiagram`: chat flow (18s) → crossfade → escalatie (16s)
+- Zoom 1.55× op achtergrond-track zodra `BackgroundTask` start (triage → escalatie → Twilio)
+- Scene 4 in `AnnaRemembers` gebruikt gecombineerde compositie (~33s)
+- Nieuwe Studio-compositie `ChatEscalation`; standalone `Escalation` houdt zoom
+
+**Beslissingen:**
+- Zoom alleen op diagramlaag, niet op schermopname — opname blijft leesbaar op achtergrond
+- Zoom-center op midden van triage/escalatie-pad (x≈1285, y=700)
+
+---
+
+## Stap 107 — 2026-06-16 — Demo-video: achtergrond-track onder MCP/ChromaDB + langere triage
+
+**Wat:**
+- Triage/escalatie/Twilio verplaatst naar y=900 (eigen rij onder MCP/ChromaDB op y=760)
+- Zoom-center aangepast naar (1280, 900); zoom iets minder agressief (1.65×)
+- Triage-fase verlengd: score telt langzamer (318–392), escalatie-pakketten later (395+)
+- Zoom-out verschoven naar frame 448–472 zodat triage langer in beeld blijft
+
+**Beslissingen:**
+- Achtergrond-track visueel gescheiden van RAG-pad — geen overlap meer bij zoom
+- Langere triage = meer tijd voor urgentiescore en drempel-moment vóór escalatie
+
+**Evidence:** Nog niet — visueel check via `npx remotion still ChatEscalation out/ChatEscalation.png --frame=360`
+
+---
+
+## Stap 108 — 2026-06-16 — Scene 4 trager + nieuwe Symptoomtrends-visualisatie
+
+**Wat:**
+- ChatEscalation fase ④ verlengd: 480 → 570 frames (+3s); triage/escalatie/SMS krijgen meer tijd
+- Nieuwe `SymptomTrendsDiagram`: aparte Remotion-compositie (40s, Nederlands)
+  - Flow: check-in → BackgroundTask extractie → JSON scores → PostgreSQL → dashboard grafiek → detailmodal
+  - Transcript-panel, typewriter JSON, lijngrafiek kortademigheid W01–W04, patiëntcitaat
+- Scene 5 in `AnnaRemembers` gebruikt diagram i.p.v. schermopname
+- Studio-compositie `SymptomTrends`; captions in `05-trends-diagram.json`
+- Totale duur AnnaRemembers: 7380 → 7470 frames
+
+**Beslissingen:**
+- Symptoomtrends als eigen architectuurvideo (niet gecombineerd met ChatEscalation)
+- Gebaseerd op echte pipeline: `extract_and_store_symptoms` + `GET /symptom-trends` + reasoning JSONB
+
+**Evidence:** Nog niet — `npx remotion still SymptomTrends out/SymptomTrends-chart.png --frame=900`
+
+---
+
+## Stap 109 — 2026-06-16 — Symptoomextractie bij sessie-einde + volledig transcript
+
+**Wat:**
+- `extract_and_store_symptoms` verplaatst van chat-beurt naar `POST /sessions/close`
+- Transcript = alle berichten van de sessie (niet meer laatste 6)
+- Per-beurt extractie uit `chat()` verwijderd
+- Merge bij update: `null` overschrijft bestaande score/reasoning niet
+- `SymptomTrendsDiagram` labels bijgewerkt (sessie afsluiten)
+
+**Beslissingen:**
+- Eén extractie per check-in = volledige context, geen verlies bij lange gesprekken
+- Merge als vangnet bij her-extractie (zelfde session_id)
+
+**Evidence:** Nog niet — handmatig testen: sessie met 10+ berichten → sluiten → check `symptom_observations`
