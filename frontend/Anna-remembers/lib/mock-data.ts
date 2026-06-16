@@ -1,4 +1,4 @@
-import type { Patient, Session, Escalation } from "@/types"
+import type { Patient, Session, Escalation, TrendPoint } from "@/types"
 
 export const PATIENTS: Patient[] = [
   { id: "P-001", first: "Greta",   last: "de Vries",  dob: "1951-04-12", age: 74, sessions: 12, lastSession: "2026-05-06", status: "success", label: "Stabiel",   meds: "Furosemide 40 mg · Bisoprolol 5 mg",          notes: "Voelt zich kortademig bij de trap. Gewicht stabiel.", medicalSummary: null },
@@ -43,19 +43,23 @@ export const ESCALATIONS: Escalation[] = [
   { id: "E-2026-010", patient: "P-004", name: "Johan van Dijk",  urgency: "info",    status: "closed",      opened: "2026-04-18T09:50:00", closed: "2026-04-20T11:30:00", reason: "Routine review na 8 sessies — alles in orde.",                  channel: "Email · M. Visser",   assignee: "M. Visser" },
 ]
 
-export const TRENDS = (() => {
+export const TRENDS: TrendPoint[] = (() => {
   const days = 28
   const start = new Date("2026-04-10")
   return Array.from({ length: days }, (_, i) => {
     const d = new Date(start)
     d.setDate(d.getDate() + i)
+    const isoDate = d.toISOString().slice(0, 10)
+    const year = d.getFullYear()
+    const weekNum = Math.ceil(((d.getTime() - new Date(year, 0, 1).getTime()) / 86400000 + 1) / 7)
     return {
-      date: d.toISOString().slice(0, 10),
-      kortademigheid: Math.max(0, Math.min(10, 2 + Math.round(Math.sin(i / 6) * 1.2 + i * 0.1 + (Math.random() * 0.6 - 0.3)))),
-      gewicht:        parseFloat((82 + i * 0.04 + Math.sin(i / 7) * 0.4).toFixed(1)),
-      oedeem:         Math.max(0, Math.min(10, 1 + Math.round(Math.cos(i / 5) * 0.8 + i * 0.06))),
-      medicatietrouw: i < 14 ? 100 : i < 22 ? 90 : 80,
-      vermoeidheid:   Math.max(0, Math.min(10, 3 + Math.round(Math.sin(i / 8) * 1 + i * 0.05))),
-    }
+      week:       `${year}-W${String(weekNum).padStart(2, "0")}`,
+      session_id: `mock-session-${i}`,
+      dyspnea:    Math.max(0, Math.min(3, Math.round((2 + Math.sin(i / 6) * 1.2 + i * 0.1) / 10 * 3))),
+      weight_kg:  parseFloat((82 + i * 0.04 + Math.sin(i / 7) * 0.4).toFixed(1)),
+      edema:      Math.max(0, Math.min(3, Math.round((1 + Math.cos(i / 5) * 0.8 + i * 0.06) / 10 * 3))),
+      medication: Math.round((i < 14 ? 3 : i < 22 ? 2.7 : 2.4)),
+      fatigue:    Math.max(0, Math.min(3, Math.round((3 + Math.sin(i / 8) + i * 0.05) / 10 * 3))),
+    } satisfies TrendPoint
   })
 })()
