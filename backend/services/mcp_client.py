@@ -39,7 +39,7 @@ class MCPClient:
     """Wrapper around fastmcp.Client exposing MCP tools as Python methods."""
 
     def __init__(self, base_url: str) -> None:
-        self._url = f"{base_url}/sse"
+        self._url = f"{base_url}/mcp"
 
     async def recall_context(
         self,

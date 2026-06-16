@@ -114,4 +114,4 @@ async def migrate_all_memories(source_provider: str, target_provider: str) -> di
 
 if __name__ == "__main__":
     port = int(os.getenv("MCP_PORT", "8001"))
-    mcp.run(transport="sse", host="0.0.0.0", port=port)
+    mcp.run(transport="http", host="0.0.0.0", port=port)

@@ -8,6 +8,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from sqlalchemy.dialects.sqlite.base import SQLiteTypeCompiler
+SQLiteTypeCompiler.visit_JSONB = lambda self, type_, **kw: "TEXT"
+
 from main import app
 from models.base import Base
 from models.escalation import Escalation  # noqa: F401 — registers table with Base
