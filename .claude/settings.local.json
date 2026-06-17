@@ -146,7 +146,8 @@
       "Bash(npx skills *)",
       "Bash(npx create-video@latest --yes --blank --no-tailwind demo-video)",
       "Bash(npx remotion *)",
-      "Bash(node --experimental-strip-types scripts/generate-captions.mts)"
+      "Bash(node --experimental-strip-types scripts/generate-captions.mts)",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }

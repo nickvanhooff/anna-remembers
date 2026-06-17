@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 
 from ._animation import resolve_animation
 from ._escalation import format_escalation_reason, layer0_check, layer1_classify
-from ._prompts import build_system_prompt
+from ._prompts import build_greet_prompt, build_system_prompt
 from ._summary import _SUMMARY_INTERVAL, trigger_summary_update
 from services.symptom_extraction import extract_and_store_symptoms
 
@@ -281,6 +281,79 @@ def close_session(
         "message_count": count,
         "is_open": False,
     }
+
+
+@router.post(
+    "/{patient_id}/greet",
+    response_model=MessageResponse,
+    response_model_exclude_none=True,
+    responses={
+        404: {"description": "Patiënt niet gevonden"},
+        409: {"description": "Sessie bevat al berichten"},
+    },
+)
+async def greet_patient(
+    patient_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    mcp: Annotated[MCPClient, Depends(get_mcp_client)],
+) -> MessageResponse:
+    """Generate Anna's weekly check-in opening message for an empty session."""
+    patient = db.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patiënt niet gevonden")
+
+    # Find or create open session
+    session = (
+        db.query(ChatSession)
+        .filter(ChatSession.patient_id == patient_id, ChatSession.ended_at.is_(None))
+        .first()
+    )
+    if not session:
+        session = ChatSession(patient_id=patient_id)
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+
+    # Idempotent: if session already has messages, don't greet again
+    existing_count: int = (
+        db.query(func.count(Message.id))
+        .filter(Message.session_id == session.id)
+        .scalar()
+    ) or 0
+    if existing_count > 0:
+        raise HTTPException(status_code=409, detail="Sessie bevat al berichten")
+
+    # RAG: retrieve earlier context for a personalised opening question
+    rag_query = "wekelijkse check-in klachten kortademigheid gewicht oedeem hoe gaat het"
+    rag_result = await mcp.recall_context(
+        query=rag_query, patient_id=str(patient_id), limit=_RAG_LIMIT
+    )
+    memories: list[dict] = rag_result if isinstance(rag_result, list) else []
+
+    system_prompt = build_greet_prompt(patient, memories)
+
+    from models.setting import Setting as SettingModel
+    llm_provider_row = db.query(SettingModel).filter(SettingModel.key == "llm_provider").first()
+    llm_model_row = db.query(SettingModel).filter(SettingModel.key == "llm_model").first()
+    llm = get_llm_provider(
+        provider=llm_provider_row.value if llm_provider_row else None,
+        model=llm_model_row.value if llm_model_row else None,
+    )
+
+    # No user message — Anna opens the conversation
+    raw_response = await llm.chat(messages=[], system=system_prompt)
+
+    clean_response, animation = resolve_animation("", raw_response)
+
+    assistant_message = Message(
+        session_id=session.id, role="assistant", content=clean_response
+    )
+    db.add(assistant_message)
+    db.commit()
+    db.refresh(assistant_message)
+
+    base = MessageResponse.model_validate(assistant_message)
+    return base.model_copy(update={"animation": animation})
 
 
 @router.post(

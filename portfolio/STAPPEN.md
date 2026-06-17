@@ -2472,3 +2472,27 @@ Geïmplementeerde onderdelen:
 - Merge als vangnet bij her-extractie (zelfde session_id)
 
 **Evidence:** Nog niet — handmatig testen: sessie met 10+ berichten → sluiten → check `symptom_observations`
+
+---
+
+## Stap 110 — 2026-06-17 — Anna opent de check-in zelf
+
+**Wat:**
+- Nieuw backend endpoint `POST /chat/{patient_id}/greet` toegevoegd
+- Anna stuurt de **eerste bericht** bij elke nieuwe sessie — patiënt hoeft niet meer zelf te beginnen
+- Anna haalt via RAG eerdere uitspraken op en stelt een indirecte, gepersonaliseerde openingsvraag
+- Idempotent: geeft HTTP 409 terug als de sessie al berichten bevat
+
+**Frontend gedrag:**
+- Bij lege open sessie: chat-screen detecteert dit en roept greet aan (typing indicator zichtbaar)
+- `+` knop (nieuwe sessie): sluit huidige sessie → roept greet aan → nieuwe sessie met Anna's openingsbericht
+- `greetSession()` toegevoegd aan `lib/api.ts`
+
+**Beslissingen:**
+- RAG-query: "wekelijkse check-in klachten kortademigheid gewicht oedeem hoe gaat het" → trekt eerdere symptoomuitspraken op
+- Aparte `build_greet_prompt()` in `_prompts.py` — andere instructie dan regulier gesprek: max 3 zinnen, één indirecte vraag, verwijzing naar eerder gemelde klachten
+- 409 als sessie al berichten heeft → frontend laadt berichten opnieuw uit DB
+- `_ANIM_INSTRUCTION` geëxtraheerd als constante zodat beide prompts dezelfde animatie-instructie gebruiken
+
+**Evidence:** Niet nodig — functionele feature, geen architectuurkeuze die gedocumenteerd moet worden
+

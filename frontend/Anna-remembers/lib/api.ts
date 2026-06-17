@@ -7,7 +7,6 @@ import type {
   PatientStatus,
   Settings,
   SymptomObservationRead,
-  SessionMemory,
 } from "@/types"
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
@@ -242,14 +241,10 @@ export async function getSymptomObservation(patientId: string, sessionId: string
   return get<SymptomObservationRead>(`/patients/${patientId}/symptom-observations/${sessionId}`)
 }
 
-export async function getSessionMemories(patientId: string, sessionId: string): Promise<SessionMemory[]> {
-  return get<SessionMemory[]>(`/patients/${patientId}/sessions/${sessionId}/memories`)
-}
-
 // ─── Chat ─────────────────────────────────────────────────────────
 
 interface SessionAPI {
-  id: string
+  id: string  
   started_at: string
   ended_at: string | null
   message_count: number
@@ -278,6 +273,43 @@ export interface ChatSession {
 
 export async function closeSession(patientId: string): Promise<void> {
   await post(`/chat/${patientId}/sessions/close`, {})
+}
+
+const _validAnimations = [
+  "standard_waiting", "stand_look_around", "running_fast",
+  "standard_walk_crouching", "flexing_arm", "gorilla", "laying_on_floor",
+  "just_chilling", "angry", "Expressing_joy", "model", "model (13)",
+] as const
+
+function _resolveAnimation(raw: string | null | undefined): import("@/types").Animation {
+  return raw && (_validAnimations as readonly string[]).includes(raw)
+    ? (raw as import("@/types").Animation)
+    : "standard_waiting"
+}
+
+export async function greetSession(patientId: string): Promise<{
+  reply: string
+  sessionId: string
+  animation: import("@/types").Animation
+} | null> {
+  const res = await fetch(`${BASE}/chat/${patientId}/greet`, { method: "POST" })
+  if (res.status === 409) return null
+  if (!res.ok) throw new Error(`API ${res.status}`)
+  const data = (await res.json()) as MessageResponseAPI
+  return {
+    reply: data.content,
+    sessionId: data.session_id,
+    animation: _resolveAnimation(data.animation),
+  }
+}
+
+export async function getSessionMemories(
+  patientId: string,
+  sessionId: string
+): Promise<import("@/types").SessionMemory[]> {
+  return get<import("@/types").SessionMemory[]>(
+    `/patients/${patientId}/sessions/${sessionId}/memories`
+  )
 }
 
 export async function getChatSessions(
