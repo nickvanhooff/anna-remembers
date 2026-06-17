@@ -7,7 +7,6 @@ import type {
   PatientStatus,
   Settings,
   SymptomObservationRead,
-  SessionMemory,
 } from "@/types"
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
@@ -242,14 +241,10 @@ export async function getSymptomObservation(patientId: string, sessionId: string
   return get<SymptomObservationRead>(`/patients/${patientId}/symptom-observations/${sessionId}`)
 }
 
-export async function getSessionMemories(patientId: string, sessionId: string): Promise<SessionMemory[]> {
-  return get<SessionMemory[]>(`/patients/${patientId}/sessions/${sessionId}/memories`)
-}
-
 // ─── Chat ─────────────────────────────────────────────────────────
 
 interface SessionAPI {
-  id: string
+  id: string  
   started_at: string
   ended_at: string | null
   message_count: number

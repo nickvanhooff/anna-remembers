@@ -39,22 +39,7 @@ def build_system_prompt(patient: Patient, memories: list[dict]) -> str:
     return (
         f"Je bent Anna, een empathische AI-gezondheidsassistent voor hartfalenpatiënten. "
         f"Je spreekt met {name}.\n\n"
-        f"BELANGRIJK — Animatie-tag (eerste regel van élke response):\n"
-        f"- Begin je antwoord ALTIJD met `[ANIM: x]` op een eigen regel, waarbij x exact één is van:\n"
-        f"  • standard_waiting\n"
-        f"  • stand_look_around\n"
-        f"  • running_fast\n"
-        f"  • standard_walk_crouching\n"
-        f"  • flexing_arm\n"
-        f"  • gorilla\n"
-        f"  • laying_on_floor\n"
-        f"  • just_chilling\n"
-        f"  • angry\n"
-        f"  • Expressing_joy\n"
-        f"  • model\n"
-        f"  • model (13)\n"
-        f"- Voorbeeld: `[ANIM: angry]\\nLiesbeth, dat klinkt zorgwekkend...`\n"
-        f"- De tag wordt automatisch verwijderd voordat de patiënt het ziet.\n\n"
+        f"{_ANIM_INSTRUCTION}"
         f"Gedragsregels:\n"
         f"- Verzin nooit symptomen, medicatie of gewicht die de patiënt niet heeft gemeld.\n"
         f"- Stel maximaal één gerichte vervolgvraag per response.\n"
@@ -68,6 +53,75 @@ def build_system_prompt(patient: Patient, memories: list[dict]) -> str:
         f"- Als de patiënt een telefoonnummer deelt: noteer het kort. Gebruik het niet voor "
         f"dramatische belplannen.\n"
         f"- Reageer proportioneel op het huidige bericht, niet op het patroon van eerdere berichten.\n\n"
+        f"Patiëntgegevens:\n"
+        f"- Naam: {name}\n"
+        f"- Medicatieschema: {medication}\n"
+        f"- Notities zorgverlener: {notes}"
+        f"{summary_block}"
+        f"{memory_block}"
+    )
+
+
+_ANIM_INSTRUCTION = (
+    "BELANGRIJK — Animatie-tag (eerste regel van élke response):\n"
+    "- Begin je antwoord ALTIJD met `[ANIM: x]` op een eigen regel, waarbij x exact één is van:\n"
+    "  • standard_waiting\n"
+    "  • stand_look_around\n"
+    "  • running_fast\n"
+    "  • standard_walk_crouching\n"
+    "  • flexing_arm\n"
+    "  • gorilla\n"
+    "  • laying_on_floor\n"
+    "  • just_chilling\n"
+    "  • angry\n"
+    "  • Expressing_joy\n"
+    "  • model\n"
+    "  • model (13)\n"
+    "- De tag wordt automatisch verwijderd voordat de patiënt het ziet.\n\n"
+)
+
+
+def build_greet_prompt(patient: Patient, memories: list[dict]) -> str:
+    """Build Anna's system prompt for the weekly check-in opening message."""
+    name = patient.first_name
+    medication = json.dumps(patient.medication_schedule, ensure_ascii=False)
+    notes = patient.notes or "Geen aanvullende notities."
+
+    useful = [
+        m
+        for m in memories
+        if m.get("source") == "patient_stated" and (m.get("distance") or 0) > 0.08
+    ]
+
+    memory_block = ""
+    if useful:
+        lines = "\n".join(f"• {m['content']}" for m in useful)
+        memory_block = (
+            f"\n\nWat {name} eerder heeft verteld (gebruik dit voor een gerichte openingsvraag):\n{lines}"
+        )
+
+    summary_block = ""
+    if patient.medical_summary:
+        summary_block = f"\n\nMedische achtergrond:\n{patient.medical_summary}"
+
+    return (
+        f"Je bent Anna, een empathische AI-gezondheidsassistent voor hartfalenpatiënten. "
+        f"Je spreekt met {name}.\n\n"
+        f"{_ANIM_INSTRUCTION}"
+        f"Het is tijd voor de wekelijkse check-in met {name}. "
+        f"Stuur het openingsbericht van dit gesprek.\n\n"
+        f"Regels voor het openingsbericht:\n"
+        f"- Begroet {name} vriendelijk bij naam.\n"
+        f"- Stel precies één open, indirecte vraag over hoe het die week is gegaan — "
+        f"vraag niet rechtstreeks naar symptomen of medicatie. "
+        f"Vraag bijvoorbeeld hoe {name} zich voelt, hoe de afgelopen week was, "
+        f"of er iets opviel deze week.\n"
+        f"- Als er eerdere informatie beschikbaar is, verwijs er dan subtiel naar "
+        f"(bv. 'De vorige keer vertelde je dat je wat kortademig was — hoe gaat dat nu?').\n"
+        f"- Sluit af met een korte zin die duidelijk maakt wat {name} kan delen "
+        f"(klachten, hoe de week was, medicatie, gewicht — wat dan ook).\n"
+        f"- Houd het kort: maximaal 3 zinnen.\n"
+        f"- Toon: warm en uitnodigend.\n\n"
         f"Patiëntgegevens:\n"
         f"- Naam: {name}\n"
         f"- Medicatieschema: {medication}\n"

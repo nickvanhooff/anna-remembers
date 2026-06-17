@@ -35,6 +35,7 @@ import {
   getChatMessages,
   sendMessage,
   closeSession,
+  greetSession,
 } from "@/lib/api"
 import type { ChatSession } from "@/lib/api"
 import type { Patient, Message, MedicalSummaryJSON } from "@/types"
@@ -90,7 +91,7 @@ export function ChatScreen() {
       .finally(() => setLoadingSessions(false))
   }, [patientId])
 
-  // Load messages when session changes
+  // Load messages when session changes; auto-greet if session is empty and open
   useEffect(() => {
     if (!activeId || !patientId) return
     if (msgMap[activeId]) return // already loaded
@@ -98,12 +99,52 @@ export function ChatScreen() {
     const patient = patients.find((p) => p.id === patientId)
     if (!patient) return
 
+    const isOpenSession = sessions.find((s) => s.id === activeId)?.isOpen ?? false
+
     setLoadingMsgs(true)
     getChatMessages(patientId, activeId, patient.first)
-      .then((msgs) => setMsgMap((prev) => ({ ...prev, [activeId]: msgs })))
-      .catch(() => toast.error("Kon gesprekshistorie niet laden"))
-      .finally(() => setLoadingMsgs(false))
-  }, [activeId, patientId, patients, msgMap])
+      .then(async (msgs) => {
+        if (msgs.length === 0 && isOpenSession) {
+          // Lege open sessie — Anna opent het gesprek
+          setLoadingMsgs(false)
+          setTyping(true)
+          try {
+            const greeting = await greetSession(patientId)
+            if (greeting) {
+              const annaMsg: Message = {
+                role: "them",
+                who: "Anna",
+                t: fmtTime(),
+                body: greeting.reply,
+                animation: greeting.animation,
+              }
+              setMsgMap((prev) => ({ ...prev, [activeId]: [annaMsg] }))
+              setSessions((prev) =>
+                prev.map((s) =>
+                  s.id === activeId ? { ...s, messageCount: 1 } : s
+                )
+              )
+            } else {
+              // 409: er zijn al berichten — opnieuw laden
+              const fresh = await getChatMessages(patientId, activeId, patient.first)
+              setMsgMap((prev) => ({ ...prev, [activeId]: fresh }))
+            }
+          } catch {
+            toast.error("Anna kon de check-in niet starten")
+            setMsgMap((prev) => ({ ...prev, [activeId]: [] }))
+          } finally {
+            setTyping(false)
+          }
+        } else {
+          setMsgMap((prev) => ({ ...prev, [activeId]: msgs }))
+          setLoadingMsgs(false)
+        }
+      })
+      .catch(() => {
+        toast.error("Kon gesprekshistorie niet laden")
+        setLoadingMsgs(false)
+      })
+  }, [activeId, patientId, patients, msgMap, sessions])
 
   const patient = patients.find((p) => p.id === patientId)
   const messages = activeId ? (msgMap[activeId] ?? []) : []
@@ -303,16 +344,44 @@ export function ChatScreen() {
                 if (!patientId) return
                 try {
                   await closeSession(patientId)
-                  // Reload sessions — closed session is in the list, activeId becomes null
-                  const ss = await getChatSessions(patientId)
-                  setSessions(ss)
-                  setActiveId(null)
-                  setMsgMap({})
                 } catch {
                   toast.error("Kon sessie niet afsluiten")
+                  return
+                }
+                // Start nieuwe sessie: Anna stuurt de check-in openingsvraag
+                setActiveId(null)
+                setMsgMap({})
+                setTyping(true)
+                try {
+                  const greeting = await greetSession(patientId)
+                  if (greeting) {
+                    const newSession = {
+                      id: greeting.sessionId,
+                      date: new Date().toISOString().slice(0, 10),
+                      messageCount: 1,
+                      isOpen: true,
+                    }
+                    const ss = await getChatSessions(patientId)
+                    setSessions(ss.some((s) => s.id === greeting.sessionId) ? ss : [newSession, ...ss])
+                    setActiveId(greeting.sessionId)
+                    const annaMsg: Message = {
+                      role: "them",
+                      who: "Anna",
+                      t: fmtTime(),
+                      body: greeting.reply,
+                      animation: greeting.animation,
+                    }
+                    setMsgMap({ [greeting.sessionId]: [annaMsg] })
+                  }
+                } catch {
+                  toast.error("Anna kon de check-in niet starten")
+                  const ss = await getChatSessions(patientId)
+                  setSessions(ss)
+                } finally {
+                  setTyping(false)
                 }
               }}
-              disabled={!sessions.some((s) => s.isOpen)}
+              disabled={!patientId}
             >
               <Plus className="size-3.5" />
             </Button>
