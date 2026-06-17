@@ -21,8 +21,8 @@ over meerdere weken, en escaleert naar een zorgverlener wanneer dat nodig is.
 | MCP Server | fastmcp (Python, apart proces) | 8001 |
 | Relationele DB | PostgreSQL 16 | 5432 |
 | Vector DB | ChromaDB (RAG geheugen) | 8002 |
-| LLM | Ollama (qwen2.5:3b) of cloud: Groq / Anthropic / OpenRouter | 11434 / cloud |
-| Embeddings | bge-m3 via Ollama | 11434 |
+| LLM | Ollama (qwen2.5:3b) of cloud: Groq / Anthropic / OpenRouter / Portkey | 11434 / cloud |
+| Embeddings | bge-m3 via Ollama of text-embedding-3-large via Portkey | 11434 / cloud |
 | TTS (snel) | Piper TTS nl_NL-ronnie via HTTP-bridge | 5005 / 10200 |
 | TTS (kwaliteit) | XTTS v2 (Coqui) — GPU, stemkloning | 5006 |
 | STT | Web Speech API (browser, cloud) | — |
@@ -31,7 +31,7 @@ over meerdere weken, en escaleert naar een zorgverlener wanneer dat nodig is.
 | Omgeving | Docker Compose (alle lokale services) | — |
 
 LLM-aanroepen in `backend/services/llm.py` zijn provider-agnostisch via een abstracte klasse.
-Wisselen van provider = alleen `.env` aanpassen (`LLM_PROVIDER` + bijbehorende API key).
+Wisselen van provider kan via de **Settings-pagina** (opgeslagen in de `settings` DB-tabel, geen restart nodig) of via `.env` als fallback.
 
 ---
 
@@ -159,21 +159,40 @@ Geen bewijs in de decision log zetten.
 
 ```
 anna_remembers/
-├── frontend/                # Next.js 15
-├── backend/                 # FastAPI
+├── frontend/                # Next.js 15 (poort 3001)
+│   └── Anna-remembers/
+│       ├── app/             # App Router pages + layouts
+│       ├── components/      # chat/, patients/, trends/, escalations/, settings/
+│       ├── lib/             # api.ts, mock-data.ts, utils.ts
+│       └── types/           # TypeScript interfaces
+├── backend/                 # FastAPI (poort 8000)
 │   ├── routers/
-│   ├── models/
-│   ├── schemas/
+│   │   ├── chat/            # Chat package
+│   │   │   ├── _routes.py       # chat endpoint + greet endpoint
+│   │   │   ├── _prompts.py      # system, greet, summary prompt builders
+│   │   │   ├── _summary.py      # medische samenvatting BackgroundTask
+│   │   │   ├── _escalation.py   # Layer 0 keywords + Layer 1 classifier
+│   │   │   └── _animation.py    # avatar animatie-tag resolutie
+│   │   ├── patients.py
+│   │   ├── escalations.py
+│   │   ├── tts.py           # TTS routing (Piper / XTTS)
+│   │   ├── symptom_trends.py
+│   │   └── settings.py
+│   ├── models/              # SQLAlchemy ORM models
+│   ├── schemas/             # Pydantic request/response schemas
 │   ├── services/
-│   │   ├── llm.py           # provider-agnostisch houden
-│   │   ├── rag.py
-│   │   └── mcp_client.py
-│   └── main.py
+│   │   ├── llm.py           # provider-agnostisch: Ollama, Groq, Anthropic, OpenRouter, Portkey
+│   │   ├── mcp_client.py
+│   │   ├── tts.py
+│   │   ├── database.py
+│   │   └── symptom_extraction.py  # LLM-extractie bij sessie-einde
+│   ├── seed.py              # Demo data seeder
+│   └── alembic/             # Database migraties
 ├── mcp-server/              # fastmcp, draait apart op poort 8001
 │   └── tools/
 │       ├── memory.py        # store_memory, recall_context (RAG hier)
-│       ├── trends.py        # get_symptom_trends
-│       └── escalation.py   # escalate_to_human
+│       ├── trends.py        # get_symptom_trends (PostgreSQL)
+│       └── escalation.py    # escalate_to_human (Twilio SMS)
 ├── portfolio/
 │   ├── STAPPEN.md           # doorlopend logboek
 │   ├── decision-logs/
@@ -258,7 +277,7 @@ Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat v
 
 ---
 
-## Huidige bouwstaat (bijgewerkt 2026-05-23)
+## Huidige bouwstaat (bijgewerkt 2026-06-18)
 
 ### Klaar (issue gesloten)
 - **Issue #1** — Docker Compose setup: postgres, chromadb, ollama (GPU), backend, mcp-server
@@ -267,7 +286,8 @@ Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat v
 - **Issue #6** (CI) — GitHub Actions CI workflow (build-check op push + PR)
 - **Issue #7** (CD) — GitHub Actions CD workflow (push naar Docker Hub op main)
 - **Issue #9** — CI/CD pipeline gedocumenteerd als GitHub issue
-- **Issue #14** — `escalate_to_human` stub geïmplementeerd + geregistreerd als MCP-tool
+- **Issue #13** — `get_symptom_trends` (PostgreSQL week-aggregatie) — gebouwd in `backend/routers/symptom_trends.py`
+- **Issue #14** — `escalate_to_human` + Twilio SMS
 - **Issue #19** — Chat-scherm gekoppeld aan FastAPI (echte API, sessierail, history)
 - **Issue #28** — Periodieke medische samenvatting: `patients.medical_summary` elke N berichten bijgewerkt via BackgroundTask
 - **Issue #29** — Medische samenvatting geïnjecteerd in system prompt als apart blok boven RAG-dossier
@@ -275,25 +295,29 @@ Deze keuzes zijn al gemaakt en gedocumenteerd. Heropener ze niet tenzij ik dat v
 - **Issue #44** — TTS integratie: Piper + XTTS via backend, audio playback in chat
 - **Issue #45** — STT + avatar: Web Speech API microfooninvoer, 3D avatar (Three.js + GLB), lip sync met ARKit visemes
 - **TTS provider toggle** — settings page Select (Piper/XTTS), DB-driven routing via `tts_provider` setting, migration 0005
+- **LLM provider/model toggle** — settings page: provider + model instelbaar via DB, geen `.env` restart nodig
+- **Symptoomextractie bij sessie-einde** — `POST /sessions/close` triggert LLM-extractie over volledig transcript → `symptom_observations` tabel
+- **Auto wekelijkse check-in** — `POST /chat/{patient_id}/greet`: Anna stuurt het openingsbericht, haalt RAG-context op en stelt een gepersonaliseerde indirecte vraag
 
-### MCP-server — deels klaar
+### MCP-server — volledig klaar
 - ✅ `mcp-server/services/embedding.py` — `EmbeddingProvider` ABC + `OllamaEmbeddingProvider` (bge-m3)
 - ✅ `mcp-server/tools/memory.py` — `store_memory` + `recall_context` (ChromaDB)
-- ✅ `mcp-server/tools/escalation.py` — `escalate_to_human` stub
+- ✅ `mcp-server/tools/trends.py` — `get_symptom_trends` (PostgreSQL aggregatie)
+- ✅ `mcp-server/tools/escalation.py` — `escalate_to_human` (Twilio SMS)
 - ✅ `mcp-server/main.py` — alle tools geregistreerd
-- ❌ `tools/trends.py` — `get_symptom_trends` nog niet gebouwd
 
-### Chat-pipeline + voice mode (actief, feature/tts-stt-avatar branch)
-- `backend/routers/chat.py` — volledig bedraad: RAG, Postgres history, Langfuse tracing, medische samenvatting
+### Chat-pipeline (main branch)
+- `backend/routers/chat/` — package met `_routes.py`, `_prompts.py`, `_summary.py`, `_escalation.py`, `_animation.py`
+- `backend/routers/chat/_routes.py` — chat endpoint + greet endpoint (auto check-in)
+- `backend/routers/chat/_prompts.py` — `build_system_prompt()`, `build_greet_prompt()`, `build_summary_prompt()`
 - `backend/routers/tts.py` — TTS provider routing via `tts_provider` DB setting
 - `backend/services/tts.py` — Piper (`PIPER_URL`) + XTTS (`XTTS_URL`) URL-mapping per provider
-- `backend/services/llm.py` — provider-agnostisch: Ollama, Groq, Anthropic, OpenRouter
+- `backend/services/llm.py` — provider-agnostisch: Ollama, Groq, Anthropic, OpenRouter, Portkey
+- `backend/services/symptom_extraction.py` — LLM-extractie van symptoomscores bij sessie-einde
 - `frontend/.../components/chat/avatar.tsx` — Three.js GLB avatar, 72 morph targets, Web Audio API FFT, ARKit visemes
-- `frontend/.../components/settings/settings-screen.tsx` — TTS provider Select + Twilio toggle
+- `frontend/.../components/settings/settings-screen.tsx` — TTS provider Select, LLM provider/model, Twilio toggle
 
 ### Open
-- **Issue #13** — `get_symptom_trends` (PostgreSQL week-aggregatie) — nog niet gebouwd
-- **Issue #4** — Frontend dashboard volledig wiren (trends + escalaties live)
 - **Issue #47** — Offline STT (Whisper) — lage prioriteit, known limitation
 - **Issue #48** — Voice sample upload via settings — medium prioriteit
 - Gesimuleerde patiënten (10 sessies elk) draaien
