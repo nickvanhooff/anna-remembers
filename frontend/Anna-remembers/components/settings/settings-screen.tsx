@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Mic, Settings2, Square, Trash2, Upload } from "lucide-react"
+import { toast } from "sonner"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
@@ -190,8 +191,10 @@ export function SettingsScreen() {
     try {
       await updateSetting("llm_provider", llmProvider)
       await updateSetting("llm_model", llmModel)
+      toast.success("LLM instellingen opgeslagen.")
     } catch (err) {
       console.error("LLM instelling opslaan mislukt:", err)
+      toast.error("LLM instellingen konden niet worden opgeslagen.")
     } finally {
       setLlmSaving(false)
     }
@@ -206,8 +209,10 @@ export function SettingsScreen() {
     setSummarySaving(true)
     try {
       await updateSetting("summary_llm_model", summaryModel)
+      toast.success("Samenvattingsmodel opgeslagen.")
     } catch (err) {
       console.error("Summary model opslaan mislukt:", err)
+      toast.error("Samenvattingsmodel kon niet worden opgeslagen.")
     } finally {
       setSummarySaving(false)
     }
@@ -217,8 +222,10 @@ export function SettingsScreen() {
     setEscalationSaving(true)
     try {
       await updateSetting("escalation_llm_model", escalationModel)
+      toast.success("Escalatiemodel opgeslagen.")
     } catch (err) {
       console.error("Escalation model opslaan mislukt:", err)
+      toast.error("Escalatiemodel kon niet worden opgeslagen.")
     } finally {
       setEscalationSaving(false)
     }

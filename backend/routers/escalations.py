@@ -26,6 +26,7 @@ def _to_response(e: Escalation) -> EscalationResponse:
         "urgency": e.urgency,
         "status": e.status,
         "notification_status": e.notification_status,
+        "notes": e.notes,
         "created_at": e.created_at,
     })
 
@@ -104,6 +105,8 @@ def update_escalation_status(
         raise HTTPException(status_code=404, detail="Escalatie niet gevonden")
 
     escalation.status = body.status
+    if body.notes is not None:
+        escalation.notes = body.notes
     db.commit()
     db.refresh(escalation)
     return _to_response(escalation)

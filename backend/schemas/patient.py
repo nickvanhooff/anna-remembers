@@ -34,6 +34,8 @@ class PatientResponse(BaseModel):
     notes: str | None
     medical_summary: str | None
     status: PatientStatus
+    session_count: int = 0
+    last_session_at: datetime | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

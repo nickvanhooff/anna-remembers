@@ -55,9 +55,9 @@ export function EscalationsScreen() {
     return [...arr].sort((a, b) => URGENCY_PRIO[a.urgency] - URGENCY_PRIO[b.urgency])
   }, [items, filter])
 
-  async function setStatus(id: string, status: EscalationStatus) {
+  async function setStatus(id: string, status: EscalationStatus, notes?: string) {
     try {
-      const updated = await updateEscalationStatus(id, status)
+      const updated = await updateEscalationStatus(id, status, notes)
       setItems(prev => prev.map(i => i.id === id ? updated : i))
       setSelected(null)
       toast.success(`Escalatie → ${STATUS_LABEL[status]}.`)
@@ -158,7 +158,7 @@ export function EscalationsScreen() {
         <EscalationDetail
           item={selected}
           onClose={() => setSelected(null)}
-          onSetStatus={setStatus}
+          onSetStatus={(id, status, notes) => setStatus(id, status, notes)}
         />
       )}
     </div>
@@ -174,13 +174,14 @@ function EscalationDetail({
 }: {
   item: Escalation
   onClose: () => void
-  onSetStatus: (id: string, status: EscalationStatus) => Promise<void>
+  onSetStatus: (id: string, status: EscalationStatus, notes?: string) => Promise<void>
 }) {
   const [saving, setSaving] = useState(false)
+  const [note, setNote] = useState(item.notes ?? "")
 
   async function handle(status: EscalationStatus) {
     setSaving(true)
-    await onSetStatus(item.id, status)
+    await onSetStatus(item.id, status, note || undefined)
     setSaving(false)
   }
 
@@ -215,7 +216,12 @@ function EscalationDetail({
         {/* Clinical note */}
         <div className="flex flex-col gap-1.5">
           <Label className="text-[12.5px]">Klinische notitie</Label>
-          <Textarea className="min-h-[72px] resize-none" placeholder="Voeg een notitie toe voor het dossier…" />
+          <Textarea
+            className="min-h-[72px] resize-none"
+            placeholder="Voeg een notitie toe voor het dossier…"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
         </div>
 
         <DialogFooter>

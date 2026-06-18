@@ -13,6 +13,7 @@ class EscalationCreate(BaseModel):
 
 class EscalationStatusUpdate(BaseModel):
     status: str  # "open" | "acknowledged" | "resolved"
+    notes: str | None = None
 
 
 class EscalationResponse(BaseModel):
@@ -24,6 +25,7 @@ class EscalationResponse(BaseModel):
     urgency: str
     status: str
     notification_status: str
+    notes: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

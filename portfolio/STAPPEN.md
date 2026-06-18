@@ -2496,3 +2496,82 @@ Geïmplementeerde onderdelen:
 
 **Evidence:** Niet nodig — functionele feature, geen architectuurkeuze die gedocumenteerd moet worden
 
+---
+
+## Stap 111 — 2026-06-17 — Frontend refactoring: API-domeinbestanden + useChatSession hook
+
+**Wat:**
+- `lib/api.ts` (~475 regels) gesplitst naar domeinbestanden onder `lib/api/`:
+  - `_base.ts` — gedeelde primitieven: `get`, `post`, `patch`, `put`, `del`, `BASE`, `MessageResponseAPI`, `VALID_ANIMATIONS`, `resolveAnimation`
+  - `patients.ts` — `getPatients`, `getPatient`, `createPatient`, `updatePatient`, `deletePatient`, `PatientCreateInput`
+  - `escalations.ts` — `getEscalations`, `updateEscalationStatus`
+  - `trends.ts` — `getTrends`, `getSymptomObservation`, `getSessionMemories`
+  - `chat.ts` — `closeSession`, `greetSession`, `getChatSessions`, `getChatMessages`, `sendMessage`, `ChatSession`
+  - `settings.ts` — `getSettings`, `updateSetting`
+  - `voice.ts` — `listVoiceSamples`, `uploadVoiceSample`, `deleteVoiceSample`, `migrateEmbeddings`
+  - `index.ts` — barrel re-exporteert alles
+- `lib/api.ts` verwijderd — bestaande imports op `@/lib/api` resolven nu naar `lib/api/index.ts`
+- `lib/hooks/useChatSession.ts` aangemaakt — extraheert sessie-state en -effecten uit `chat-screen.tsx`
+- `components/chat/chat-screen.tsx` vereenvoudigd: sessie-logica vervangen door hook-aanroep
+
+**Beslissingen:**
+- Barrel-bestand (`index.ts`) zodat alle bestaande imports ongewijzigd blijven — geen breaking changes
+- `onPatientRefresh` callback-parameter op de hook zodat de hook `patients`-state niet hoeft te bezitten
+- `setSummaryOpen` als parameter aan de hook meegegeven zodat toast-acties in de hook werken zonder eigen sheet-state
+- TypeScript check (`npx tsc --noEmit`) geeft 0 fouten voor én na verwijdering van `lib/api.ts`
+
+**Evidence:** Niet nodig — refactoring zonder gedragswijziging
+
+
+---
+
+## Stap 111 — 2026-06-18 — Frontend refactoring: api.ts splitsen + useChatSession hook
+
+**Wat:**
+- `lib/api.ts` (~475 regels) opgesplitst naar `lib/api/` domeinbestanden: `_base.ts`, `patients.ts`, `escalations.ts`, `trends.ts`, `chat.ts`, `settings.ts`, `voice.ts`, `index.ts` (barrel)
+- `lib/hooks/useChatSession.ts` aangemaakt — extraheert alle sessie-state, effecten, `handleSendMessage` en `startNewSession` uit `chat-screen.tsx`
+- `chat-screen.tsx` gereduceerd van ~800 naar ~300 regels component-logica
+- `validAnimations` deduplicatie: één constante `VALID_ANIMATIONS` in `_base.ts`, alle lokale kopieën verwijderd
+
+**Beslissingen:**
+- `lib/api/index.ts` als barrel → alle bestaande `import ... from "@/lib/api"` werken ongewijzigd
+- `useChatSession` krijgt `setSummaryOpen` en `onPatientRefresh` als callbacks mee zodat de hook zelf geen UI-state bezit
+- `lib/api.ts` verwijderd — Next.js/TypeScript resolvt `@/lib/api` nu naar `lib/api/index.ts`
+
+**TypeScript:** 0 fouten na refactoring
+
+---
+
+## Stap 112 — 2026-06-18 — Frontend verbeteringen: 5 kwaliteitsverbeteringen
+
+**Wat:**
+- **Klinische notitie opgeslagen** — `EscalationDetail` dialog slaat de notitietekst nu op via de `PATCH /escalations/{id}/status` endpoint. Backend uitgebreid: `notes` kolom toegevoegd aan `Escalation` model (Alembic migratie 0010), `EscalationStatusUpdate` schema accepteert optioneel `notes`, `EscalationResponse` geeft `notes` terug. Frontend: `Escalation` type, `api/escalations.ts`, en `escalations-screen.tsx` bijgewerkt.
+- **Settings LLM save-fouten zichtbaar** — `handleLlmSave`, `handleSummarySave`, `handleEscalationSave` in `settings-screen.tsx` hadden alleen `console.error`. Nu ook `toast.error()` bij fout en `toast.success()` bij succes. `toast` import toegevoegd.
+- **Patiëntrij klikbaar** — `TableRow` in `patients-screen.tsx` heeft nu een `onClick` die de edit-dialog opent. Consistent met de al aanwezige `cursor-pointer` class.
+- **Bare `<select>` vervangen** — Twee native HTML `<select>` elementen (patiëntpickers in `chat-screen.tsx` en `trends-screen.tsx`) vervangen door de shadcn `Select` component. Consistent met de rest van de UI.
+- **Bevestigingsdialog nieuw gesprek** — De `+` knop in `chat-screen.tsx` toont nu een `AlertDialog` met uitleg ("sessie wordt afgesloten") voordat `startNewSession()` wordt aangeroepen. Voorkomt onbedoeld afsluiten.
+
+**Beslissingen:**
+- `notes` alleen meesturen als de textarea niet leeg is (`note || undefined`) — geen lege strings naar de DB
+- Row click opent edit dialog (niet navigatie naar chat) — dit is een beheer-scherm; chat navigatie is al apart via het chat-icoon
+- Bevestigingsdialog gebruikt de `patient.first` naam voor persoonlijkere tekst
+
+**TypeScript:** 0 fouten (`npx tsc --noEmit`)
+
+**Evidence:** Niet nodig — kwaliteitsverbeteringen zonder architectuurkeuze
+
+---
+
+## Stap 113 — 2026-06-18 — Fix: Sessieteller en Laatste sessie tonen altijd 0 / leeg
+
+**Wat:**
+- `GET /patients/` en `GET /patients/{id}` retourneerden geen sessiegegevens — `PatientResponse` had geen `session_count` of `last_session_at` velden
+- Backend `patients.py` router herschreven: `list_patients` en `get_patient` doen nu een `outerjoin` met de `sessions` tabel en aggregeren `COUNT` en `MAX(started_at)` per patiënt; helper `_with_stats()` bouwt de response
+- `update_patient` doet na de `PATCH` ook een re-fetch met sessieaggregatie
+- `PatientResponse` schema uitgebreid met `session_count: int = 0` en `last_session_at: datetime | None = None`
+- Frontend `PatientAPI` interface uitgebreid met `session_count` en `last_session_at`; `toPatient()` mapping gebruikt nu deze waarden i.p.v. hardcoded `0` / `null`
+
+**Oorzaak:** `toPatient()` in `lib/api/patients.ts` hardcodeerde `sessions: 0` en `lastSession: null` omdat de backend deze data nooit meestuurde.
+
+**TypeScript:** 0 fouten
+

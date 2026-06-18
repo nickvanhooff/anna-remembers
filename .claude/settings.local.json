@@ -147,7 +147,8 @@
       "Bash(npx create-video@latest --yes --blank --no-tailwind demo-video)",
       "Bash(npx remotion *)",
       "Bash(node --experimental-strip-types scripts/generate-captions.mts)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(Remove-Item \"C:\\\\fontys\\\\semester_4\\\\anna_remembers\\\\frontend\\\\Anna-remembers\\\\lib\\\\api.ts\")"
     ]
   }
 }
