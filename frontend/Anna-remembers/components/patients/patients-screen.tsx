@@ -167,7 +167,7 @@ export function PatientsScreen() {
               </TableHeader>
               <TableBody>
                 {filtered.map(p => (
-                  <TableRow key={p.id} className="cursor-pointer">
+                  <TableRow key={p.id} className="cursor-pointer" onClick={() => setEditPatient(p)}>
                     <TableCell className="font-mono text-[12px] text-muted-foreground">{String(p.id).slice(0, 8)}…</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2.5">

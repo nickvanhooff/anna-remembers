@@ -7,6 +7,7 @@ import { toast } from "sonner"
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -174,15 +175,16 @@ export function TrendsScreen() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <select
-              className="h-8 px-2.5 rounded-md border border-input bg-background text-[13.5px] outline-none focus:ring-2 focus:ring-ring/50 w-52"
-              value={patientId}
-              onChange={e => setPatientId(e.target.value)}
-            >
-              {patients.map(p => (
-                <option key={p.id} value={p.id}>{p.first} {p.last} · {p.id}</option>
-              ))}
-            </select>
+            <Select value={patientId} onValueChange={setPatientId}>
+              <SelectTrigger className="h-8 w-52 text-[13.5px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {patients.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.first} {p.last}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Tabs value={range} onValueChange={v => setRange(v as Range)}>
               <TabsList className="h-8">
                 <TabsTrigger value="7d"  className="text-xs px-3">7d</TabsTrigger>

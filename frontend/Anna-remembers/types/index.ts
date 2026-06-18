@@ -66,6 +66,7 @@ export interface Escalation {
   assignee: string | null
   opened: string
   closed?: string | null
+  notes?: string | null
 }
 
 export interface TrendPoint {
